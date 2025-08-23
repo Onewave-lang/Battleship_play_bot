@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
-from handlers.commands import start, newgame
+from handlers.commands import start, newgame, board
 from handlers.router import router_text
 
 
@@ -22,6 +22,7 @@ webhook_url = webhook_url.rstrip("/")
 bot_app = ApplicationBuilder().token(token).build()
 bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(CommandHandler("newgame", newgame))
+bot_app.add_handler(CommandHandler("board", board))
 bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, router_text))
 
 

@@ -25,14 +25,21 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             board = random_board()
             storage.save_board(match, player_key, board)
             if match.status == 'playing':
-                await update.message.reply_text('Корабли расставлены. Бой начинается!')
-                await context.bot.send_message(match.players[enemy_key].chat_id,
-                                               'Соперник готов. Бой начинается! '
-                                               + ('Ваш ход.' if match.turn == enemy_key else 'Ход соперника.'))
+                await update.message.reply_text(
+                    'Корабли расставлены. Бой начинается! '
+                    + ('Ваш ход.' if match.turn == player_key else 'Ход соперника.')
+                )
+                await context.bot.send_message(
+                    match.players[enemy_key].chat_id,
+                    'Соперник готов. Бой начинается! '
+                    + ('Ваш ход.' if match.turn == enemy_key else 'Ход соперника.'),
+                )
             else:
                 await update.message.reply_text('Корабли расставлены. Ожидаем соперника.')
-                await context.bot.send_message(match.players[enemy_key].chat_id,
-                                               'Соперник готов. Отправьте "авто" для расстановки кораблей.')
+                await context.bot.send_message(
+                    match.players[enemy_key].chat_id,
+                    'Соперник готов. Отправьте "авто" для расстановки кораблей.',
+                )
         else:
             await update.message.reply_text('Введите "авто" для автоматической расстановки.')
         return
@@ -59,32 +66,37 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     if result == MISS:
         match.turn = enemy_key
-        result_msg = 'Мимо. Ход соперника.'
+        result_self = 'Мимо. Ход соперника.'
+        result_enemy = 'Соперник промахнулся. Ваш ход.'
     elif result == HIT:
-        result_msg = 'Ранил. Ваш ход.'
+        result_self = 'Ранил. Ваш ход.'
+        result_enemy = 'Соперник ранил ваш корабль. Ход соперника.'
     elif result == REPEAT:
-        result_msg = 'Клетка уже обстреляна. Ваш ход.'
+        result_self = 'Клетка уже обстреляна. Ваш ход.'
+        result_enemy = 'Соперник стрелял по уже обстрелянной клетке. Ход соперника.'
     else:
         if match.boards[enemy_key].alive_cells == 0:
             storage.finish(match, player_key)
-            result_msg = 'Убил! Вы победили.'
+            result_self = 'Убил! Вы победили.'
+            result_enemy = 'Все ваши корабли потоплены. Игра окончена.'
         else:
-            result_msg = 'Убил! Ваш ход.'
+            result_self = 'Убил! Ваш ход.'
+            result_enemy = 'Соперник уничтожил ваш корабль. Ход соперника.'
 
     storage.save_match(match)
 
     own = render_board_own(match.boards[player_key])
     enemy = render_board_enemy(match.boards[enemy_key])
-    await context.bot.send_message(match.players[player_key].chat_id,
-                                   f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}\n{result_msg}",
-                                   parse_mode='HTML')
-    if match.status == 'playing':
-        own_e = render_board_own(match.boards[enemy_key])
-        enemy_e = render_board_enemy(match.boards[player_key])
-        await context.bot.send_message(match.players[enemy_key].chat_id,
-                                       f"Ваше поле:\n{own_e}\nПоле соперника:\n{enemy_e}\n{result_msg}",
-                                       parse_mode='HTML')
-    else:
-        await context.bot.send_message(match.players[enemy_key].chat_id,
-                                       'Все корабли потоплены. Игра окончена.',
-                                       parse_mode='HTML')
+    await context.bot.send_message(
+        match.players[player_key].chat_id,
+        f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}\n{result_self}",
+        parse_mode='HTML',
+    )
+
+    own_e = render_board_own(match.boards[enemy_key])
+    enemy_e = render_board_enemy(match.boards[player_key])
+    await context.bot.send_message(
+        match.players[enemy_key].chat_id,
+        f"Ваше поле:\n{own_e}\nПоле соперника:\n{enemy_e}\n{result_enemy}",
+        parse_mode='HTML',
+    )
