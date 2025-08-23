@@ -56,7 +56,9 @@ app = FastAPI()
 async def on_startup() -> None:
     await bot_app.initialize()
     await bot_app.start()
-    await bot_app.bot.set_webhook(f"{webhook_url}/webhook")
+    webhook = f"{webhook_url}/webhook"
+    await bot_app.bot.set_webhook(webhook)
+    logger.info("Setting webhook to %s", webhook)
 
 
 @app.on_event("shutdown")
