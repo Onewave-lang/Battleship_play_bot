@@ -82,12 +82,67 @@ def join_match(match_id: str, b_user_id: int, b_chat_id: int) -> Match | None:
 
 
 def save_board(match: Match, player_key: str, board: Board) -> None:
-    match.boards[player_key] = board
-    match.players[player_key].ready = True
-    if all(p.ready for p in match.players.values()) and match.status != 'playing':
-        match.status = 'playing'
-        match.turn = 'A'
-    save_match(match)
+    """Save player's board and update match state.
+
+    The previous implementation performed a read-modify-write cycle without
+    locking which led to a race condition: when both players sent the
+    "авто" command almost simultaneously, the second write could overwrite the
+    first player's ``ready`` flag.  As a result the match never transitioned to
+    the ``playing`` state and both players kept waiting for each other.
+
+    To avoid lost updates we perform the whole update while holding the global
+    lock and base modifications on the latest data from storage.
+    """
+    with _lock:
+        data = _load_all()
+        # Reconstruct current match state from storage to avoid stale data
+        m_dict = data.get(match.match_id)
+        if m_dict:
+            from models import Player, Ship
+            current = Match(match_id=m_dict['match_id'],
+                            status=m_dict['status'],
+                            created_at=m_dict['created_at'])
+            current.players = {key: Player(**p) for key, p in m_dict['players'].items()}
+            current.boards = {}
+            for key, b in m_dict['boards'].items():
+                ships = [Ship(**s) for s in b.get('ships', [])]
+                current.boards[key] = Board(grid=b.get('grid', [[0]*10 for _ in range(10)]),
+                                            ships=ships,
+                                            alive_cells=b.get('alive_cells', 20))
+            current.turn = m_dict.get('turn', 'A')
+            current.shots = m_dict.get('shots', current.shots)
+            current.messages = m_dict.get('messages', {})
+        else:
+            current = match
+
+        # apply board and readiness
+        current.boards[player_key] = board
+        current.players[player_key].ready = True
+        if all(p.ready for p in current.players.values()) and current.status != 'playing':
+            current.status = 'playing'
+            current.turn = 'A'
+
+        # persist updated match
+        data[current.match_id] = {
+            'match_id': current.match_id,
+            'status': current.status,
+            'created_at': current.created_at,
+            'players': {k: vars(p) for k, p in current.players.items()},
+            'turn': current.turn,
+            'boards': {k: {'grid': b.grid,
+                           'ships': [{'cells': s.cells, 'alive': s.alive} for s in b.ships],
+                           'alive_cells': b.alive_cells}
+                       for k, b in current.boards.items()},
+            'shots': current.shots,
+            'messages': current.messages,
+        }
+        _save_all(data)
+
+    # update caller's object with the latest state
+    match.status = current.status
+    match.turn = current.turn
+    match.players = current.players
+    match.boards = current.boards
 
 
 def finish(match: Match, winner: str) -> None:
