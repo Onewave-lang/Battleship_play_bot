@@ -144,6 +144,8 @@ def save_board(match: Match, player_key: str, board: Board) -> None:
     match.turn = current.turn
     match.players = current.players
     match.boards = current.boards
+    match.shots = current.shots
+    match.messages = current.messages
 
 
 def finish(match: Match, winner: str) -> str | None:
