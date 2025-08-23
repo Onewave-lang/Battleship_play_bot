@@ -9,6 +9,23 @@ from logic.battle import apply_shot, MISS, HIT, KILL, REPEAT
 from logic.render import render_board_own, render_board_enemy
 
 
+async def _send_state(
+    context: ContextTypes.DEFAULT_TYPE,
+    match,
+    player_key: str,
+    message: str,
+) -> None:
+    """Send current boards and message to the given player."""
+    enemy_key = "B" if player_key == "A" else "A"
+    own = render_board_own(match.boards[player_key])
+    enemy = render_board_enemy(match.boards[enemy_key])
+    await context.bot.send_message(
+        match.players[player_key].chat_id,
+        f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}\n{message}",
+        parse_mode="HTML",
+    )
+
+
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     text = update.message.text.strip().lower()
@@ -25,19 +42,31 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             board = random_board()
             storage.save_board(match, player_key, board)
             if match.status == 'playing':
-                await update.message.reply_text(
+                await _send_state(
+                    context,
+                    match,
+                    player_key,
                     'Корабли расставлены. Бой начинается! '
-                    + ('Ваш ход.' if match.turn == player_key else 'Ход соперника.')
+                    + ('Ваш ход.' if match.turn == player_key else 'Ход соперника.'),
                 )
-                await context.bot.send_message(
-                    match.players[enemy_key].chat_id,
+                await _send_state(
+                    context,
+                    match,
+                    enemy_key,
                     'Соперник готов. Бой начинается! '
                     + ('Ваш ход.' if match.turn == enemy_key else 'Ход соперника.'),
                 )
             else:
-                await update.message.reply_text('Корабли расставлены. Ожидаем соперника.')
-                await context.bot.send_message(
-                    match.players[enemy_key].chat_id,
+                await _send_state(
+                    context,
+                    match,
+                    player_key,
+                    'Корабли расставлены. Ожидаем соперника.',
+                )
+                await _send_state(
+                    context,
+                    match,
+                    enemy_key,
                     'Соперник готов. Отправьте "авто" для расстановки кораблей.',
                 )
         else:
@@ -52,12 +81,12 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     if match.turn != player_key:
-        await update.message.reply_text('Сейчас ход соперника.')
+        await _send_state(context, match, player_key, 'Сейчас ход соперника.')
         return
 
     coord = parse_coord(text)
     if coord is None:
-        await update.message.reply_text('Не понял клетку. Пример: е5 или д10.')
+        await _send_state(context, match, player_key, 'Не понял клетку. Пример: е5 или д10.')
         return
 
     result = apply_shot(match.boards[enemy_key], coord)
@@ -85,18 +114,5 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     storage.save_match(match)
 
-    own = render_board_own(match.boards[player_key])
-    enemy = render_board_enemy(match.boards[enemy_key])
-    await context.bot.send_message(
-        match.players[player_key].chat_id,
-        f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}\n{result_self}",
-        parse_mode='HTML',
-    )
-
-    own_e = render_board_own(match.boards[enemy_key])
-    enemy_e = render_board_enemy(match.boards[player_key])
-    await context.bot.send_message(
-        match.players[enemy_key].chat_id,
-        f"Ваше поле:\n{own_e}\nПоле соперника:\n{enemy_e}\n{result_enemy}",
-        parse_mode='HTML',
-    )
+    await _send_state(context, match, player_key, result_self)
+    await _send_state(context, match, enemy_key, result_enemy)
