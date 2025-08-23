@@ -1,12 +1,13 @@
 from __future__ import annotations
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 
 import storage
-from logic.parser import parse_coord
+from logic.parser import parse_coord, format_coord
 from logic.placement import random_board
 from logic.battle import apply_shot, MISS, HIT, KILL, REPEAT
 from logic.render import render_board_own, render_board_enemy
+from handlers.commands import newgame
 
 
 async def _send_state(
@@ -29,6 +30,9 @@ async def _send_state(
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     text = update.message.text.strip().lower()
+    if text == 'начать новую игру':
+        await newgame(update, context)
+        return
     match = storage.find_match_by_user(user_id)
     if not match:
         await update.message.reply_text('Вы не участвуете в матче. Используйте /newgame.')
@@ -93,28 +97,29 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     match.shots[player_key]['history'].append(text)
     match.shots[player_key]['last_result'] = result
     error = None
+    coord_str = format_coord(coord)
 
     if result == MISS:
         match.turn = enemy_key
-        result_self = 'Мимо. Ход соперника.'
-        result_enemy = 'Соперник промахнулся. Ваш ход.'
+        result_self = f'{coord_str} Мимо. Ход соперника.'
+        result_enemy = f'{coord_str} Соперник промахнулся. Ваш ход.'
         error = storage.save_match(match)
     elif result == HIT:
-        result_self = 'Ранил. Ваш ход.'
-        result_enemy = 'Соперник ранил ваш корабль. Ход соперника.'
+        result_self = f'{coord_str} Ранил. Ваш ход.'
+        result_enemy = f'{coord_str} Соперник ранил ваш корабль. Ход соперника.'
         error = storage.save_match(match)
     elif result == REPEAT:
-        result_self = 'Клетка уже обстреляна. Ваш ход.'
-        result_enemy = 'Соперник стрелял по уже обстрелянной клетке. Ход соперника.'
+        result_self = f'{coord_str} Клетка уже обстреляна. Ваш ход.'
+        result_enemy = f'{coord_str} Соперник стрелял по уже обстрелянной клетке. Ход соперника.'
         error = storage.save_match(match)
     else:
         if match.boards[enemy_key].alive_cells == 0:
             error = storage.finish(match, player_key)
-            result_self = 'Убил! Вы победили.'
-            result_enemy = 'Все ваши корабли потоплены. Игра окончена.'
+            result_self = f'{coord_str} Корабль уничтожен! Вы победили. 🏆🎉'
+            result_enemy = f'{coord_str} Все ваши корабли уничтожены. Соперник победил. Не сдавайтесь, капитан! ⚓'
         else:
-            result_self = 'Убил! Ваш ход.'
-            result_enemy = 'Соперник уничтожил ваш корабль. Ход соперника.'
+            result_self = f'{coord_str} Корабль уничтожен! Ваш ход.'
+            result_enemy = f'{coord_str} Соперник уничтожил ваш корабль. Ход соперника.'
             error = storage.save_match(match)
 
     if error:
@@ -125,3 +130,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     await _send_state(context, match, player_key, result_self)
     await _send_state(context, match, enemy_key, result_enemy)
+
+    if match.status == 'finished':
+        keyboard = ReplyKeyboardMarkup([["Начать новую игру"]], one_time_keyboard=True, resize_keyboard=True)
+        await context.bot.send_message(match.players[player_key].chat_id, 'Игра завершена!', reply_markup=keyboard)
+        await context.bot.send_message(match.players[enemy_key].chat_id, 'Игра завершена!', reply_markup=keyboard)

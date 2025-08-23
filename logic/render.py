@@ -5,7 +5,8 @@ from models import Board
 from logic.parser import ROWS
 
 
-COL_HEADER = ' '.join(str(i) for i in range(1,11))
+# letters on top for columns
+COL_HEADER = ' '.join(ROWS)
 
 
 def _render_line(cells: List[str]) -> str:
@@ -13,18 +14,30 @@ def _render_line(cells: List[str]) -> str:
 
 
 def render_board_own(board: Board) -> str:
-    lines = ["  " + COL_HEADER]
+    lines = ["   " + COL_HEADER]
     mapping = {0:'·',1:'□',2:'x',3:'■',4:'▓',5:'x'}
-    for idx, row in enumerate(board.grid):
-        cells = [mapping.get(v,'·') for v in row]
-        lines.append(f"{ROWS[idx]} " + _render_line(cells))
+    highlight = set(board.highlight)
+    for r_idx, row in enumerate(board.grid):
+        cells = []
+        for c_idx, v in enumerate(row):
+            sym = mapping.get(v, '·')
+            if (r_idx, c_idx) in highlight:
+                sym = f'<span style="color:red">{sym}</span>'
+            cells.append(sym)
+        lines.append(f"{r_idx+1:>2} " + _render_line(cells))
     return '<pre>' + '\n'.join(lines) + '</pre>'
 
 
 def render_board_enemy(board: Board) -> str:
-    lines = ["  " + COL_HEADER]
+    lines = ["   " + COL_HEADER]
     mapping = {0:'·',1:'·',2:'x',3:'■',4:'▓',5:'x'}
-    for idx, row in enumerate(board.grid):
-        cells = [mapping.get(v,'·') for v in row]
-        lines.append(f"{ROWS[idx]} " + _render_line(cells))
+    highlight = set(board.highlight)
+    for r_idx, row in enumerate(board.grid):
+        cells = []
+        for c_idx, v in enumerate(row):
+            sym = mapping.get(v, '·')
+            if (r_idx, c_idx) in highlight:
+                sym = f'<span style="color:red">{sym}</span>'
+            cells.append(sym)
+        lines.append(f"{r_idx+1:>2} " + _render_line(cells))
     return '<pre>' + '\n'.join(lines) + '</pre>'

@@ -12,6 +12,7 @@ def normalize(cell: str) -> str:
 
 
 def parse_coord(cell: str) -> Optional[Tuple[int, int]]:
+    """Parse user coordinate like 'e5' into (row, col)."""
     cell = normalize(cell)
     if len(cell) < 2:
         return None
@@ -22,10 +23,16 @@ def parse_coord(cell: str) -> Optional[Tuple[int, int]]:
     if letter not in ROWS:
         return None
     try:
-        col = int(rest)
+        row = int(rest)
     except ValueError:
         return None
-    if not 1 <= col <= 10:
+    if not 1 <= row <= 10:
         return None
-    row = ROWS.index(letter)
-    return row, col - 1
+    col = ROWS.index(letter)
+    return row - 1, col
+
+
+def format_coord(coord: Tuple[int, int]) -> str:
+    """Convert internal (row, col) into user-facing string."""
+    r, c = coord
+    return f"{ROWS[c]}{r+1}"
