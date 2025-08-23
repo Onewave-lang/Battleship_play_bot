@@ -92,27 +92,36 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     result = apply_shot(match.boards[enemy_key], coord)
     match.shots[player_key]['history'].append(text)
     match.shots[player_key]['last_result'] = result
+    error = None
 
     if result == MISS:
         match.turn = enemy_key
         result_self = 'Мимо. Ход соперника.'
         result_enemy = 'Соперник промахнулся. Ваш ход.'
+        error = storage.save_match(match)
     elif result == HIT:
         result_self = 'Ранил. Ваш ход.'
         result_enemy = 'Соперник ранил ваш корабль. Ход соперника.'
+        error = storage.save_match(match)
     elif result == REPEAT:
         result_self = 'Клетка уже обстреляна. Ваш ход.'
         result_enemy = 'Соперник стрелял по уже обстрелянной клетке. Ход соперника.'
+        error = storage.save_match(match)
     else:
         if match.boards[enemy_key].alive_cells == 0:
-            storage.finish(match, player_key)
+            error = storage.finish(match, player_key)
             result_self = 'Убил! Вы победили.'
             result_enemy = 'Все ваши корабли потоплены. Игра окончена.'
         else:
             result_self = 'Убил! Ваш ход.'
             result_enemy = 'Соперник уничтожил ваш корабль. Ход соперника.'
+            error = storage.save_match(match)
 
-    storage.save_match(match)
+    if error:
+        msg = 'Произошла техническая ошибка. Ход прерван.'
+        await context.bot.send_message(match.players[player_key].chat_id, msg)
+        await context.bot.send_message(match.players[enemy_key].chat_id, msg)
+        return
 
     await _send_state(context, match, player_key, result_self)
     await _send_state(context, match, enemy_key, result_enemy)
