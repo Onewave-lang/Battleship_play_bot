@@ -103,3 +103,13 @@ async def telegram_webhook(request: Request) -> dict[str, bool]:
 @app.api_route("/", methods=["GET", "HEAD"])
 async def root() -> dict[str, str]:
     return {"status": "running"}
+
+
+@app.get("/healthz")
+async def healthz() -> dict[str, str]:
+    """Simple health-check endpoint for Render.
+
+    Returns a JSON response indicating the application is up. Used by the
+    hosting platform to verify the service is healthy.
+    """
+    return {"status": "ok"}
