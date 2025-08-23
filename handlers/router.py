@@ -26,14 +26,22 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             storage.save_board(match, player_key, board)
             if match.status == 'playing':
                 await update.message.reply_text('Корабли расставлены. Бой начинается!')
+                await context.bot.send_message(match.players[enemy_key].chat_id,
+                                               'Соперник готов. Бой начинается! '
+                                               + ('Ваш ход.' if match.turn == enemy_key else 'Ход соперника.'))
             else:
                 await update.message.reply_text('Корабли расставлены. Ожидаем соперника.')
+                await context.bot.send_message(match.players[enemy_key].chat_id,
+                                               'Соперник готов. Отправьте "авто" для расстановки кораблей.')
         else:
             await update.message.reply_text('Введите "авто" для автоматической расстановки.')
         return
 
     if match.status != 'playing':
-        await update.message.reply_text('Матч ещё не начался.')
+        if match.status == 'waiting':
+            await update.message.reply_text('Матч ещё не начался. Ожидаем соперника.')
+        else:
+            await update.message.reply_text('Матч ещё не начался.')
         return
 
     if match.turn != player_key:
