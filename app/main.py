@@ -49,7 +49,7 @@ async def telegram_webhook(request: Request) -> dict[str, bool]:
     return {"ok": True}
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def root() -> dict[str, str]:
     return {"status": "running"}
 

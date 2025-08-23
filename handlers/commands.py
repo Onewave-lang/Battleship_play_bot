@@ -2,7 +2,12 @@ from __future__ import annotations
 from telegram import Update
 from telegram.ext import ContextTypes
 
+import logging
+
 import storage
+
+
+logger = logging.getLogger(__name__)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -18,7 +23,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 msg_a += 'Отправьте "авто" для расстановки кораблей.'
             await context.bot.send_message(match.players['A'].chat_id, msg_a)
         else:
-            await update.message.reply_text('Не удалось присоединиться к матчу.')
+            existing = storage.get_match(match_id)
+            reason = 'match not found'
+            msg = 'Матч не найден.'
+            if existing:
+                if 'B' in existing.players:
+                    reason = 'already has B'
+                    msg = 'В матче уже есть второй игрок.'
+                elif existing.players['A'].user_id == update.effective_user.id:
+                    reason = 'self-join'
+                    msg = 'Вы не можете присоединиться к собственному матчу.'
+            logger.info(
+                'Failed match join: match_id=%s user_id=%s reason=%s',
+                match_id,
+                update.effective_user.id,
+                reason,
+            )
+            await update.message.reply_text(msg)
     else:
         await update.message.reply_text('Привет! Используйте /newgame чтобы создать матч.')
 
