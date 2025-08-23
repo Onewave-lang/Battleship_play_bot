@@ -12,14 +12,22 @@ _lock = Lock()
 
 def _load_all() -> Dict[str, dict]:
     if DATA_FILE.exists():
-        with DATA_FILE.open('r', encoding='utf-8') as f:
-            return json.load(f)
+        try:
+            with DATA_FILE.open('r', encoding='utf-8') as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            # corrupted or empty file
+            return {}
     return {}
 
 
 def _save_all(data: Dict[str, dict]) -> None:
-    with DATA_FILE.open('w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    try:
+        with DATA_FILE.open('w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except OSError:
+        # ignore write errors to avoid crashing the bot
+        pass
 
 
 def create_match(a_user_id: int, a_chat_id: int) -> Match:
