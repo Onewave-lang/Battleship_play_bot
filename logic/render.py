@@ -7,10 +7,15 @@ from logic.parser import ROWS
 
 # letters on top for columns
 COL_HEADER = ' '.join(ROWS)
+CELL_WIDTH = 3
+
+
+def format_cell(symbol: str) -> str:
+    return symbol.center(CELL_WIDTH)
 
 
 def _render_line(cells: List[str]) -> str:
-    return ' '.join(cells)
+    return ''.join(cells)
 
 
 def render_board_own(board: Board) -> str:
@@ -28,7 +33,7 @@ def render_board_own(board: Board) -> str:
                     sym = f"[{mapping.get(v, '·')}]"
             else:
                 sym = mapping.get(v, '·')
-            cells.append(sym)
+            cells.append(format_cell(sym))
         lines.append(f"{r_idx+1:>2} " + _render_line(cells))
     return '<pre>' + '\n'.join(lines) + '</pre>'
 
@@ -48,6 +53,6 @@ def render_board_enemy(board: Board) -> str:
                     sym = f"[{mapping.get(v, '·')}]"
             else:
                 sym = mapping.get(v, '·')
-            cells.append(sym)
+            cells.append(format_cell(sym))
         lines.append(f"{r_idx+1:>2} " + _render_line(cells))
     return '<pre>' + '\n'.join(lines) + '</pre>'

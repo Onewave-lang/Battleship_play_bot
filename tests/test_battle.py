@@ -33,3 +33,16 @@ def test_apply_shot_highlight():
     board.alive_cells = 1
     assert apply_shot(board, (1, 1)) == KILL
     assert board.highlight == [(1, 1)]
+
+
+def test_apply_shot_kill_marks_contour():
+    board = Board()
+    ship = Ship(cells=[(1, 1), (1, 2)])
+    board.ships.append(ship)
+    board.grid[1][1] = 1
+    board.grid[1][2] = 1
+    board.alive_cells = 2
+    assert apply_shot(board, (1, 1)) == HIT
+    assert apply_shot(board, (1, 2)) == KILL
+    assert board.grid[0][0] == 5
+    assert board.grid[2][3] == 5
