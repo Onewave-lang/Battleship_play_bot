@@ -1,0 +1,102 @@
+from __future__ import annotations
+import json
+from pathlib import Path
+from threading import Lock
+from typing import Dict
+
+from models import Match, Board
+
+DATA_FILE = Path("data.json")
+_lock = Lock()
+
+
+def _load_all() -> Dict[str, dict]:
+    if DATA_FILE.exists():
+        with DATA_FILE.open('r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+
+def _save_all(data: Dict[str, dict]) -> None:
+    with DATA_FILE.open('w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def create_match(a_user_id: int, a_chat_id: int) -> Match:
+    match = Match.new(a_user_id, a_chat_id)
+    save_match(match)
+    return match
+
+
+def get_match(match_id: str) -> Match | None:
+    with _lock:
+        data = _load_all()
+    m = data.get(match_id)
+    if not m:
+        return None
+    # reconstruct Match
+    match = Match(match_id=m['match_id'], status=m['status'], created_at=m['created_at'])
+    # players
+    from models import Player
+    match.players = {
+        key: Player(**p) for key, p in m['players'].items()
+    }
+    # boards
+    match.boards = {key: Board(**b) for key, b in m['boards'].items()}
+    match.turn = m.get('turn', 'A')
+    match.shots = m.get('shots', match.shots)
+    match.messages = m.get('messages', {})
+    return match
+
+
+def join_match(match_id: str, b_user_id: int, b_chat_id: int) -> Match | None:
+    match = get_match(match_id)
+    if not match or 'B' in match.players:
+        return None
+    from models import Player
+    match.players['B'] = Player(user_id=b_user_id, chat_id=b_chat_id)
+    match.status = 'placing'
+    save_match(match)
+    return match
+
+
+def save_board(match: Match, player_key: str, board: Board) -> None:
+    match.boards[player_key] = board
+    match.players[player_key].ready = True
+    if all(p.ready for p in match.players.values()) and match.status != 'playing':
+        match.status = 'playing'
+        match.turn = 'A'
+    save_match(match)
+
+
+def finish(match: Match, winner: str) -> None:
+    match.status = 'finished'
+    match.shots[winner]['last_result'] = 'win'
+    save_match(match)
+
+
+def save_match(match: Match) -> None:
+    with _lock:
+        data = _load_all()
+        data[match.match_id] = {
+            'match_id': match.match_id,
+            'status': match.status,
+            'created_at': match.created_at,
+            'players': {k: vars(p) for k, p in match.players.items()},
+            'turn': match.turn,
+            'boards': {k: {'grid': b.grid, 'ships': [{'cells': s.cells, 'alive': s.alive} for s in b.ships], 'alive_cells': b.alive_cells} for k, b in match.boards.items()},
+            'shots': match.shots,
+            'messages': match.messages,
+        }
+        _save_all(data)
+
+
+def find_match_by_user(user_id: int) -> Match | None:
+    with _lock:
+        data = _load_all()
+    for m in data.values():
+        players = m.get('players', {})
+        for p in players.values():
+            if p.get('user_id') == user_id:
+                return get_match(m['match_id'])
+    return None
