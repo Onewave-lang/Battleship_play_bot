@@ -5,6 +5,7 @@ from telegram.ext import ContextTypes
 import logging
 
 import storage
+from logic.render import render_board_own, render_board_enemy
 
 
 logger = logging.getLogger(__name__)
@@ -53,3 +54,18 @@ async def newgame(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(f"Пригласите друга: {link}")
     await update.message.reply_text('Матч создан. Ожидаем подключения соперника.')
     await update.message.reply_text('Отправьте "авто" для расстановки кораблей.')
+
+
+async def board(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    match = storage.find_match_by_user(update.effective_user.id)
+    if not match:
+        await update.message.reply_text('Вы не участвуете в матче. Используйте /newgame.')
+        return
+    player_key = 'A' if match.players['A'].user_id == update.effective_user.id else 'B'
+    enemy_key = 'B' if player_key == 'A' else 'A'
+    own = render_board_own(match.boards[player_key])
+    enemy = render_board_enemy(match.boards[enemy_key])
+    await update.message.reply_text(
+        f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}",
+        parse_mode='HTML',
+    )
