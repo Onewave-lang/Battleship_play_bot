@@ -49,12 +49,14 @@ app = FastAPI()
 @app.on_event("startup")
 async def on_startup() -> None:
     await bot_app.initialize()
+    await bot_app.start()
     await bot_app.bot.set_webhook(f"{webhook_url}/webhook")
 
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
     await bot_app.bot.delete_webhook()
+    await bot_app.stop()
     await bot_app.shutdown()
 
 
