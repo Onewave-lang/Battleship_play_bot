@@ -131,8 +131,8 @@ def test_router_kill_message(monkeypatch):
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nа1 Корабль соперника уничтожен! Ваш ход.', parse_mode='HTML'),
-            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy\nа1 Ваш корабль уничтожен. Ход соперника.', parse_mode='HTML'),
+            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nа1 - Корабль соперника уничтожен! Ваш ход.', parse_mode='HTML'),
+            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy\nа1 - Ваш корабль уничтожен. Ход соперника.', parse_mode='HTML'),
         ]
     asyncio.run(run_test())
 

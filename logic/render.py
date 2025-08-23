@@ -3,15 +3,21 @@ from typing import List
 
 from models import Board
 from logic.parser import ROWS
+from wcwidth import wcswidth
 
 
 # letters on top for columns
-COL_HEADER = ' '.join(ROWS)
-CELL_WIDTH = 3
+CELL_WIDTH = 2
 
 
 def format_cell(symbol: str) -> str:
-    return symbol.center(CELL_WIDTH)
+    pad = CELL_WIDTH - wcswidth(symbol)
+    if pad < 0:
+        pad = 0
+    return symbol + " " * pad
+
+
+COL_HEADER = ''.join(format_cell(ch) for ch in ROWS)
 
 
 def _render_line(cells: List[str]) -> str:
@@ -30,7 +36,7 @@ def render_board_own(board: Board) -> str:
                 if v == 4:
                     sym = '💣'
                 else:
-                    sym = f"[{mapping.get(v, '·')}]"
+                    sym = mapping.get(v, '·') + '\u0301'
             else:
                 sym = mapping.get(v, '·')
             cells.append(format_cell(sym))
@@ -50,7 +56,7 @@ def render_board_enemy(board: Board) -> str:
                 if v == 4:
                     sym = '💣'
                 else:
-                    sym = f"[{mapping.get(v, '·')}]"
+                    sym = mapping.get(v, '·') + '\u0301'
             else:
                 sym = mapping.get(v, '·')
             cells.append(format_cell(sym))
