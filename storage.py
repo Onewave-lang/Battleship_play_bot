@@ -37,12 +37,17 @@ def get_match(match_id: str) -> Match | None:
     # reconstruct Match
     match = Match(match_id=m['match_id'], status=m['status'], created_at=m['created_at'])
     # players
-    from models import Player
+    from models import Player, Ship
     match.players = {
         key: Player(**p) for key, p in m['players'].items()
     }
     # boards
-    match.boards = {key: Board(**b) for key, b in m['boards'].items()}
+    match.boards = {}
+    for key, b in m['boards'].items():
+        ships = [Ship(**s) for s in b.get('ships', [])]
+        match.boards[key] = Board(grid=b.get('grid', [[0]*10 for _ in range(10)]),
+                                  ships=ships,
+                                  alive_cells=b.get('alive_cells', 20))
     match.turn = m.get('turn', 'A')
     match.shots = m.get('shots', match.shots)
     match.messages = m.get('messages', {})
