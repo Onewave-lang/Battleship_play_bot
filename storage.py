@@ -23,15 +23,16 @@ def _load_all() -> Dict[str, dict]:
     return {}
 
 
-def _save_all(data: Dict[str, dict]) -> None:
+def _save_all(data: Dict[str, dict]) -> str | None:
     tmp_file = DATA_FILE.with_suffix('.tmp')
     try:
-        with tmp_file.open('w', encoding='utf-8') as f:
+        with tmp_file.open("w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         tmp_file.replace(DATA_FILE)
-    except OSError:
+    except OSError as e:
         logger.exception("Failed to save data file")
-        raise
+        return str(e)
+    return None
 
 
 def create_match(a_user_id: int, a_chat_id: int) -> Match:
@@ -145,26 +146,33 @@ def save_board(match: Match, player_key: str, board: Board) -> None:
     match.boards = current.boards
 
 
-def finish(match: Match, winner: str) -> None:
-    match.status = 'finished'
-    match.shots[winner]['last_result'] = 'win'
-    save_match(match)
+def finish(match: Match, winner: str) -> str | None:
+    match.status = "finished"
+    match.shots[winner]["last_result"] = "win"
+    return save_match(match)
 
 
-def save_match(match: Match) -> None:
+def save_match(match: Match) -> str | None:
     with _lock:
         data = _load_all()
         data[match.match_id] = {
-            'match_id': match.match_id,
-            'status': match.status,
-            'created_at': match.created_at,
-            'players': {k: vars(p) for k, p in match.players.items()},
-            'turn': match.turn,
-            'boards': {k: {'grid': b.grid, 'ships': [{'cells': s.cells, 'alive': s.alive} for s in b.ships], 'alive_cells': b.alive_cells} for k, b in match.boards.items()},
-            'shots': match.shots,
-            'messages': match.messages,
+            "match_id": match.match_id,
+            "status": match.status,
+            "created_at": match.created_at,
+            "players": {k: vars(p) for k, p in match.players.items()},
+            "turn": match.turn,
+            "boards": {
+                k: {
+                    "grid": b.grid,
+                    "ships": [{"cells": s.cells, "alive": s.alive} for s in b.ships],
+                    "alive_cells": b.alive_cells,
+                }
+                for k, b in match.boards.items()
+            },
+            "shots": match.shots,
+            "messages": match.messages,
         }
-        _save_all(data)
+        return _save_all(data)
 
 
 def find_match_by_user(user_id: int) -> Match | None:
