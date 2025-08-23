@@ -45,8 +45,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def newgame(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text('Подождите, подготавливаем игровую среду...')
     match = storage.create_match(update.effective_user.id, update.effective_chat.id)
     username = (await context.bot.get_me()).username
+    await update.message.reply_text('Среда игры готова.')
     link = f"https://t.me/{username}?start=inv_{match.match_id}"
     await update.message.reply_text(f"Пригласите друга: {link}")
     await update.message.reply_text('Матч создан. Ожидаем подключения соперника.')
