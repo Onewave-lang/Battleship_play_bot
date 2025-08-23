@@ -29,7 +29,13 @@ webhook_url = webhook_url.rstrip("/")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-bot_app = ApplicationBuilder().token(token).build()
+# Disable the built-in Updater as we rely solely on webhooks for receiving
+# updates.  Starting the default Updater would trigger long-polling which
+# conflicts with webhook mode and may lead to the application shutting down
+# shortly after startup on some platforms (e.g. Render) when the polling task
+# fails.  By explicitly disabling it, the application runs purely in webhook
+# mode.
+bot_app = ApplicationBuilder().token(token).updater(None).build()
 bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(CommandHandler("newgame", newgame))
 bot_app.add_handler(CommandHandler("board", board))
@@ -49,14 +55,12 @@ app = FastAPI()
 @app.on_event("startup")
 async def on_startup() -> None:
     await bot_app.initialize()
-    await bot_app.start()
     await bot_app.bot.set_webhook(f"{webhook_url}/webhook")
 
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
     await bot_app.bot.delete_webhook()
-    await bot_app.stop()
     await bot_app.shutdown()
 
 
