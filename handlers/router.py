@@ -115,11 +115,11 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     else:
         if match.boards[enemy_key].alive_cells == 0:
             error = storage.finish(match, player_key)
-            result_self = f'{coord_str} Корабль уничтожен! Вы победили. 🏆🎉'
+            result_self = f'{coord_str} Корабль соперника уничтожен! Вы победили. 🏆🎉'
             result_enemy = f'{coord_str} Все ваши корабли уничтожены. Соперник победил. Не сдавайтесь, капитан! ⚓'
         else:
-            result_self = f'{coord_str} Корабль уничтожен! Ваш ход.'
-            result_enemy = f'{coord_str} Соперник уничтожил ваш корабль. Ход соперника.'
+            result_self = f'{coord_str} Корабль соперника уничтожен! Ваш ход.'
+            result_enemy = f'{coord_str} Ваш корабль уничтожен. Ход соперника.'
             error = storage.save_match(match)
 
     if error:
