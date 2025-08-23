@@ -64,7 +64,11 @@ def get_match(match_id: str) -> Match | None:
 
 def join_match(match_id: str, b_user_id: int, b_chat_id: int) -> Match | None:
     match = get_match(match_id)
-    if not match or 'B' in match.players:
+    if (
+        not match
+        or 'B' in match.players
+        or match.players['A'].user_id == b_user_id
+    ):
         return None
     from models import Player
     match.players['B'] = Player(user_id=b_user_id, chat_id=b_chat_id)
