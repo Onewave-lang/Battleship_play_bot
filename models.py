@@ -19,6 +19,8 @@ class Board:
     grid: List[List[int]] = field(default_factory=lambda: [[0]*10 for _ in range(10)])
     ships: List[Ship] = field(default_factory=list)
     alive_cells: int = 20
+    # cells to highlight (last shot or destroyed ship) for rendering
+    highlight: List[Coord] = field(default_factory=list)
 
 
 @dataclass

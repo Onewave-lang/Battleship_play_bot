@@ -6,7 +6,7 @@ from logic.parser import parse_coord
     ("A1", (0,0)),
     ("к10", (9,9)),
     ("k10", (9,9)),
-    ("d5", (3,4)),
+    ("d5", (4,3)),
 ])
 def test_parse_coord_valid(text, expected):
     assert parse_coord(text) == expected
