@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import signal
 
 from fastapi import FastAPI, Request
 from telegram import Update
@@ -29,6 +30,16 @@ webhook_url = webhook_url.rstrip("/")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def _handle_exit(sig: int, frame: object | None) -> None:
+    """Log received termination signals for easier debugging on platforms like
+    Render where processes may be stopped externally."""
+    logger.info("Received shutdown signal %s", sig)
+
+
+signal.signal(signal.SIGTERM, _handle_exit)
+signal.signal(signal.SIGINT, _handle_exit)
+
 # Disable the built-in Updater as we rely solely on webhooks for receiving
 # updates.  Starting the default Updater would trigger long-polling which
 # conflicts with webhook mode and may lead to the application shutting down
@@ -54,18 +65,32 @@ app = FastAPI()
 
 @app.on_event("startup")
 async def on_startup() -> None:
-    await bot_app.initialize()
-    await bot_app.start()
-    webhook = f"{webhook_url}/webhook"
-    await bot_app.bot.set_webhook(webhook)
-    logger.info("Setting webhook to %s", webhook)
+    logger.info("Starting bot application")
+    try:
+        await bot_app.initialize()
+        await bot_app.start()
+        webhook = f"{webhook_url}/webhook"
+        await bot_app.bot.set_webhook(webhook)
+        logger.info("Webhook set to %s", webhook)
+    except Exception:
+        logger.exception("Failed during startup")
+        raise
+    else:
+        logger.info("Bot application started successfully")
 
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
-    await bot_app.bot.delete_webhook()
-    await bot_app.stop()
-    await bot_app.shutdown()
+    logger.info("Shutting down bot application")
+    try:
+        await bot_app.bot.delete_webhook()
+        await bot_app.stop()
+        await bot_app.shutdown()
+    except Exception:
+        logger.exception("Error during shutdown")
+        raise
+    else:
+        logger.info("Bot application stopped")
 
 
 @app.post("/webhook")
