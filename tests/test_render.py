@@ -1,5 +1,6 @@
 from models import Board
 from logic.render import render_board_own, render_board_enemy
+from logic.parser import ROWS
 
 
 def test_render_board_own_and_enemy():
@@ -11,6 +12,5 @@ def test_render_board_own_and_enemy():
     board.grid[0][4] = 5
     own = render_board_own(board).replace('<pre>', '').replace('</pre>', '').splitlines()
     enemy = render_board_enemy(board).replace('<pre>', '').replace('</pre>', '').splitlines()
-    assert own[0] == "  а б в г д е ж з и к"
-    assert own[1] == " 1 ⬜ x ⬛ ▓ x · · · · ·"
-    assert enemy[1] == " 1 · x ⬛ ▓ x · · · · ·"
+    assert own[1] == f"{ROWS[0]} □ x ■ ▓ x · · · · ·"
+    assert enemy[1] == f"{ROWS[0]} · x ■ ▓ x · · · · ·"
