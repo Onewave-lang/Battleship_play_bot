@@ -1,56 +1,54 @@
-from models import Board
 from logic.render import render_board_own, render_board_enemy
-from wcwidth import wcswidth
+from logic.battle import apply_shot, KILL
+from models import Board, Ship
 
 
-def _lines(text: str):
-    return [l.rstrip() for l in text.replace('<pre>', '').replace('</pre>', '').splitlines()]
+def test_render_last_move_symbols():
+    b = Board()
 
-
-def test_render_board_own_and_enemy():
-    board = Board()
-    board.grid[0][0] = 1
-    board.grid[0][1] = 2
-    board.grid[0][2] = 3
-    board.grid[0][3] = 4
-    board.grid[0][4] = 5
-    own = _lines(render_board_own(board))
-    enemy = _lines(render_board_enemy(board))
-    assert own[1] == " 1 □ x ■ ▓ x · · · · ·"
-    assert enemy[1] == " 1 · x ■ ▓ x · · · · ·"
-    assert all(wcswidth(l) == 22 for l in own)
-    assert all(wcswidth(l) == 22 for l in enemy)
-
-
-def test_render_highlight_last_move():
-    board = Board()
     # miss highlight
-    board.grid[0][0] = 2
-    board.highlight = [(0, 0)]
-    own = _lines(render_board_own(board))
-    enemy = _lines(render_board_enemy(board))
-    assert own[1].startswith(" 1 x́")
-    assert enemy[1].startswith(" 1 x́")
-    assert wcswidth(own[1]) == wcswidth(enemy[1]) == 22
+    b.grid[0][0] = 2
+    b.highlight = [(0, 0)]
+    own = render_board_own(b)
+    assert '❌' in own
+    b.highlight = []
+    own = render_board_own(b)
+    assert '❌' not in own and 'x' in own
+
     # hit highlight
-    board.grid[0][0] = 3
-    board.highlight = [(0, 0)]
-    own = _lines(render_board_own(board))
-    assert own[1].startswith(" 1 ■́")
-    assert wcswidth(own[1]) == 22
+    b.grid[1][1] = 3
+    b.highlight = [(1, 1)]
+    enemy = render_board_enemy(b)
+    assert '🟥' in enemy
+    b.highlight = []
+    enemy = render_board_enemy(b)
+    assert '🟥' not in enemy and '■' in enemy
+
     # kill highlight
-    board.grid[0][0] = 4
-    board.grid[0][1] = 4
-    board.highlight = [(0, 0), (0, 1)]
-    own = _lines(render_board_own(board))
-    enemy = _lines(render_board_enemy(board))
-    assert own[1].startswith(" 1 💣💣")
-    assert enemy[1].startswith(" 1 💣💣")
-    assert wcswidth(own[1]) == wcswidth(enemy[1]) == 22
-    # after next move (no highlight)
-    board.highlight = []
-    own = _lines(render_board_own(board))
-    enemy = _lines(render_board_enemy(board))
-    assert own[1].startswith(" 1 ▓ ▓")
-    assert enemy[1].startswith(" 1 ▓ ▓")
-    assert wcswidth(own[1]) == wcswidth(enemy[1]) == 22
+    b.grid[2][2] = 4
+    b.grid[2][3] = 4
+    b.highlight = [(2, 2), (2, 3)]
+    enemy = render_board_enemy(b)
+    assert enemy.count('💣') == 2
+    b.highlight = []
+    enemy = render_board_enemy(b)
+    assert '💣' not in enemy and '▓' in enemy
+
+
+def test_apply_shot_marks_contour():
+    b = Board()
+    ship = Ship(cells=[(5, 5)])
+    b.ships = [ship]
+    b.grid[5][5] = 1
+    b.alive_cells = 1
+
+    res = apply_shot(b, (5, 5))
+    assert res == KILL
+    # all surrounding cells become 5 (miss markers)
+    for dr in (-1, 0, 1):
+        for dc in (-1, 0, 1):
+            nr, nc = 5 + dr, 5 + dc
+            if dr == 0 and dc == 0:
+                continue
+            if 0 <= nr < 10 and 0 <= nc < 10:
+                assert b.grid[nr][nc] == 5

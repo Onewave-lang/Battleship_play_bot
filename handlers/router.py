@@ -119,7 +119,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             result_enemy = f'{coord_str} - Все ваши корабли уничтожены. Соперник победил. Не сдавайтесь, капитан! ⚓'
         else:
             result_self = f'{coord_str} - Корабль соперника уничтожен! Ваш ход.'
-            result_enemy = f'{coord_str} - Ваш корабль уничтожен. Ход соперника.'
+            result_enemy = f'{coord_str} - Соперник уничтожил ваш корабль. Ход соперника.'
             error = storage.save_match(match)
     else:
         result_self = f'{coord_str} - Ошибка. Ваш ход.'
