@@ -1,0 +1,21 @@
+from models import Board, Ship
+from logic.battle import apply_shot, MISS, HIT, KILL, REPEAT
+
+
+def test_apply_shot_miss_and_repeat():
+    board = Board()
+    assert apply_shot(board, (0, 0)) == MISS
+    assert board.grid[0][0] == 2
+    assert apply_shot(board, (0, 0)) == REPEAT
+
+
+def test_apply_shot_kill_and_repeat():
+    board = Board()
+    ship = Ship(cells=[(0, 0)])
+    board.ships.append(ship)
+    board.grid[0][0] = 1
+    board.alive_cells = 1
+    assert apply_shot(board, (0, 0)) == KILL
+    assert board.grid[0][0] == 4
+    assert board.alive_cells == 0
+    assert apply_shot(board, (0, 0)) == REPEAT

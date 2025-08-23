@@ -5,7 +5,7 @@ from telegram.ext import ContextTypes
 import storage
 from logic.parser import parse_coord
 from logic.placement import random_board
-from logic.battle import apply_shot, MISS, HIT, KILL
+from logic.battle import apply_shot, MISS, HIT, KILL, REPEAT
 from logic.render import render_board_own, render_board_enemy
 
 
@@ -62,6 +62,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         result_msg = 'Мимо. Ход соперника.'
     elif result == HIT:
         result_msg = 'Ранил. Ваш ход.'
+    elif result == REPEAT:
+        result_msg = 'Клетка уже обстреляна. Ваш ход.'
     else:
         if match.boards[enemy_key].alive_cells == 0:
             storage.finish(match, player_key)
