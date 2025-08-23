@@ -17,7 +17,7 @@
    ```
    или напрямую:
    ```bash
-   uvicorn app:app --host 0.0.0.0 --port 8000
+   uvicorn app.main:app --host 0.0.0.0 --port 8000
    ```
 
 ## Развертывание на Render
@@ -28,7 +28,7 @@
    - `WEBHOOK_URL` — публичный адрес сервиса без `/webhook`, например `https://<имя-сервиса>.onrender.com`.
 3. В **Start Command** укажите:
    ```bash
-   uvicorn app:app --host 0.0.0.0 --port $PORT
+   uvicorn app.main:app --host 0.0.0.0 --port $PORT
    ```
    Переменная `PORT` предоставляется Render автоматически.
 4. При деплое Render установит зависимости из `requirements.txt` и запустит сервис.
