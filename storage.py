@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 from pathlib import Path
+import logging
 from threading import Lock
 from typing import Dict
 
@@ -8,6 +9,7 @@ from models import Match, Board
 
 DATA_FILE = Path("data.json")
 _lock = Lock()
+logger = logging.getLogger(__name__)
 
 
 def _load_all() -> Dict[str, dict]:
@@ -22,12 +24,14 @@ def _load_all() -> Dict[str, dict]:
 
 
 def _save_all(data: Dict[str, dict]) -> None:
+    tmp_file = DATA_FILE.with_suffix('.tmp')
     try:
-        with DATA_FILE.open('w', encoding='utf-8') as f:
+        with tmp_file.open('w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+        tmp_file.replace(DATA_FILE)
     except OSError:
-        # ignore write errors to avoid crashing the bot
-        pass
+        logger.exception("Failed to save data file")
+        raise
 
 
 def create_match(a_user_id: int, a_chat_id: int) -> Match:

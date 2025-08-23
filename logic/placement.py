@@ -30,11 +30,9 @@ def place_ship(board: Board, size: int) -> None:
         orient = random.choice(['h','v'])
         if orient == 'h':
             r = random.randint(0,9)
-        else:
-            r = random.randint(0,9)
-        if orient == 'h':
             c = random.randint(0,10-size)
         else:
+            r = random.randint(0,10-size)
             c = random.randint(0,9)
         cells = []
         for i in range(size):

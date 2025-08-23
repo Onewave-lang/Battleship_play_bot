@@ -4,7 +4,7 @@ from typing import Tuple
 from models import Board, Ship
 
 
-MISS, HIT, KILL = 'miss', 'hit', 'kill'
+MISS, HIT, KILL, REPEAT = 'miss', 'hit', 'kill', 'repeat'
 
 
 def mark_contour(board: Board, cells: list[Tuple[int,int]]) -> None:
@@ -21,7 +21,7 @@ def apply_shot(board: Board, coord: Tuple[int,int]) -> str:
     r, c = coord
     cell = board.grid[r][c]
     if cell in (2,3,4,5):
-        return MISS  # already shot here or around
+        return REPEAT  # already shot here or around
     if cell == 0:
         board.grid[r][c] = 2
         return MISS
