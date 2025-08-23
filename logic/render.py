@@ -33,10 +33,14 @@ def render_board_own(board: Board) -> str:
         for c_idx, v in enumerate(row):
             coord = (r_idx, c_idx)
             if coord in highlight:
-                if v == 4:
+                if v == 2:
+                    sym = '❌'
+                elif v == 3:
+                    sym = '🟥'
+                elif v == 4:
                     sym = '💣'
                 else:
-                    sym = mapping.get(v, '·') + '\u0301'
+                    sym = mapping.get(v, '·')
             else:
                 sym = mapping.get(v, '·')
             cells.append(format_cell(sym))
@@ -53,10 +57,14 @@ def render_board_enemy(board: Board) -> str:
         for c_idx, v in enumerate(row):
             coord = (r_idx, c_idx)
             if coord in highlight:
-                if v == 4:
+                if v == 2:
+                    sym = '❌'
+                elif v == 3:
+                    sym = '🟥'
+                elif v == 4:
                     sym = '💣'
                 else:
-                    sym = mapping.get(v, '·') + '\u0301'
+                    sym = mapping.get(v, '·')
             else:
                 sym = mapping.get(v, '·')
             cells.append(format_cell(sym))
