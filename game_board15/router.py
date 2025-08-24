@@ -42,12 +42,10 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     enemy_keys = [k for k in match.players if k != player_key]
 
     if text.startswith('@'):
-        parts = text[1:].split(maxsplit=1)
-        if len(parts) == 2:
-            target, msg = parts
-            target = target.upper()[0]
-            if target in match.players and target != player_key:
-                await context.bot.send_message(match.players[target].chat_id, msg)
+        msg = text[1:].strip()
+        for key, player in match.players.items():
+            if key != player_key:
+                await context.bot.send_message(player.chat_id, msg)
         return
 
     if match.status == 'placing':
