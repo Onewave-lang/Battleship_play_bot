@@ -65,8 +65,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     player_key = 'A' if match.players['A'].user_id == user_id else 'B'
     enemy_key = 'B' if player_key == 'A' else 'A'
 
-    if text_lower.startswith('toenemy:'):
-        msg = text[len('toenemy:'):].strip()
+    if text.startswith('@'):
+        msg = text[1:].strip()
         await context.bot.send_message(match.players[enemy_key].chat_id, msg)
         return
 
@@ -104,7 +104,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 )
                 await context.bot.send_message(
                     match.players[enemy_key].chat_id,
-                    'Используйте toenemy: <ваше сообщение>, чтобы отправить сообщение сопернику.',
+                    'Используйте @<ваше сообщение>, чтобы отправить сообщение сопернику.',
                 )
         else:
             await update.message.reply_text('Введите "авто" для автоматической расстановки.')

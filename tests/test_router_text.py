@@ -136,7 +136,7 @@ def test_router_auto_waits_and_sends_instruction(monkeypatch):
         assert send_message.call_args_list == [
             call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nКорабли расставлены. Ожидаем соперника.', parse_mode='HTML'),
             call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy\nСоперник готов. Отправьте "авто" для расстановки кораблей.', parse_mode='HTML'),
-            call(20, 'Используйте toenemy: <ваше сообщение>, чтобы отправить сообщение сопернику.'),
+            call(20, 'Используйте @<ваше сообщение>, чтобы отправить сообщение сопернику.'),
         ]
 
     asyncio.run(run_test())
@@ -185,7 +185,7 @@ def test_router_kill_message(monkeypatch):
     asyncio.run(run_test())
 
 
-def test_router_toenemy_sends_to_opponent(monkeypatch):
+def test_router_at_sends_to_opponent(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
             status='playing',
@@ -201,7 +201,7 @@ def test_router_toenemy_sends_to_opponent(monkeypatch):
         send_message = AsyncMock()
         context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message))
         update = SimpleNamespace(
-            message=SimpleNamespace(text='toenemy: Привет', reply_text=AsyncMock()),
+            message=SimpleNamespace(text='@ Привет', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
         )
         await router.router_text(update, context)
