@@ -7,7 +7,8 @@ from wcwidth import wcswidth
 
 
 # letters on top for columns
-CELL_WIDTH = 2
+# expanded slightly so that emoji icons do not stretch rows or columns
+CELL_WIDTH = 3
 
 
 def format_cell(symbol: str) -> str:
@@ -25,7 +26,7 @@ def _render_line(cells: List[str]) -> str:
 
 
 def render_board_own(board: Board) -> str:
-    lines = ["   " + COL_HEADER]
+    lines = [" " * (CELL_WIDTH + 1) + COL_HEADER]
     mapping = {0: '·', 1: '□', 2: 'x', 3: '■', 4: '▓', 5: 'x'}
     highlight = set(board.highlight)
     for r_idx, row in enumerate(board.grid):
@@ -44,12 +45,12 @@ def render_board_own(board: Board) -> str:
             else:
                 sym = mapping.get(v, '·')
             cells.append(format_cell(sym))
-        lines.append(f"{r_idx+1:>2} " + _render_line(cells))
+        lines.append(f"{r_idx+1:>{CELL_WIDTH}} " + _render_line(cells))
     return '<pre>' + '\n'.join(lines) + '</pre>'
 
 
 def render_board_enemy(board: Board) -> str:
-    lines = ["   " + COL_HEADER]
+    lines = [" " * (CELL_WIDTH + 1) + COL_HEADER]
     mapping = {0: '·', 1: '·', 2: 'x', 3: '■', 4: '▓', 5: 'x'}
     highlight = set(board.highlight)
     for r_idx, row in enumerate(board.grid):
@@ -68,5 +69,5 @@ def render_board_enemy(board: Board) -> str:
             else:
                 sym = mapping.get(v, '·')
             cells.append(format_cell(sym))
-        lines.append(f"{r_idx+1:>2} " + _render_line(cells))
+        lines.append(f"{r_idx+1:>{CELL_WIDTH}} " + _render_line(cells))
     return '<pre>' + '\n'.join(lines) + '</pre>'
