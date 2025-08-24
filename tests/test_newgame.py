@@ -28,7 +28,6 @@ def test_newgame_message_sequence(monkeypatch):
             call('Среда игры готова.'),
             call(f'Пригласите друга: {link}'),
             call('Матч создан. Ожидаем подключения соперника.'),
-            call('Отправьте "авто" для расстановки кораблей.'),
         ]
 
     asyncio.run(run_test())

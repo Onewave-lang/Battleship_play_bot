@@ -69,7 +69,6 @@ async def newgame(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     link = f"https://t.me/{username}?start=inv_{match.match_id}"
     await update.message.reply_text(f"Пригласите друга: {link}")
     await update.message.reply_text('Матч создан. Ожидаем подключения соперника.')
-    await update.message.reply_text('Отправьте "авто" для расстановки кораблей.')
 
 
 async def board(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
