@@ -4,6 +4,7 @@ from pathlib import Path
 import logging
 from threading import Lock
 from typing import Dict
+from datetime import datetime
 
 from models import Match, Board
 
@@ -190,11 +191,26 @@ def save_match(match: Match) -> str | None:
 
 
 def find_match_by_user(user_id: int) -> Match | None:
+    """Return the latest active match for ``user_id``.
+
+    Only matches in ``waiting``, ``placing`` or ``playing`` states are
+    considered.  If multiple active matches exist, the one with the most
+    recent ``created_at`` timestamp is returned.  Matches in the
+    ``finished`` state are ignored.
+    """
     with _lock:
         data = _load_all()
+    active_statuses = {"waiting", "placing", "playing"}
+    candidates = []
     for m in data.values():
-        players = m.get('players', {})
+        if m.get("status") not in active_statuses:
+            continue
+        players = m.get("players", {})
         for p in players.values():
-            if p.get('user_id') == user_id:
-                return get_match(m['match_id'])
-    return None
+            if p.get("user_id") == user_id:
+                candidates.append(m)
+                break
+    if not candidates:
+        return None
+    latest = max(candidates, key=lambda m: datetime.fromisoformat(m["created_at"]))
+    return get_match(latest["match_id"])
