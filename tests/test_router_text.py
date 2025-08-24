@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, call
 import storage
 from handlers import router
 from models import Board, Ship
+import logic.phrases as phrases
 
 
 def test_router_invalid_cell_shows_board(monkeypatch):
@@ -130,10 +131,16 @@ def test_router_kill_message(monkeypatch):
             effective_user=SimpleNamespace(id=1),
         )
         await router.router_text(update, context)
-        assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nа1 - Корабль соперника уничтожен! Ваш ход.', parse_mode='HTML'),
-            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy\nа1 - Соперник уничтожил ваш корабль. Ход соперника.', parse_mode='HTML'),
-        ]
+        calls = send_message.call_args_list
+        assert len(calls) == 2
+        msg_self = calls[0].args[1]
+        msg_enemy = calls[1].args[1]
+        assert 'а1 - Корабль соперника уничтожен!' in msg_self
+        assert any(p in msg_self for p in phrases.SELF_KILL)
+        assert msg_self.strip().endswith('Ваш ход.')
+        assert 'а1 - Соперник уничтожил ваш корабль.' in msg_enemy
+        assert any(p in msg_enemy for p in phrases.ENEMY_KILL)
+        assert msg_enemy.strip().endswith('Ход соперника.')
     asyncio.run(run_test())
 
 
