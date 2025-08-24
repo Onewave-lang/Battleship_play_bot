@@ -10,11 +10,12 @@ from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,
     ContextTypes,
     filters,
 )
 
-from handlers.commands import start, newgame, board
+from handlers.commands import start, newgame, board, send_invite_link
 from handlers.router import router_text
 
 
@@ -50,6 +51,7 @@ bot_app = ApplicationBuilder().token(token).updater(None).build()
 bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(CommandHandler("newgame", newgame))
 bot_app.add_handler(CommandHandler("board", board))
+bot_app.add_handler(CallbackQueryHandler(send_invite_link, pattern="^get_link$"))
 bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, router_text))
 
 
