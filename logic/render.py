@@ -8,7 +8,8 @@ from wcwidth import wcswidth
 
 # letters on top for columns
 # expanded slightly so that emoji icons do not stretch rows or columns
-CELL_WIDTH = 3
+CELL_WIDTH = 4
+ROW_HEIGHT = 3
 
 
 def format_cell(symbol: str) -> str:
@@ -45,7 +46,9 @@ def render_board_own(board: Board) -> str:
             else:
                 sym = mapping.get(v, '·')
             cells.append(format_cell(sym))
-        lines.append(f"{r_idx+1:>{CELL_WIDTH}} " + _render_line(cells))
+        line = f"{r_idx+1:>{CELL_WIDTH}} " + _render_line(cells)
+        lines.append(line)
+        lines.extend([''] * (ROW_HEIGHT - 1))
     return '<pre>' + '\n'.join(lines) + '</pre>'
 
 
@@ -69,5 +72,7 @@ def render_board_enemy(board: Board) -> str:
             else:
                 sym = mapping.get(v, '·')
             cells.append(format_cell(sym))
-        lines.append(f"{r_idx+1:>{CELL_WIDTH}} " + _render_line(cells))
+        line = f"{r_idx+1:>{CELL_WIDTH}} " + _render_line(cells)
+        lines.append(line)
+        lines.extend([''] * (ROW_HEIGHT - 1))
     return '<pre>' + '\n'.join(lines) + '</pre>'
