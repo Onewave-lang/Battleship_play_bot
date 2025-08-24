@@ -74,7 +74,9 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     if text.startswith('@'):
         msg = text[1:].strip()
-        await context.bot.send_message(match.players[enemy_key].chat_id, msg)
+        for key, player in match.players.items():
+            if key != player_key:
+                await context.bot.send_message(player.chat_id, msg)
         return
 
     if match.status == 'placing':
@@ -111,7 +113,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 )
                 await context.bot.send_message(
                     match.players[enemy_key].chat_id,
-                    'Используйте @<ваше сообщение>, чтобы отправить сообщение сопернику.',
+                    'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
                 )
         else:
             await update.message.reply_text('Введите "авто" для автоматической расстановки.')

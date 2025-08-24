@@ -78,29 +78,78 @@ def join_match(match_id: str, user_id: int, chat_id: int) -> Match15 | None:
 
 
 def save_board(match: Match15, player_key: str, board: Board15) -> None:
+    """Save player's board and update match state safely.
+
+    Similar to the two-player version, we need to avoid race conditions when
+    several players send the ``авто`` command simultaneously.  The previous
+    implementation called :func:`get_match` while holding the global lock,
+    which attempted to acquire the same lock again and caused a deadlock.
+    Instead we reconstruct the latest state manually based on the data stored
+    on disk.
+    """
+
     with _lock:
         data = _load_all()
-        m = data.get(match.match_id)
-        if m:
-            current = get_match(match.match_id)
+        m_dict = data.get(match.match_id)
+        if m_dict:
+            # Reconstruct current match state without calling get_match (to
+            # avoid re-acquiring the lock)
+            current = Match15(
+                match_id=m_dict['match_id'],
+                status=m_dict['status'],
+                created_at=m_dict['created_at'],
+            )
+            current.turn = m_dict.get('turn', 'A')
+            current.players = {k: Player(**p) for k, p in m_dict.get('players', {}).items()}
+            current.boards = {}
+            for key, b in m_dict.get('boards', {}).items():
+                ships = [
+                    Ship(cells=[tuple(cell) for cell in s.get('cells', [])],
+                         alive=s.get('alive', True))
+                    for s in b.get('ships', [])
+                ]
+                current.boards[key] = Board15(
+                    grid=b.get('grid', [[0] * 15 for _ in range(15)]),
+                    ships=ships,
+                    alive_cells=b.get('alive_cells', 20),
+                )
+            current.shots = m_dict.get('shots', current.shots)
+            current.messages = m_dict.get('messages', {})
         else:
             current = match
+
+        # apply board and readiness
         current.boards[player_key] = board
         current.players[player_key].ready = True
-        if len(current.players) == 3 and all(p.ready for p in current.players.values()) and current.status != 'playing':
+        if (
+            len(current.players) == 3
+            and all(p.ready for p in current.players.values())
+            and current.status != 'playing'
+        ):
             current.status = 'playing'
             current.turn = 'A'
+
+        # persist updated match
         data[current.match_id] = {
             'match_id': current.match_id,
             'status': current.status,
             'created_at': current.created_at,
             'players': {k: vars(p) for k, p in current.players.items()},
             'turn': current.turn,
-            'boards': {k: {'grid': b.grid, 'ships': [{'cells': s.cells, 'alive': s.alive} for s in b.ships], 'alive_cells': b.alive_cells} for k, b in current.boards.items()},
+            'boards': {
+                k: {
+                    'grid': b.grid,
+                    'ships': [{'cells': s.cells, 'alive': s.alive} for s in b.ships],
+                    'alive_cells': b.alive_cells,
+                }
+                for k, b in current.boards.items()
+            },
             'shots': current.shots,
             'messages': current.messages,
         }
         _save_all(data)
+
+    # update caller's object with latest state
     match.status = current.status
     match.turn = current.turn
     match.players = current.players

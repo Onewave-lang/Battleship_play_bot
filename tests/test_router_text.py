@@ -136,7 +136,7 @@ def test_router_auto_waits_and_sends_instruction(monkeypatch):
         assert send_message.call_args_list == [
             call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nКорабли расставлены. Ожидаем соперника.', parse_mode='HTML'),
             call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy\nСоперник готов. Отправьте "авто" для расстановки кораблей.', parse_mode='HTML'),
-            call(20, 'Используйте @<ваше сообщение>, чтобы отправить сообщение сопернику.'),
+            call(20, 'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.'),
         ]
 
     asyncio.run(run_test())

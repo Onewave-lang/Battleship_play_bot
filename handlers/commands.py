@@ -44,7 +44,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             with welcome_photo() as img:
                 await update.message.reply_photo(img, caption='Добро пожаловать в игру!')
             await update.message.reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки кораблей.')
-            await update.message.reply_text('Используйте @<ваше сообщение>, чтобы отправить сообщение сопернику.')
+            await update.message.reply_text('Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.')
             msg_a = 'Соперник присоединился. '
             if match.players['A'].ready:
                 msg_a += 'Ожидаем его расстановку.'
@@ -54,7 +54,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             if 'Отправьте "авто"' in msg_a:
                 await context.bot.send_message(
                     match.players['A'].chat_id,
-                    'Используйте @<ваше сообщение>, чтобы отправить сообщение сопернику.',
+                    'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
                 )
         else:
             existing = storage.get_match(match_id)
@@ -82,7 +82,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             with welcome_photo() as img:
                 await update.message.reply_photo(img, caption='Добро пожаловать в игру!')
             await update.message.reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки.')
-            await update.message.reply_text('Используйте @<буква> <сообщение>, чтобы отправить сообщение сопернику.')
+            await update.message.reply_text('Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.')
             for key, player in match.players.items():
                 if player.user_id == update.effective_user.id:
                     continue
@@ -95,7 +95,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 if 'Отправьте "авто"' in msg:
                     await context.bot.send_message(
                         player.chat_id,
-                        'Используйте @<буква> <сообщение>, чтобы отправить сообщение сопернику.',
+                        'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
                     )
         else:
             await update.message.reply_text('Матч не найден или заполнен.')
