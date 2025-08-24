@@ -8,6 +8,15 @@ from logic.placement import random_board
 from logic.battle import apply_shot, MISS, HIT, KILL, REPEAT
 from logic.render import render_board_own, render_board_enemy
 from handlers.commands import newgame
+from logic.phrases import (
+    ENEMY_HIT,
+    ENEMY_KILL,
+    ENEMY_MISS,
+    SELF_HIT,
+    SELF_KILL,
+    SELF_MISS,
+    random_phrase,
+)
 
 
 async def _send_state(
@@ -101,12 +110,12 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     if result == MISS:
         match.turn = enemy_key
-        result_self = f'{coord_str} - Мимо. Ход соперника.'
-        result_enemy = f'{coord_str} - Соперник промахнулся. Ваш ход.'
+        result_self = f"{coord_str} - Мимо. {random_phrase(SELF_MISS)} Ход соперника."
+        result_enemy = f"{coord_str} - Соперник промахнулся. {random_phrase(ENEMY_MISS)} Ваш ход."
         error = storage.save_match(match)
     elif result == HIT:
-        result_self = f'{coord_str} - Ранил. Ваш ход.'
-        result_enemy = f'{coord_str} - Соперник ранил ваш корабль. Ход соперника.'
+        result_self = f"{coord_str} - Ранил. {random_phrase(SELF_HIT)} Ваш ход."
+        result_enemy = f"{coord_str} - Соперник ранил ваш корабль. {random_phrase(ENEMY_HIT)} Ход соперника."
         error = storage.save_match(match)
     elif result == REPEAT:
         result_self = f'{coord_str} - Клетка уже обстреляна. Ваш ход.'
@@ -115,11 +124,21 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     elif result == KILL:
         if match.boards[enemy_key].alive_cells == 0:
             error = storage.finish(match, player_key)
-            result_self = f'{coord_str} - Корабль соперника уничтожен! Вы победили. 🏆🎉'
-            result_enemy = f'{coord_str} - Все ваши корабли уничтожены. Соперник победил. Не сдавайтесь, капитан! ⚓'
+            result_self = (
+                f"{coord_str} - Корабль соперника уничтожен! {random_phrase(SELF_KILL)} "
+                "Вы победили. 🏆🎉"
+            )
+            result_enemy = (
+                f"{coord_str} - Все ваши корабли уничтожены. Соперник победил. "
+                f"{random_phrase(ENEMY_KILL)} Не сдавайтесь, капитан! ⚓"
+            )
         else:
-            result_self = f'{coord_str} - Корабль соперника уничтожен! Ваш ход.'
-            result_enemy = f'{coord_str} - Соперник уничтожил ваш корабль. Ход соперника.'
+            result_self = (
+                f"{coord_str} - Корабль соперника уничтожен! {random_phrase(SELF_KILL)} Ваш ход."
+            )
+            result_enemy = (
+                f"{coord_str} - Соперник уничтожил ваш корабль. {random_phrase(ENEMY_KILL)} Ход соперника."
+            )
             error = storage.save_match(match)
     else:
         result_self = f'{coord_str} - Ошибка. Ваш ход.'
