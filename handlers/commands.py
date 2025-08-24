@@ -23,12 +23,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         match = storage.join_match(match_id, update.effective_user.id, update.effective_chat.id)
         if match:
             await update.message.reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки кораблей.')
+            await update.message.reply_text('Используйте toenemy: <ваше сообщение>, чтобы отправить сообщение сопернику.')
             msg_a = 'Соперник присоединился. '
             if match.players['A'].ready:
                 msg_a += 'Ожидаем его расстановку.'
             else:
                 msg_a += 'Отправьте "авто" для расстановки кораблей.'
             await context.bot.send_message(match.players['A'].chat_id, msg_a)
+            if 'Отправьте "авто"' in msg_a:
+                await context.bot.send_message(
+                    match.players['A'].chat_id,
+                    'Используйте toenemy: <ваше сообщение>, чтобы отправить сообщение сопернику.',
+                )
         else:
             existing = storage.get_match(match_id)
             reason = 'match not found'
