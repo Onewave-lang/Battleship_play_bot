@@ -5,6 +5,9 @@ from telegram.ext import ContextTypes
 
 from . import storage
 from . import placement, battle, parser
+from .handlers import _keyboard
+from .renderer import render_board
+from .state import Board15State
 from logic.phrases import (
     ENEMY_HIT,
     ENEMY_KILL,
@@ -26,6 +29,20 @@ def _phrase_or_joke(match, player_key: str, phrases: list[str]) -> str:
     if count >= start and (count - start) % 10 == 0:
         return f"Слушай анекдот:\n{random_joke()}\n\n"
     return f"{random_phrase(phrases)} "
+
+
+async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str, message: str) -> None:
+    """Render player's board and send it with the given message."""
+
+    state = Board15State()
+    state.board = [row[:] for row in match.boards[player_key].grid]
+    buf = render_board(state)
+    await context.bot.send_photo(
+        match.players[player_key].chat_id,
+        buf,
+        caption=message,
+        reply_markup=_keyboard(),
+    )
 
 
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -54,12 +71,15 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             storage.save_board(match, player_key, board)
             if match.status == 'playing':
                 for k in match.players:
-                    await context.bot.send_message(
-                        match.players[k].chat_id,
-                        'Все готовы. Бой начинается! ' + ('Ваш ход.' if match.turn == k else 'Ждём хода соперника.'),
+                    msg = (
+                        'Корабли расставлены. Бой начинается! '
+                        if k == player_key
+                        else 'Соперник готов. Бой начинается! '
                     )
+                    msg += 'Ваш ход.' if match.turn == k else 'Ход соперника.'
+                    await _send_state(context, match, k, msg)
             else:
-                await update.message.reply_text('Корабли расставлены. Ожидаем остальных.')
+                await _send_state(context, match, player_key, 'Корабли расставлены. Ожидаем остальных.')
             return
         await update.message.reply_text('Введите "авто" для расстановки.')
         return
