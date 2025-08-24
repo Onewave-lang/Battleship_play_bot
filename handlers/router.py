@@ -45,14 +45,16 @@ def _phrase_or_joke(match, player_key: str, phrases: list[str]) -> str:
         start = shots["joke_start"] = random.randint(1, 10)
     count = shots.get("move_count", 0)
     if count >= start and (count - start) % 10 == 0:
-        return f"Слушай анекдот по этому поводу:\n\n{random_joke()}\n"
+        return f"Слушай анекдот по этому поводу:\n{random_joke()}\n\n"
     return f"{random_phrase(phrases)} "
 
 
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
-    text = update.message.text.strip().lower()
-    if text == 'начать новую игру':
+    text_raw = update.message.text
+    text = text_raw.strip()
+    text_lower = text.lower()
+    if text_lower == 'начать новую игру':
         await newgame(update, context)
         return
     match = storage.find_match_by_user(user_id)
@@ -62,6 +64,11 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     player_key = 'A' if match.players['A'].user_id == user_id else 'B'
     enemy_key = 'B' if player_key == 'A' else 'A'
+
+    if text_lower.startswith('toenemy:'):
+        msg = text[len('toenemy:'):].strip()
+        await context.bot.send_message(match.players[enemy_key].chat_id, msg)
+        return
 
     if match.status == 'placing':
         if text == 'авто':
@@ -94,6 +101,10 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     match,
                     enemy_key,
                     'Соперник готов. Отправьте "авто" для расстановки кораблей.',
+                )
+                await context.bot.send_message(
+                    match.players[enemy_key].chat_id,
+                    'Используйте toenemy: <ваше сообщение>, чтобы отправить сообщение сопернику.',
                 )
         else:
             await update.message.reply_text('Введите "авто" для автоматической расстановки.')
