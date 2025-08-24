@@ -23,4 +23,5 @@ class Board15State:
     last_img_hash: str = ""
     chat_id: Optional[int] = None
     message_id: Optional[int] = None
+    status_message_id: Optional[int] = None
     selected: Optional[Tuple[int, int]] = None
