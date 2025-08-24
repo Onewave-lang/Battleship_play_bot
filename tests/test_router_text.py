@@ -16,8 +16,8 @@ def test_router_invalid_cell_shows_board(monkeypatch):
                      'B': SimpleNamespace(user_id=2, chat_id=20)},
             boards={'A': SimpleNamespace(), 'B': SimpleNamespace()},
             turn='A',
-            shots={'A': {'history': [], 'last_result': None},
-                   'B': {'history': [], 'last_result': None}},
+            shots={'A': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10},
+                   'B': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10}},
         )
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
@@ -44,8 +44,8 @@ def test_router_wrong_turn_shows_board(monkeypatch):
                      'B': SimpleNamespace(user_id=2, chat_id=20)},
             boards={'A': SimpleNamespace(), 'B': SimpleNamespace()},
             turn='B',
-            shots={'A': {'history': [], 'last_result': None},
-                   'B': {'history': [], 'last_result': None}},
+            shots={'A': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10},
+                   'B': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10}},
         )
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
@@ -117,8 +117,8 @@ def test_router_kill_message(monkeypatch):
                      'B': SimpleNamespace(user_id=2, chat_id=20)},
             boards={'A': board_self, 'B': board_enemy},
             turn='A',
-            shots={'A': {'history': [], 'last_result': None},
-                   'B': {'history': [], 'last_result': None}},
+            shots={'A': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10},
+                   'B': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10}},
         )
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
@@ -158,8 +158,8 @@ def test_router_game_over_messages(monkeypatch):
                      'B': SimpleNamespace(user_id=2, chat_id=20)},
             boards={'A': board_self, 'B': board_enemy},
             turn='A',
-            shots={'A': {'history': [], 'last_result': None},
-                   'B': {'history': [], 'last_result': None}},
+            shots={'A': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10},
+                   'B': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10}},
         )
         def fake_finish(m, winner):
             m.status = 'finished'

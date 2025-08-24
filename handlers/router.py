@@ -1,4 +1,5 @@
 from __future__ import annotations
+import random
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 
@@ -16,6 +17,7 @@ from logic.phrases import (
     SELF_KILL,
     SELF_MISS,
     random_phrase,
+    random_joke,
 )
 
 
@@ -34,6 +36,17 @@ async def _send_state(
         f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}\n{message}",
         parse_mode="HTML",
     )
+
+
+def _phrase_or_joke(match, player_key: str, phrases: list[str]) -> str:
+    shots = match.shots[player_key]
+    start = shots.get("joke_start")
+    if start is None:
+        start = shots["joke_start"] = random.randint(1, 10)
+    count = shots.get("move_count", 0)
+    if count >= start and (count - start) % 10 == 0:
+        return f"Слушай анекдот по этому поводу:\n\n{random_joke()}\n"
+    return f"{random_phrase(phrases)} "
 
 
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -105,17 +118,26 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     result = apply_shot(match.boards[enemy_key], coord)
     match.shots[player_key]['history'].append(text)
     match.shots[player_key]['last_result'] = result
+    for k in ('A', 'B'):
+        shots = match.shots.setdefault(k, {})
+        shots.setdefault('move_count', 0)
+        shots.setdefault('joke_start', random.randint(1, 10))
+        shots['move_count'] += 1
     error = None
     coord_str = format_coord(coord)
 
     if result == MISS:
         match.turn = enemy_key
-        result_self = f"{coord_str} - Мимо. {random_phrase(SELF_MISS)} Ход соперника."
-        result_enemy = f"{coord_str} - Соперник промахнулся. {random_phrase(ENEMY_MISS)} Ваш ход."
+        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
+        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_MISS)
+        result_self = f"{coord_str} - Мимо. {phrase_self}Ход соперника."
+        result_enemy = f"{coord_str} - Соперник промахнулся. {phrase_enemy}Ваш ход."
         error = storage.save_match(match)
     elif result == HIT:
-        result_self = f"{coord_str} - Ранил. {random_phrase(SELF_HIT)} Ваш ход."
-        result_enemy = f"{coord_str} - Соперник ранил ваш корабль. {random_phrase(ENEMY_HIT)} Ход соперника."
+        phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
+        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_HIT)
+        result_self = f"{coord_str} - Ранил. {phrase_self}Ваш ход."
+        result_enemy = f"{coord_str} - Соперник ранил ваш корабль. {phrase_enemy}Ход соперника."
         error = storage.save_match(match)
     elif result == REPEAT:
         result_self = f'{coord_str} - Клетка уже обстреляна. Ваш ход.'
@@ -124,20 +146,17 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     elif result == KILL:
         if match.boards[enemy_key].alive_cells == 0:
             error = storage.finish(match, player_key)
-            result_self = (
-                f"{coord_str} - Корабль соперника уничтожен! {random_phrase(SELF_KILL)} "
-                "Вы победили. 🏆🎉"
-            )
+            result_self = f"{coord_str} - Корабль соперника уничтожен! Вы победили. 🏆🎉"
             result_enemy = (
                 f"{coord_str} - Все ваши корабли уничтожены. Соперник победил. "
-                f"{random_phrase(ENEMY_KILL)} Не сдавайтесь, капитан! ⚓"
+                "Не сдавайтесь, капитан! ⚓"
             )
         else:
-            result_self = (
-                f"{coord_str} - Корабль соперника уничтожен! {random_phrase(SELF_KILL)} Ваш ход."
-            )
+            phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
+            phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_KILL)
+            result_self = f"{coord_str} - Корабль соперника уничтожен! {phrase_self}Ваш ход."
             result_enemy = (
-                f"{coord_str} - Соперник уничтожил ваш корабль. {random_phrase(ENEMY_KILL)} Ход соперника."
+                f"{coord_str} - Соперник уничтожил ваш корабль. {phrase_enemy}Ход соперника."
             )
             error = storage.save_match(match)
     else:
