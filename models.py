@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import List, Tuple, Dict, Optional
 from datetime import datetime
 import uuid
+import random
 
 
 Coord = Tuple[int, int]  # row, col indexes
@@ -39,8 +40,18 @@ class Match:
     turn: str = "A"
     boards: Dict[str, Board] = field(default_factory=dict)
     shots: Dict[str, Dict[str, object]] = field(default_factory=lambda: {
-        "A": {"history": [], "last_result": None},
-        "B": {"history": [], "last_result": None}
+        "A": {
+            "history": [],
+            "last_result": None,
+            "move_count": 0,
+            "joke_start": random.randint(1, 10),
+        },
+        "B": {
+            "history": [],
+            "last_result": None,
+            "move_count": 0,
+            "joke_start": random.randint(1, 10),
+        },
     })
     messages: Dict[str, Dict[str, int]] = field(default_factory=dict)
 
