@@ -20,7 +20,11 @@ from handlers.router import router_text
 
 BOARD15_ENABLED = os.getenv("BOARD15_ENABLED") == "1"
 if BOARD15_ENABLED:
-    from game_board15.handlers import board15, board15_on_click
+    from game_board15.handlers import (
+        board15,
+        board15_on_click,
+        send_board15_invite_link,
+    )
 
 
 token = os.getenv("BOT_TOKEN")
@@ -60,6 +64,7 @@ bot_app.add_handler(CallbackQueryHandler(choose_mode, pattern="^mode_"))
 if BOARD15_ENABLED:
     bot_app.add_handler(CommandHandler("board15", board15))
     bot_app.add_handler(CallbackQueryHandler(board15_on_click, pattern=r"^b15\|"))
+    bot_app.add_handler(CallbackQueryHandler(send_board15_invite_link, pattern="^b15_get_link$"))
 bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, router_text))
 
 

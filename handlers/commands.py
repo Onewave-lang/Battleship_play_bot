@@ -74,6 +74,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 reason,
             )
             await update.message.reply_text(msg)
+    elif args and args[0].startswith('b15_'):
+        match_id = args[0][4:]
+        from game_board15 import storage as storage15
+        match = storage15.join_match(match_id, update.effective_user.id, update.effective_chat.id)
+        if match:
+            with welcome_photo() as img:
+                await update.message.reply_photo(img, caption='Добро пожаловать в игру!')
+            await update.message.reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки.')
+            await update.message.reply_text('Используйте @<буква> <сообщение>, чтобы отправить сообщение сопернику.')
+            for key, player in match.players.items():
+                if player.user_id == update.effective_user.id:
+                    continue
+                msg = 'Соперник присоединился. '
+                if getattr(player, 'ready', False):
+                    msg += 'Ожидаем его расстановку.'
+                else:
+                    msg += 'Отправьте "авто" для расстановки.'
+                await context.bot.send_message(player.chat_id, msg)
+                if 'Отправьте "авто"' in msg:
+                    await context.bot.send_message(
+                        player.chat_id,
+                        'Используйте @<буква> <сообщение>, чтобы отправить сообщение сопернику.',
+                    )
+        else:
+            await update.message.reply_text('Матч не найден или заполнен.')
     else:
         await update.message.reply_text(
             'Привет! Используйте /newgame чтобы создать матч. '

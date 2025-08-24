@@ -7,6 +7,7 @@ from telegram import (
     InlineKeyboardButton,
 )
 from telegram.ext import ContextTypes
+from urllib.parse import quote_plus
 
 from .state import Board15State
 from .renderer import render_board, VIEW
@@ -22,6 +23,8 @@ from logic.phrases import (
     random_joke,
 )
 import random
+
+WELCOME_TEXT = 'Выберите способ приглашения соперников:'
 
 STATE_KEY = "board15_state"
 
@@ -72,9 +75,19 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки.')
     else:
         match = storage.create_match(update.effective_user.id, update.effective_chat.id)
-        await update.message.reply_text(
-            f'Матч создан. Передайте друзьям команду /board15 {match.match_id} для присоединения.'
+        username = (await context.bot.get_me()).username
+        link = f"https://t.me/{username}?start=b15_{match.match_id}"
+        share_url = f"https://t.me/share/url?url={quote_plus(link)}"
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton('Из контактов', url=share_url),
+                    InlineKeyboardButton('Ссылка на игру', callback_data='b15_get_link'),
+                ]
+            ]
         )
+        await update.message.reply_text(WELCOME_TEXT, reply_markup=keyboard)
+        await update.message.reply_text('Матч создан. Ожидаем подключения соперников.')
     player_key = next(k for k, p in match.players.items() if p.user_id == update.effective_user.id)
     state = Board15State(chat_id=update.effective_chat.id)
     state.board = [row[:] for row in match.boards[player_key].grid]
@@ -82,6 +95,19 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     msg = await update.message.reply_photo(buf, reply_markup=_keyboard())
     state.message_id = msg.message_id
     context.chat_data[STATE_KEY] = state
+
+
+async def send_board15_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send invitation link for 15x15 mode."""
+    query = update.callback_query
+    await query.answer()
+    match = storage.find_match_by_user(query.from_user.id)
+    if not match:
+        await query.message.reply_text('Матч не найден.')
+        return
+    username = (await context.bot.get_me()).username
+    link = f"https://t.me/{username}?start=b15_{match.match_id}"
+    await query.message.reply_text(f"Пригласите друга: {link}")
 
 
 async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
