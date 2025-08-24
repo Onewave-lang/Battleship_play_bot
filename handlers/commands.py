@@ -1,5 +1,5 @@
 from __future__ import annotations
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 import logging
@@ -7,6 +7,7 @@ from pathlib import Path
 from io import BytesIO
 from contextlib import contextmanager
 import base64
+from urllib.parse import quote_plus
 
 import storage
 from logic.render import render_board_own, render_board_enemy
@@ -95,8 +96,33 @@ async def newgame(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     with welcome_photo() as img:
         await update.message.reply_photo(img, caption='Добро пожаловать в игру!')
     link = f"https://t.me/{username}?start=inv_{match.match_id}"
-    await update.message.reply_text(f"Пригласите друга: {link}")
+    share_url = f"https://t.me/share/url?url={quote_plus(link)}"
+    keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton('Из контактов', url=share_url),
+                InlineKeyboardButton('Ссылка на игру', callback_data='get_link'),
+            ]
+        ]
+    )
+    await update.message.reply_text(
+        'Выберите способ приглашения соперника:',
+        reply_markup=keyboard,
+    )
     await update.message.reply_text('Матч создан. Ожидаем подключения соперника.')
+
+
+async def send_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send invitation link to the match creator."""
+    query = update.callback_query
+    await query.answer()
+    match = storage.find_match_by_user(query.from_user.id)
+    if not match:
+        await query.message.reply_text('Матч не найден.')
+        return
+    username = (await context.bot.get_me()).username
+    link = f"https://t.me/{username}?start=inv_{match.match_id}"
+    await query.message.reply_text(f"Пригласите друга: {link}")
 
 
 async def board(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
