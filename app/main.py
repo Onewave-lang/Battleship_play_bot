@@ -15,8 +15,12 @@ from telegram.ext import (
     filters,
 )
 
-from handlers.commands import start, newgame, board, send_invite_link
+from handlers.commands import start, newgame, board, send_invite_link, choose_mode
 from handlers.router import router_text
+
+BOARD15_ENABLED = os.getenv("BOARD15_ENABLED") == "1"
+if BOARD15_ENABLED:
+    from game_board15.handlers import board15, board15_on_click
 
 
 token = os.getenv("BOT_TOKEN")
@@ -52,6 +56,10 @@ bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(CommandHandler("newgame", newgame))
 bot_app.add_handler(CommandHandler("board", board))
 bot_app.add_handler(CallbackQueryHandler(send_invite_link, pattern="^get_link$"))
+bot_app.add_handler(CallbackQueryHandler(choose_mode, pattern="^mode_"))
+if BOARD15_ENABLED:
+    bot_app.add_handler(CommandHandler("board15", board15))
+    bot_app.add_handler(CallbackQueryHandler(board15_on_click, pattern=r"^b15\|"))
 bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, router_text))
 
 

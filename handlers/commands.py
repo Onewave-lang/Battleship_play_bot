@@ -80,6 +80,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             'Если вы переходили по ссылке-приглашению, отправьте её текст '
             'вручную: /start inv_<id>.'
         )
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton('Игра вдвоем', callback_data='mode_2'),
+                    InlineKeyboardButton('Игра втроем', callback_data='mode_3'),
+                ]
+            ]
+        )
+        await update.message.reply_text('Выберите режим игры:', reply_markup=keyboard)
 
 
 async def newgame(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -144,3 +153,13 @@ async def board(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}",
         parse_mode='HTML',
     )
+
+
+async def choose_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle game mode selection from start menu."""
+    query = update.callback_query
+    await query.answer()
+    if query.data == 'mode_2':
+        await query.message.reply_text('Используйте /newgame для классической игры вдвоем.')
+    elif query.data == 'mode_3':
+        await query.message.reply_text('Используйте /board15 для игры втроем на поле 15×15.')

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import random
+import os
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 
@@ -58,6 +59,12 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await newgame(update, context)
         return
     match = storage.find_match_by_user(user_id)
+    if not match and os.getenv("BOARD15_ENABLED") == "1":
+        from game_board15 import storage as storage15, router as router15
+        match15 = storage15.find_match_by_user(user_id)
+        if match15:
+            await router15.router_text(update, context)
+            return
     if not match:
         await update.message.reply_text('Вы не участвуете в матче. Используйте /newgame.')
         return
