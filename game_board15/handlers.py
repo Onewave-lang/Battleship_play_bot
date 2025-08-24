@@ -93,8 +93,15 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     state.board = [row[:] for row in match.boards[player_key].grid]
     buf = render_board(state)
     msg = await update.message.reply_photo(buf, reply_markup=_keyboard())
+    status = await update.message.reply_text('Выберите клетку или введите ход текстом.')
     state.message_id = msg.message_id
+    state.status_message_id = status.message_id
     context.chat_data[STATE_KEY] = state
+    match.messages[player_key] = {
+        'board': msg.message_id,
+        'status': status.message_id,
+    }
+    storage.save_match(match)
 
 
 async def send_board15_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -181,7 +188,26 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             match.turn = player_key
         storage.save_match(match)
         result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_player}.")
-        await query.message.reply_text(result_self)
+        msg_ids = match.messages.get(player_key, {})
+        status_id = msg_ids.get('status')
+        if status_id:
+            try:
+                await context.bot.edit_message_text(
+                    result_self,
+                    chat_id=state.chat_id,
+                    message_id=status_id,
+                )
+            except Exception:
+                status_msg = await context.bot.send_message(state.chat_id, result_self)
+                msg_ids['status'] = status_msg.message_id
+                storage.save_match(match)
+            else:
+                state.status_message_id = status_id
+        else:
+            status_msg = await context.bot.send_message(state.chat_id, result_self)
+            msg_ids['status'] = status_msg.message_id
+            state.status_message_id = status_msg.message_id
+            storage.save_match(match)
         state.board = [row[:] for row in match.boards[player_key].grid]
         state.selected = None
         alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0]

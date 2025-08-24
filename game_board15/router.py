@@ -1,11 +1,11 @@
 from __future__ import annotations
 import random
-from telegram import Update
+from telegram import Update, InputMediaPhoto
 from telegram.ext import ContextTypes
 
 from . import storage
 from . import placement, battle, parser
-from .handlers import _keyboard
+from .handlers import _keyboard, STATE_KEY
 from .renderer import render_board
 from .state import Board15State
 from logic.phrases import (
@@ -32,17 +32,54 @@ def _phrase_or_joke(match, player_key: str, phrases: list[str]) -> str:
 
 
 async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str, message: str) -> None:
-    """Render player's board and send it with the given message."""
+    """Render player's board and update their messages."""
 
-    state = Board15State()
+    chat_id = match.players[player_key].chat_id
+    state: Board15State | None = context.chat_data.get(STATE_KEY)
+    if not state or state.chat_id != chat_id:
+        state = Board15State(chat_id=chat_id)
+        context.chat_data[STATE_KEY] = state
     state.board = [row[:] for row in match.boards[player_key].grid]
     buf = render_board(state)
-    await context.bot.send_photo(
-        match.players[player_key].chat_id,
-        buf,
-        caption=message,
-        reply_markup=_keyboard(),
-    )
+    msgs = match.messages.setdefault(player_key, {})
+    board_id = msgs.get('board')
+    status_id = msgs.get('status')
+    if board_id:
+        try:
+            await context.bot.edit_message_media(
+                chat_id=chat_id,
+                message_id=board_id,
+                media=InputMediaPhoto(buf),
+                reply_markup=_keyboard(),
+            )
+        except Exception:
+            msg = await context.bot.send_photo(chat_id, buf, reply_markup=_keyboard())
+            board_id = msg.message_id
+            msgs['board'] = board_id
+        else:
+            state.message_id = board_id
+    else:
+        msg = await context.bot.send_photo(chat_id, buf, reply_markup=_keyboard())
+        board_id = msg.message_id
+        msgs['board'] = board_id
+        state.message_id = board_id
+    if status_id:
+        try:
+            await context.bot.edit_message_text(
+                message,
+                chat_id=chat_id,
+                message_id=status_id,
+            )
+        except Exception:
+            status = await context.bot.send_message(chat_id, message)
+            msgs['status'] = status.message_id
+        else:
+            state.status_message_id = status_id
+    else:
+        status = await context.bot.send_message(chat_id, message)
+        msgs['status'] = status.message_id
+        state.status_message_id = status.message_id
+    storage.save_match(match)
 
 
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -143,7 +180,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         match.turn = player_key
         storage.save_match(match)
     result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_player}.")
-    await update.message.reply_text(result_self)
+    await _send_state(context, match, player_key, result_self)
 
     alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0]
     if len(alive_players) == 1:
