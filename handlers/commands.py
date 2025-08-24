@@ -3,12 +3,30 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 import logging
+from pathlib import Path
+from io import BytesIO
+from contextlib import contextmanager
+import base64
 
 import storage
 from logic.render import render_board_own, render_board_enemy
 
 
 logger = logging.getLogger(__name__)
+
+WELCOME_IMAGE = Path(__file__).resolve().parent.parent / '48E5E3DF-C5DF-4DE3-B301-EFA71844B5CF.png'
+_WELCOME_PLACEHOLDER = base64.b64decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAADUlEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII='
+)
+
+
+@contextmanager
+def welcome_photo():
+    if WELCOME_IMAGE.exists():
+        with WELCOME_IMAGE.open('rb') as img:
+            yield img
+    else:
+        yield BytesIO(_WELCOME_PLACEHOLDER)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -22,8 +40,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         match_id = args[0][4:]
         match = storage.join_match(match_id, update.effective_user.id, update.effective_chat.id)
         if match:
+            with welcome_photo() as img:
+                await update.message.reply_photo(img, caption='Добро пожаловать в игру!')
             await update.message.reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки кораблей.')
-            await update.message.reply_text('Используйте toenemy: <ваше сообщение>, чтобы отправить сообщение сопернику.')
+            await update.message.reply_text('Используйте @<ваше сообщение>, чтобы отправить сообщение сопернику.')
             msg_a = 'Соперник присоединился. '
             if match.players['A'].ready:
                 msg_a += 'Ожидаем его расстановку.'
@@ -33,7 +53,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             if 'Отправьте "авто"' in msg_a:
                 await context.bot.send_message(
                     match.players['A'].chat_id,
-                    'Используйте toenemy: <ваше сообщение>, чтобы отправить сообщение сопернику.',
+                    'Используйте @<ваше сообщение>, чтобы отправить сообщение сопернику.',
                 )
         else:
             existing = storage.get_match(match_id)
@@ -72,6 +92,8 @@ async def newgame(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     match = storage.create_match(update.effective_user.id, update.effective_chat.id)
     username = (await context.bot.get_me()).username
     await update.message.reply_text('Среда игры готова.')
+    with welcome_photo() as img:
+        await update.message.reply_photo(img, caption='Добро пожаловать в игру!')
     link = f"https://t.me/{username}?start=inv_{match.match_id}"
     await update.message.reply_text(f"Пригласите друга: {link}")
     await update.message.reply_text('Матч создан. Ожидаем подключения соперника.')
