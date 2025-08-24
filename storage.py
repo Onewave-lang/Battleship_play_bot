@@ -57,10 +57,16 @@ def get_match(match_id: str) -> Match | None:
     # boards
     match.boards = {}
     for key, b in m['boards'].items():
-        ships = [Ship(**s) for s in b.get('ships', [])]
-        match.boards[key] = Board(grid=b.get('grid', [[0]*10 for _ in range(10)]),
-                                  ships=ships,
-                                  alive_cells=b.get('alive_cells', 20))
+        ships = [
+            Ship(cells=[tuple(cell) for cell in s.get('cells', [])],
+                 alive=s.get('alive', True))
+            for s in b.get('ships', [])
+        ]
+        match.boards[key] = Board(
+            grid=b.get('grid', [[0] * 10 for _ in range(10)]),
+            ships=ships,
+            alive_cells=b.get('alive_cells', 20),
+        )
     match.turn = m.get('turn', 'A')
     match.shots = m.get('shots', match.shots)
     match.messages = m.get('messages', {})
@@ -106,10 +112,16 @@ def save_board(match: Match, player_key: str, board: Board) -> None:
             current.players = {key: Player(**p) for key, p in m_dict['players'].items()}
             current.boards = {}
             for key, b in m_dict['boards'].items():
-                ships = [Ship(**s) for s in b.get('ships', [])]
-                current.boards[key] = Board(grid=b.get('grid', [[0]*10 for _ in range(10)]),
-                                            ships=ships,
-                                            alive_cells=b.get('alive_cells', 20))
+                ships = [
+                    Ship(cells=[tuple(cell) for cell in s.get('cells', [])],
+                         alive=s.get('alive', True))
+                    for s in b.get('ships', [])
+                ]
+                current.boards[key] = Board(
+                    grid=b.get('grid', [[0] * 10 for _ in range(10)]),
+                    ships=ships,
+                    alive_cells=b.get('alive_cells', 20),
+                )
             current.turn = m_dict.get('turn', 'A')
             current.shots = m_dict.get('shots', current.shots)
             current.messages = m_dict.get('messages', {})
