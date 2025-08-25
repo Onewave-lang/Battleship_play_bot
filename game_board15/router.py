@@ -6,7 +6,7 @@ from telegram.ext import ContextTypes
 from . import storage
 from . import placement, battle, parser
 from .handlers import _keyboard, STATE_KEY
-from .renderer import render_board
+from .renderer import render_board, render_player_board
 from .state import Board15State
 from logic.phrases import (
     ENEMY_HIT,
@@ -63,6 +63,24 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
         board_id = msg.message_id
         msgs['board'] = board_id
         state.message_id = board_id
+
+    # player's own board with ships
+    player_buf = render_player_board(match.boards[player_key])
+    player_id = msgs.get('player')
+    if player_id:
+        try:
+            await context.bot.edit_message_media(
+                chat_id=chat_id,
+                message_id=player_id,
+                media=InputMediaPhoto(player_buf),
+            )
+        except Exception:
+            msg = await context.bot.send_photo(chat_id, player_buf)
+            msgs['player'] = msg.message_id
+    else:
+        msg = await context.bot.send_photo(chat_id, player_buf)
+        msgs['player'] = msg.message_id
+
     if status_id:
         try:
             await context.bot.edit_message_text(
