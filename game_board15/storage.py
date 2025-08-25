@@ -35,8 +35,8 @@ def _save_all(data: Dict[str, dict]) -> str | None:
     return None
 
 
-def create_match(a_user_id: int, a_chat_id: int) -> Match15:
-    match = Match15.new(a_user_id, a_chat_id)
+def create_match(a_user_id: int, a_chat_id: int, a_name: str = "") -> Match15:
+    match = Match15.new(a_user_id, a_chat_id, a_name)
     save_match(match)
     return match
 
@@ -59,16 +59,16 @@ def get_match(match_id: str) -> Match15 | None:
     return match
 
 
-def join_match(match_id: str, user_id: int, chat_id: int) -> Match15 | None:
+def join_match(match_id: str, user_id: int, chat_id: int, name: str = "") -> Match15 | None:
     match = get_match(match_id)
     if not match:
         return None
     if user_id in [p.user_id for p in match.players.values()]:
         return None
     if 'B' not in match.players:
-        match.players['B'] = Player(user_id=user_id, chat_id=chat_id)
+        match.players['B'] = Player(user_id=user_id, chat_id=chat_id, name=name)
     elif 'C' not in match.players:
-        match.players['C'] = Player(user_id=user_id, chat_id=chat_id)
+        match.players['C'] = Player(user_id=user_id, chat_id=chat_id, name=name)
     else:
         return None
     if len(match.players) == 3:
