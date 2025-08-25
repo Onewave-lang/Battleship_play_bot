@@ -27,6 +27,7 @@ class Board15:
 class Player:
     user_id: int
     chat_id: int
+    name: str = ""
     ready: bool = False
 
 
@@ -50,12 +51,14 @@ class Match15:
         }
     )
     messages: Dict[str, Dict[str, int]] = field(default_factory=dict)
+    eliminated: List[str] = field(default_factory=list)
+    eliminated_segments: Dict[str, int] = field(default_factory=dict)
 
     @staticmethod
-    def new(a_user_id: int, a_chat_id: int) -> "Match15":
+    def new(a_user_id: int, a_chat_id: int, a_name: str) -> "Match15":
         match_id = uuid.uuid4().hex
         match = Match15(match_id=match_id)
-        match.players["A"] = Player(user_id=a_user_id, chat_id=a_chat_id)
+        match.players["A"] = Player(user_id=a_user_id, chat_id=a_chat_id, name=a_name)
         for k in ("A", "B", "C"):
             match.boards[k] = Board15()
         return match
