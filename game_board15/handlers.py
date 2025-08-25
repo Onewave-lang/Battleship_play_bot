@@ -110,32 +110,59 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     storage.save_match(match)
 
 
+async def _auto_play(match: storage.Match15, context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> None:
+    """Automatically play the match until one player wins."""
+    coords = [(r, c) for r in range(15) for c in range(15)]
+    log: list[str] = []
+    idx = 0
+    order = ['A', 'B', 'C']
+    while True:
+        alive = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
+        if len(alive) == 1:
+            winner = alive[0]
+            storage.finish(match, winner)
+            log.append(f'Победил игрок {winner}')
+            await context.bot.send_message(chat_id, '\n'.join(log))
+            break
+        current = match.turn
+        if idx >= len(coords):
+            log.append('Ходы закончились')
+            await context.bot.send_message(chat_id, '\n'.join(log))
+            break
+        coord = coords[idx]
+        idx += 1
+        results = {}
+        hit_any = False
+        for enemy in [k for k in alive if k != current]:
+            res = battle.apply_shot(match.boards[enemy], coord)
+            results[enemy] = res
+            if res in (battle.HIT, battle.KILL):
+                hit_any = True
+        coord_str = parser.format_coord(coord)
+        if results:
+            parts = ', '.join(f'{e}:{results[e]}' for e in results)
+            log.append(f'{current} -> {coord_str}: {parts}')
+        if not hit_any:
+            alive_order = [k for k in order if k in alive]
+            idx_next = alive_order.index(current)
+            match.turn = alive_order[(idx_next + 1) % len(alive_order)]
+        storage.save_match(match)
+
+
 async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Start a three-player match where one user controls all players."""
+    """Start a three-player test match with two dummy opponents."""
     name = getattr(update.effective_user, 'first_name', '') or ''
     match = storage.create_match(update.effective_user.id, update.effective_chat.id, name)
-    match.players['B'] = Player(user_id=update.effective_user.id, chat_id=update.effective_chat.id, name='B')
-    match.players['C'] = Player(user_id=update.effective_user.id, chat_id=update.effective_chat.id, name='C')
+    match.players['B'] = Player(user_id=0, chat_id=update.effective_chat.id, name='B')
+    match.players['C'] = Player(user_id=0, chat_id=update.effective_chat.id, name='C')
     match.status = 'playing'
     match.turn = 'A'
     for key in ('A', 'B', 'C'):
         match.players[key].ready = True
         match.boards[key] = placement.random_board()
     storage.save_match(match)
-    state = Board15State(chat_id=update.effective_chat.id)
-    state.board = [row[:] for row in match.boards['A'].grid]
-    buf = render_board(state)
-    msg = await update.message.reply_photo(buf, reply_markup=_keyboard())
-    status = await update.message.reply_text('Тестовый матч начат. Ход игрока A.')
-    state.message_id = msg.message_id
-    state.status_message_id = status.message_id
-    context.bot_data.setdefault(STATE_KEY, {})[update.effective_chat.id] = state
-    match.messages = {
-        'A': {'board': msg.message_id, 'status': status.message_id},
-        'B': {'board': msg.message_id, 'status': status.message_id},
-        'C': {'board': msg.message_id, 'status': status.message_id},
-    }
-    storage.save_match(match)
+    await update.message.reply_text('Тестовый матч начат. Автоматическая игра запущена.')
+    await _auto_play(match, context, update.effective_chat.id)
 
 
 async def send_board15_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
