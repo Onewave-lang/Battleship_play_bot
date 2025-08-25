@@ -238,6 +238,27 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         match.players[key].ready = True
         match.boards[key] = placement.random_board()
     storage.save_match(match)
+    state = Board15State(chat_id=update.effective_chat.id)
+    state.board = [row[:] for row in match.boards['A'].grid]
+    try:
+        buf = render_board(state)
+    except Exception:
+        from io import BytesIO
+        buf = BytesIO()
+    reply_photo = getattr(update.message, "reply_photo", None)
+    board_msg_id = None
+    if reply_photo is not None:
+        msg = await reply_photo(buf, reply_markup=_keyboard())
+        board_msg_id = msg.message_id
+    status = await update.message.reply_text('Выберите клетку или введите ход текстом.')
+    state.message_id = board_msg_id
+    state.status_message_id = status.message_id
+    context.bot_data.setdefault(STATE_KEY, {})[update.effective_chat.id] = state
+    match.messages['A'] = {
+        'board': board_msg_id,
+        'status': status.message_id,
+    }
+    storage.save_match(match)
     asyncio.create_task(_auto_play_bots(match, context, update.effective_chat.id, human='A'))
     await update.message.reply_text('Тестовый матч начат. Вы — игрок A; два бота ходят автоматически.')
 
