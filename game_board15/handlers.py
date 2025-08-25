@@ -8,10 +8,11 @@ from telegram import (
 )
 from telegram.ext import ContextTypes
 from urllib.parse import quote_plus
+from datetime import datetime
 
 from .state import Board15State
 from .renderer import render_board, VIEW
-from . import storage, parser, battle
+from . import storage, parser, battle, TEST_MODE
 from logic.phrases import (
     ENEMY_HIT,
     ENEMY_KILL,
@@ -66,29 +67,43 @@ def _phrase_or_joke(match, player_key: str, phrases: list[str]) -> str:
 
 async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     args = getattr(context, 'args', None)
-    if args:
+    name = getattr(update.effective_user, 'first_name', '') or ''
+    if args and not TEST_MODE:
         match_id = args[0]
-        match = storage.join_match(match_id, update.effective_user.id, update.effective_chat.id)
+        match = storage.join_match(match_id, update.effective_user.id, update.effective_chat.id, name)
         if not match:
             await update.message.reply_text('Матч не найден или заполнен.')
             return
         await update.message.reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки.')
     else:
-        match = storage.create_match(update.effective_user.id, update.effective_chat.id)
-        username = (await context.bot.get_me()).username
-        link = f"https://t.me/{username}?start=b15_{match.match_id}"
-        share_url = f"https://t.me/share/url?url={quote_plus(link)}"
-        keyboard = InlineKeyboardMarkup(
-            [
+        match = storage.create_match(update.effective_user.id, update.effective_chat.id, name)
+        if TEST_MODE:
+            context.chat_data['b15_active'] = 'A'
+            await update.message.reply_text(
+                'Тестовый матч создан. Расставьте корабли для игрока A командой "авто".'
+            )
+        else:
+            username = (await context.bot.get_me()).username
+            link = f"https://t.me/{username}?start=b15_{match.match_id}"
+            share_url = f"https://t.me/share/url?url={quote_plus(link)}"
+            keyboard = InlineKeyboardMarkup(
                 [
-                    InlineKeyboardButton('Из контактов', url=share_url),
-                    InlineKeyboardButton('Ссылка на игру', callback_data='b15_get_link'),
+                    [
+                        InlineKeyboardButton('Из контактов', url=share_url),
+                        InlineKeyboardButton('Ссылка на игру', callback_data='b15_get_link'),
+                    ]
                 ]
-            ]
-        )
-        await update.message.reply_text(WELCOME_TEXT, reply_markup=keyboard)
-        await update.message.reply_text('Матч создан. Ожидаем подключения соперников.')
-    player_key = next(k for k, p in match.players.items() if p.user_id == update.effective_user.id)
+            )
+            await update.message.reply_text(WELCOME_TEXT, reply_markup=keyboard)
+            await update.message.reply_text('Матч создан. Ожидаем подключения соперников.')
+    if TEST_MODE:
+        player_key = context.chat_data.get('b15_active', 'A')
+    else:
+        player_key = next(k for k, p in match.players.items() if p.user_id == update.effective_user.id)
+    player = match.players[player_key]
+    if not getattr(player, 'name', ''):
+        player.name = name
+        storage.save_match(match)
     state = Board15State(chat_id=update.effective_chat.id)
     state.board = [row[:] for row in match.boards[player_key].grid]
     buf = render_board(state)
@@ -139,7 +154,9 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         if not match:
             await query.answer("Матч не найден")
             return
-        player_key = next(k for k, p in match.players.items() if p.user_id == query.from_user.id)
+        player_key = match.turn if TEST_MODE else next(
+            k for k, p in match.players.items() if p.user_id == query.from_user.id
+        )
         if match.turn != player_key:
             await query.answer("Не ваш ход")
             return
@@ -161,33 +178,47 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         parts_self = []
         next_player = player_key
         for enemy, res in results.items():
+            enemy_obj = match.players.get(enemy)
+            enemy_label = getattr(enemy_obj, 'name', '') or enemy
             if res == battle.MISS:
                 phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-                parts_self.append(f"{enemy}: мимо. {phrase_self}")
+                parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
                 await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - соперник промахнулся. {phrase_enemy}")
             elif res == battle.HIT:
                 phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
-                parts_self.append(f"{enemy}: ранил. {phrase_self}")
+                parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
                 await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - ваш корабль ранен. {phrase_enemy}")
             elif res == battle.KILL:
                 phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
-                parts_self.append(f"{enemy}: уничтожен! {phrase_self}")
+                parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
                 await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}")
                 if match.boards[enemy].alive_cells == 0:
+                    match.shots[enemy]["last_result"] = "lose"
+                    match.shots[enemy]["lost_at"] = datetime.utcnow().isoformat()
                     await context.bot.send_message(match.players[enemy].chat_id, 'Все ваши корабли уничтожены. Вы выбыли.')
         if not hit_any:
             order = [k for k in ('A', 'B', 'C') if k in match.players and match.boards[k].alive_cells > 0]
             idx = order.index(player_key)
             next_player = order[(idx + 1) % len(order)]
             match.turn = next_player
-            await context.bot.send_message(match.players[next_player].chat_id, 'Ваш ход.')
+            if TEST_MODE:
+                from .router import _send_state as send_state
+
+                await send_state(context, match, next_player, 'Ваш ход.')
+            else:
+                await context.bot.send_message(match.players[next_player].chat_id, 'Ваш ход.')
         else:
             match.turn = player_key
         storage.save_match(match)
-        result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_player}.")
+        context.chat_data['b15_active'] = match.turn
+        next_label = match.players.get(next_player)
+        next_name = getattr(next_label, 'name', '') or next_player
+        result_self = f"{coord_str} - {' '.join(parts_self)}" + (
+            ' Ваш ход.' if match.turn == player_key else f" Ход {next_name}."
+        )
         msg_ids = match.messages.get(player_key, {})
         status_id = msg_ids.get('status')
         if status_id:

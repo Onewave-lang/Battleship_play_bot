@@ -25,7 +25,7 @@ def test_board15_invite_flow(monkeypatch):
             boards={'A': SimpleNamespace(grid=[[0] * 15 for _ in range(15)])},
             messages={},
         )
-        monkeypatch.setattr(storage15, 'create_match', lambda uid, cid: match)
+        monkeypatch.setattr(storage15, 'create_match', lambda uid, cid, name: match)
         monkeypatch.setattr(storage15, 'save_match', lambda m: None)
         monkeypatch.setattr(h, 'render_board', lambda state: BytesIO(b'test'))
         reply_text = AsyncMock()
@@ -79,7 +79,7 @@ def test_start_board15_join(monkeypatch):
         match = SimpleNamespace(
             players={'A': SimpleNamespace(user_id=1, chat_id=1, ready=False)},
         )
-        monkeypatch.setattr(storage15, 'join_match', lambda mid, uid, cid: match)
+        monkeypatch.setattr(storage15, 'join_match', lambda mid, uid, cid, name: match)
         reply_text = AsyncMock()
         reply_photo = AsyncMock()
         update = SimpleNamespace(

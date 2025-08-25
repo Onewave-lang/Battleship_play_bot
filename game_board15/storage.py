@@ -7,6 +7,7 @@ from typing import Dict
 from datetime import datetime
 
 from .models import Match15, Board15, Player, Ship
+from . import TEST_MODE
 
 DATA_FILE = Path("data15.json")
 _lock = Lock()
@@ -35,8 +36,13 @@ def _save_all(data: Dict[str, dict]) -> str | None:
     return None
 
 
-def create_match(a_user_id: int, a_chat_id: int) -> Match15:
-    match = Match15.new(a_user_id, a_chat_id)
+def create_match(a_user_id: int, a_chat_id: int, name: str) -> Match15:
+    match = Match15.new(a_user_id, a_chat_id, name)
+    if TEST_MODE:
+        # In test mode all three players are controlled by the same user.
+        match.players['B'] = Player(user_id=a_user_id, chat_id=a_chat_id, name=name)
+        match.players['C'] = Player(user_id=a_user_id, chat_id=a_chat_id, name=name)
+        match.status = 'placing'
     save_match(match)
     return match
 
@@ -59,16 +65,16 @@ def get_match(match_id: str) -> Match15 | None:
     return match
 
 
-def join_match(match_id: str, user_id: int, chat_id: int) -> Match15 | None:
+def join_match(match_id: str, user_id: int, chat_id: int, name: str) -> Match15 | None:
     match = get_match(match_id)
     if not match:
         return None
     if user_id in [p.user_id for p in match.players.values()]:
         return None
     if 'B' not in match.players:
-        match.players['B'] = Player(user_id=user_id, chat_id=chat_id)
+        match.players['B'] = Player(user_id=user_id, chat_id=chat_id, name=name)
     elif 'C' not in match.players:
-        match.players['C'] = Player(user_id=user_id, chat_id=chat_id)
+        match.players['C'] = Player(user_id=user_id, chat_id=chat_id, name=name)
     else:
         return None
     if len(match.players) == 3:
@@ -177,6 +183,10 @@ def save_match(match: Match15) -> str | None:
 def finish(match: Match15, winner: str) -> str | None:
     match.status = 'finished'
     match.shots[winner]['last_result'] = 'win'
+    losers = [k for k in match.players if k != winner and match.shots[k].get('lost_at')]
+    if losers:
+        second = max(losers, key=lambda k: match.shots[k]['lost_at'])
+        match.shots[second]['last_result'] = 'second'
     return save_match(match)
 
 
