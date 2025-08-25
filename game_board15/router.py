@@ -4,7 +4,7 @@ from telegram import Update, InputMediaPhoto
 from telegram.ext import ContextTypes
 
 from . import storage
-from . import placement, battle, parser
+from . import placement, battle, parser, TEST_MODE
 from .handlers import _keyboard, STATE_KEY
 from .renderer import render_board
 from .state import Board15State
@@ -89,10 +89,13 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not match:
         await update.message.reply_text('Вы не участвуете в матче. Используйте /board15 <id>.')
         return
-    for key, p in match.players.items():
-        if p.user_id == user_id:
-            player_key = key
-            break
+    if TEST_MODE:
+        player_key = context.chat_data.get('b15_active', 'A')
+    else:
+        for key, p in match.players.items():
+            if p.user_id == user_id:
+                player_key = key
+                break
     enemy_keys = [k for k in match.players if k != player_key]
 
     if text.startswith('@'):
@@ -115,8 +118,16 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     )
                     msg += 'Ваш ход.' if match.turn == k else 'Ход соперника.'
                     await _send_state(context, match, k, msg)
+                context.chat_data['b15_active'] = match.turn
             else:
                 await _send_state(context, match, player_key, 'Корабли расставлены. Ожидаем остальных.')
+                if TEST_MODE:
+                    order = ['A', 'B', 'C']
+                    idx = order.index(player_key)
+                    next_key = order[(idx + 1) % 3]
+                    context.chat_data['b15_active'] = next_key
+                    await _send_state(context, match, next_key, 'Расставьте корабли. Используйте команду "авто".')
+                return
             return
         await update.message.reply_text('Введите "авто" для расстановки.')
         return
@@ -181,12 +192,16 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         next_player = order[(idx + 1) % len(order)]
         match.turn = next_player
         storage.save_match(match)
-        await context.bot.send_message(match.players[next_player].chat_id, 'Ваш ход.')
+        if TEST_MODE:
+            await _send_state(context, match, next_player, 'Ваш ход.')
+        else:
+            await context.bot.send_message(match.players[next_player].chat_id, 'Ваш ход.')
     else:
         match.turn = player_key
         storage.save_match(match)
     result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_player}.")
     await _send_state(context, match, player_key, result_self)
+    context.chat_data['b15_active'] = match.turn
 
     alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0]
     if len(alive_players) == 1:

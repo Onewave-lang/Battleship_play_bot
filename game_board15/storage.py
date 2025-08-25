@@ -7,6 +7,7 @@ from typing import Dict
 from datetime import datetime
 
 from .models import Match15, Board15, Player, Ship
+from . import TEST_MODE
 
 DATA_FILE = Path("data15.json")
 _lock = Lock()
@@ -37,6 +38,11 @@ def _save_all(data: Dict[str, dict]) -> str | None:
 
 def create_match(a_user_id: int, a_chat_id: int) -> Match15:
     match = Match15.new(a_user_id, a_chat_id)
+    if TEST_MODE:
+        # In test mode all three players are controlled by the same user.
+        match.players['B'] = Player(user_id=a_user_id, chat_id=a_chat_id)
+        match.players['C'] = Player(user_id=a_user_id, chat_id=a_chat_id)
+        match.status = 'placing'
     save_match(match)
     return match
 
