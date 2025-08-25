@@ -93,12 +93,17 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if p.user_id == user_id:
             player_key = key
             break
-    enemy_keys = [k for k in match.players if k != player_key]
+    enemy_keys = [
+        k
+        for k, b in match.boards.items()
+        if k != player_key and getattr(b, 'alive_cells', 1) > 0
+    ]
 
     if text.startswith('@'):
         msg = text[1:].strip()
         for key, player in match.players.items():
-            if key != player_key:
+            board = match.boards.get(key)
+            if key != player_key and getattr(board, 'alive_cells', 1) > 0:
                 await context.bot.send_message(player.chat_id, msg)
         return
 
@@ -141,11 +146,12 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         results[enemy] = res
         if res in (battle.HIT, battle.KILL):
             hit_any = True
-    for k in match.shots:
-        shots = match.shots[k]
-        shots.setdefault('move_count', 0)
-        shots.setdefault('joke_start', random.randint(1, 10))
-        shots['move_count'] += 1
+    for k, b in match.boards.items():
+        if getattr(b, 'alive_cells', 1) > 0:
+            shots = match.shots[k]
+            shots.setdefault('move_count', 0)
+            shots.setdefault('joke_start', random.randint(1, 10))
+            shots['move_count'] += 1
     storage.save_match(match)
 
     coord_str = parser.format_coord(coord)
@@ -187,6 +193,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         winner = alive_players[0]
         storage.finish(match, winner)
         await context.bot.send_message(match.players[winner].chat_id, 'Вы победили!')
-        for k in match.players:
-            if k != winner:
+        for k, b in match.boards.items():
+            if k != winner and getattr(b, 'alive_cells', 1) > 0:
                 await context.bot.send_message(match.players[k].chat_id, 'Игра окончена. Победил соперник.')
