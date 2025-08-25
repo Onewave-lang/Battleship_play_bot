@@ -57,3 +57,127 @@ def test_router_auto_sends_boards(monkeypatch):
 
     asyncio.run(run_test())
 
+
+def test_router_skips_eliminated_players_in_chat(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            status='playing',
+            players={
+                'A': SimpleNamespace(user_id=1, chat_id=10),
+                'B': SimpleNamespace(user_id=2, chat_id=20),
+                'C': SimpleNamespace(user_id=3, chat_id=30),
+            },
+            boards={
+                'A': SimpleNamespace(alive_cells=1),
+                'B': SimpleNamespace(alive_cells=0),
+                'C': SimpleNamespace(alive_cells=1),
+            },
+            turn='A',
+            shots={},
+            messages={},
+        )
+
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+
+        send_message = AsyncMock()
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message))
+        update = SimpleNamespace(
+            message=SimpleNamespace(text='@ hi', reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+        )
+
+        await router.router_text(update, context)
+
+        assert send_message.call_args_list == [call(30, 'hi')]
+
+    asyncio.run(run_test())
+
+
+def test_router_skips_eliminated_players_in_shots(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            status='playing',
+            players={
+                'A': SimpleNamespace(user_id=1, chat_id=10),
+                'B': SimpleNamespace(user_id=2, chat_id=20),
+                'C': SimpleNamespace(user_id=3, chat_id=30),
+            },
+            boards={
+                'A': SimpleNamespace(alive_cells=1, grid=[[0] * 15 for _ in range(15)]),
+                'B': SimpleNamespace(alive_cells=0, grid=[[0] * 15 for _ in range(15)]),
+                'C': SimpleNamespace(alive_cells=1, grid=[[0] * 15 for _ in range(15)]),
+            },
+            turn='A',
+            shots={'A': {}, 'B': {}, 'C': {}},
+            messages={},
+        )
+
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(router.parser, 'parse_coord', lambda text: (0, 0))
+        monkeypatch.setattr(router.parser, 'format_coord', lambda coord: 'a1')
+
+        boards_hit = []
+
+        def fake_apply_shot(board, coord):
+            boards_hit.append(board)
+            return router.battle.MISS
+
+        monkeypatch.setattr(router.battle, 'apply_shot', fake_apply_shot)
+
+        send_message = AsyncMock()
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message))
+        update = SimpleNamespace(
+            message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+        )
+
+        monkeypatch.setattr(router, '_send_state', AsyncMock())
+
+        await router.router_text(update, context)
+
+        assert boards_hit == [match.boards['C']]
+        assert all(c.args[0] == 30 for c in send_message.call_args_list)
+
+    asyncio.run(run_test())
+
+
+def test_router_rejects_repeat_shot(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            status='playing',
+            players={
+                'A': SimpleNamespace(user_id=1, chat_id=10),
+                'B': SimpleNamespace(user_id=2, chat_id=20),
+            },
+            boards={
+                'A': SimpleNamespace(alive_cells=1, grid=[[0] * 15 for _ in range(15)]),
+                'B': SimpleNamespace(alive_cells=1, grid=[[0] * 15 for _ in range(15)]),
+            },
+            turn='A',
+            shots={'A': {}, 'B': {}},
+            messages={},
+        )
+
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(router.parser, 'parse_coord', lambda text: (0, 0))
+        monkeypatch.setattr(router.battle, 'apply_shot', lambda board, coord: router.battle.REPEAT)
+
+        send_message = AsyncMock()
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message), chat_data={})
+        reply_text = AsyncMock()
+        update = SimpleNamespace(
+            message=SimpleNamespace(text='a1', reply_text=reply_text),
+            effective_user=SimpleNamespace(id=1),
+        )
+
+        monkeypatch.setattr(router, '_send_state', AsyncMock())
+
+        await router.router_text(update, context)
+
+        reply_text.assert_awaited_once_with('Эта клетка уже открыта')
+        assert send_message.await_count == 0
+        assert match.shots == {'A': {}, 'B': {}}
+
+    asyncio.run(run_test())
+
