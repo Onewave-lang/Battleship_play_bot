@@ -36,7 +36,7 @@ def test_board15_invite_flow(monkeypatch):
             effective_chat=SimpleNamespace(id=1),
         )
         bot = SimpleNamespace(get_me=AsyncMock(return_value=SimpleNamespace(username='TestBot')))
-        context = SimpleNamespace(bot=bot, chat_data={})
+        context = SimpleNamespace(bot=bot, chat_data={}, bot_data={})
 
         await h.board15(update, context)
 
@@ -63,7 +63,7 @@ def test_send_board15_invite_link(monkeypatch):
         )
         update = SimpleNamespace(callback_query=query)
         bot = SimpleNamespace(get_me=AsyncMock(return_value=SimpleNamespace(username='TestBot')))
-        context = SimpleNamespace(bot=bot)
+        context = SimpleNamespace(bot=bot, bot_data={})
 
         await h.send_board15_invite_link(update, context)
 
@@ -88,7 +88,7 @@ def test_start_board15_join(monkeypatch):
             effective_chat=SimpleNamespace(id=2),
         )
         bot = SimpleNamespace(send_message=AsyncMock())
-        context = SimpleNamespace(args=['b15_m1'], bot=bot)
+        context = SimpleNamespace(args=['b15_m1'], bot=bot, bot_data={})
 
         await start(update, context)
 

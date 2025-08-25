@@ -35,10 +35,11 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
     """Render player's board and update their messages."""
 
     chat_id = match.players[player_key].chat_id
-    state: Board15State | None = context.chat_data.get(STATE_KEY)
-    if not state or state.chat_id != chat_id:
+    states = context.bot_data.setdefault(STATE_KEY, {})
+    state: Board15State | None = states.get(chat_id)
+    if not state:
         state = Board15State(chat_id=chat_id)
-        context.chat_data[STATE_KEY] = state
+        states[chat_id] = state
     state.board = [row[:] for row in match.boards[player_key].grid]
     buf = render_board(state)
     msgs = match.messages.setdefault(player_key, {})
