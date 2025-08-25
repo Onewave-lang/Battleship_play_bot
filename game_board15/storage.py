@@ -56,6 +56,8 @@ def get_match(match_id: str) -> Match15 | None:
         match.boards[key] = Board15(grid=b.get('grid', [[0]*15 for _ in range(15)]), ships=ships, alive_cells=b.get('alive_cells', 20))
     match.shots = m.get('shots', match.shots)
     match.messages = m.get('messages', {})
+    match.eliminated = m.get('eliminated', [])
+    match.eliminated_segments = m.get('eliminated_segments', {})
     return match
 
 
@@ -115,6 +117,8 @@ def save_board(match: Match15, player_key: str, board: Board15) -> None:
                 )
             current.shots = m_dict.get('shots', current.shots)
             current.messages = m_dict.get('messages', {})
+            current.eliminated = m_dict.get('eliminated', [])
+            current.eliminated_segments = m_dict.get('eliminated_segments', {})
         else:
             current = match
 
@@ -146,6 +150,8 @@ def save_board(match: Match15, player_key: str, board: Board15) -> None:
             },
             'shots': current.shots,
             'messages': current.messages,
+            'eliminated': current.eliminated,
+            'eliminated_segments': current.eliminated_segments,
         }
         _save_all(data)
 
@@ -156,6 +162,8 @@ def save_board(match: Match15, player_key: str, board: Board15) -> None:
     match.boards = current.boards
     match.shots = current.shots
     match.messages = current.messages
+    match.eliminated = current.eliminated
+    match.eliminated_segments = current.eliminated_segments
 
 
 def save_match(match: Match15) -> str | None:
@@ -170,6 +178,8 @@ def save_match(match: Match15) -> str | None:
             'boards': {k: {'grid': b.grid, 'ships': [{'cells': s.cells, 'alive': s.alive} for s in b.ships], 'alive_cells': b.alive_cells} for k, b in match.boards.items()},
             'shots': match.shots,
             'messages': match.messages,
+            'eliminated': match.eliminated,
+            'eliminated_segments': match.eliminated_segments,
         }
         return _save_all(data)
 

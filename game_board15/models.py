@@ -50,6 +50,8 @@ class Match15:
         }
     )
     messages: Dict[str, Dict[str, int]] = field(default_factory=dict)
+    eliminated: List[str] = field(default_factory=list)
+    eliminated_segments: Dict[str, int] = field(default_factory=dict)
 
     @staticmethod
     def new(a_user_id: int, a_chat_id: int) -> "Match15":
