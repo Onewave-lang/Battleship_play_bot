@@ -173,17 +173,32 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
             parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
-            await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - соперник промахнулся. {phrase_enemy}")
+            await _send_state(
+                context,
+                match,
+                enemy,
+                f"{coord_str} - соперник промахнулся. {phrase_enemy}",
+            )
         elif res == battle.HIT:
             phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
             parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
-            await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - ваш корабль ранен. {phrase_enemy}")
+            await _send_state(
+                context,
+                match,
+                enemy,
+                f"{coord_str} - ваш корабль ранен. {phrase_enemy}",
+            )
         elif res == battle.KILL:
             phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
             parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
-            await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}")
+            await _send_state(
+                context,
+                match,
+                enemy,
+                f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}",
+            )
             if match.boards[enemy].alive_cells == 0:
                 await context.bot.send_message(match.players[enemy].chat_id, 'Все ваши корабли уничтожены. Вы выбыли.')
     if not hit_any:
