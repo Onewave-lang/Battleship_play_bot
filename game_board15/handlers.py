@@ -27,7 +27,7 @@ import random
 
 WELCOME_TEXT = 'Выберите способ приглашения соперников:'
 
-STATE_KEY = "board15_state"
+STATE_KEY = "board15_states"
 
 
 def _keyboard() -> InlineKeyboardMarkup:
@@ -102,7 +102,7 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     status = await update.message.reply_text('Выберите клетку или введите ход текстом.')
     state.message_id = msg.message_id
     state.status_message_id = status.message_id
-    context.chat_data[STATE_KEY] = state
+    context.bot_data.setdefault(STATE_KEY, {})[update.effective_chat.id] = state
     match.messages[player_key] = {
         'board': msg.message_id,
         'status': status.message_id,
@@ -129,7 +129,7 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     status = await update.message.reply_text('Тестовый матч начат. Ход игрока A.')
     state.message_id = msg.message_id
     state.status_message_id = status.message_id
-    context.chat_data[STATE_KEY] = state
+    context.bot_data.setdefault(STATE_KEY, {})[update.effective_chat.id] = state
     match.messages = {
         'A': {'board': msg.message_id, 'status': status.message_id},
         'B': {'board': msg.message_id, 'status': status.message_id},
@@ -154,7 +154,8 @@ async def send_board15_invite_link(update: Update, context: ContextTypes.DEFAULT
 async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     data = query.data.split("|")
-    state: Board15State = context.chat_data.get(STATE_KEY)
+    states = context.bot_data.get(STATE_KEY, {})
+    state: Board15State | None = states.get(update.effective_chat.id)
     if not state:
         await query.answer()
         return

@@ -20,7 +20,7 @@ class DummyMessage:
         pass
 
 async def run_router(update):
-    context = SimpleNamespace(bot=DummyBot(), chat_data={})
+    context = SimpleNamespace(bot=DummyBot(), chat_data={}, bot_data={})
     await router.router_text(update, context)
 
 

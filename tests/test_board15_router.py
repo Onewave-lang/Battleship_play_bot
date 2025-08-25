@@ -49,7 +49,7 @@ def test_router_auto_sends_boards(monkeypatch):
 
         send_photo = AsyncMock()
         send_message = AsyncMock()
-        context = SimpleNamespace(bot=SimpleNamespace(send_photo=send_photo, send_message=send_message), chat_data={})
+        context = SimpleNamespace(bot=SimpleNamespace(send_photo=send_photo, send_message=send_message), chat_data={}, bot_data={})
         update = SimpleNamespace(
             message=SimpleNamespace(text='авто', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=2, first_name='Bob'),
@@ -111,6 +111,7 @@ def test_router_move_sends_player_board(monkeypatch):
                 send_message=AsyncMock(),
             ),
             chat_data={},
+            bot_data={},
         )
         update = SimpleNamespace(message=SimpleNamespace(text='a1', reply_text=AsyncMock()), effective_user=SimpleNamespace(id=1))
 
@@ -150,7 +151,7 @@ def test_router_uses_player_names(monkeypatch):
         monkeypatch.setattr(router, '_send_state', send_state)
 
         update = SimpleNamespace(message=SimpleNamespace(text='a1'), effective_user=SimpleNamespace(id=1))
-        context = SimpleNamespace(chat_data={}, bot=SimpleNamespace(send_message=AsyncMock()))
+        context = SimpleNamespace(chat_data={}, bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
 
         await router.router_text(update, context)
 
@@ -185,7 +186,7 @@ def test_router_repeat_shot(monkeypatch):
             message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
         )
-        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), chat_data={})
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), chat_data={}, bot_data={})
         send_state = AsyncMock()
         monkeypatch.setattr(router, '_send_state', send_state)
 
@@ -239,7 +240,7 @@ def test_router_skips_eliminated_players(monkeypatch):
         monkeypatch.setattr(router, '_send_state', send_state)
 
         send_message = AsyncMock()
-        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message), chat_data={})
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message), chat_data={}, bot_data={})
         update = SimpleNamespace(message=SimpleNamespace(text='a1'), effective_user=SimpleNamespace(id=1))
 
         await router.router_text(update, context)
