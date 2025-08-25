@@ -2,6 +2,7 @@ import threading
 from logic.placement import random_board
 import storage
 from datetime import datetime, timedelta
+from models import Board, Ship
 
 
 def test_concurrent_save_board(monkeypatch, tmp_path):
@@ -29,6 +30,40 @@ def test_concurrent_save_board(monkeypatch, tmp_path):
     # match object passed into save_board should also be updated
     assert match.status == "playing"
     assert match.players["A"].ready and match.players["B"].ready
+
+
+def test_concurrent_save_board_separate_objects(monkeypatch, tmp_path):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "data.json")
+    base = storage.create_match(1, 100)
+    storage.join_match(base.match_id, 2, 200)
+
+    board_a = Board()
+    board_a.grid[0][0] = 1
+    board_a.ships = [Ship(cells=[(0, 0)])]
+    board_a.alive_cells = 1
+
+    board_b = Board()
+    board_b.grid[9][9] = 1
+    board_b.ships = [Ship(cells=[(9, 9)])]
+    board_b.alive_cells = 1
+
+    barrier = threading.Barrier(2)
+
+    def worker(key, board):
+        m = storage.get_match(base.match_id)
+        barrier.wait()
+        storage.save_board(m, key, board)
+
+    t1 = threading.Thread(target=worker, args=("A", board_a))
+    t2 = threading.Thread(target=worker, args=("B", board_b))
+    t1.start(); t2.start()
+    t1.join(); t2.join()
+
+    updated = storage.get_match(base.match_id)
+    assert updated.status == "playing"
+    assert updated.players["A"].ready and updated.players["B"].ready
+    assert updated.boards["A"].grid[0][0] == 1
+    assert updated.boards["B"].grid[9][9] == 1
 
 
 def _set_time(match, dt):
