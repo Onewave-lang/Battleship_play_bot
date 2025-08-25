@@ -24,6 +24,7 @@ from logic.phrases import (
     random_joke,
 )
 import random
+import asyncio
 
 WELCOME_TEXT = 'Выберите способ приглашения соперников:'
 
@@ -110,43 +111,119 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     storage.save_match(match)
 
 
-async def _auto_play(match: storage.Match15, context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> None:
-    """Automatically play the match until one player wins."""
+async def _auto_play_bots(
+    match: storage.Match15,
+    context: ContextTypes.DEFAULT_TYPE,
+    chat_id: int,
+    human: str = 'A',
+) -> None:
+    """Automatically let bot players make moves until the game ends."""
     coords = [(r, c) for r in range(15) for c in range(15)]
-    log: list[str] = []
     idx = 0
     order = ['A', 'B', 'C']
+    from . import router as router_module
+
     while True:
         alive = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
         if len(alive) == 1:
             winner = alive[0]
             storage.finish(match, winner)
-            log.append(f'Победил игрок {winner}')
-            await context.bot.send_message(chat_id, '\n'.join(log))
+            await context.bot.send_message(match.players[winner].chat_id, 'Вы победили!')
+            for k in match.players:
+                if k != winner:
+                    await context.bot.send_message(match.players[k].chat_id, 'Игра окончена. Победил соперник.')
             break
+
+        if match.turn == human:
+            await asyncio.sleep(0.5)
+            continue
+
         current = match.turn
         if idx >= len(coords):
-            log.append('Ходы закончились')
-            await context.bot.send_message(chat_id, '\n'.join(log))
             break
         coord = coords[idx]
         idx += 1
+        enemies = [k for k in alive if k != current]
         results = {}
         hit_any = False
-        for enemy in [k for k in alive if k != current]:
+        for enemy in enemies:
             res = battle.apply_shot(match.boards[enemy], coord)
             results[enemy] = res
             if res in (battle.HIT, battle.KILL):
                 hit_any = True
+        for k in match.shots:
+            shots = match.shots[k]
+            shots.setdefault('move_count', 0)
+            shots.setdefault('joke_start', random.randint(1, 10))
+            shots['move_count'] += 1
         coord_str = parser.format_coord(coord)
-        if results:
-            parts = ', '.join(f'{e}:{results[e]}' for e in results)
-            log.append(f'{current} -> {coord_str}: {parts}')
+        parts_self = []
+        for enemy, res in results.items():
+            if res == battle.MISS:
+                phrase_self = _phrase_or_joke(match, current, SELF_MISS)
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
+                enemy_name = match.players.get(enemy)
+                enemy_label = getattr(enemy_name, 'name', '') or enemy
+                parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
+                await router_module._send_state(
+                    context,
+                    match,
+                    enemy,
+                    f"{coord_str} - соперник промахнулся. {phrase_enemy}",
+                )
+            elif res == battle.HIT:
+                phrase_self = _phrase_or_joke(match, current, SELF_HIT)
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
+                enemy_name = match.players.get(enemy)
+                enemy_label = getattr(enemy_name, 'name', '') or enemy
+                parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
+                await router_module._send_state(
+                    context,
+                    match,
+                    enemy,
+                    f"{coord_str} - ваш корабль ранен. {phrase_enemy}",
+                )
+            elif res == battle.KILL:
+                phrase_self = _phrase_or_joke(match, current, SELF_KILL)
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
+                enemy_name = match.players.get(enemy)
+                enemy_label = getattr(enemy_name, 'name', '') or enemy
+                parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
+                await router_module._send_state(
+                    context,
+                    match,
+                    enemy,
+                    f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}",
+                )
+                if match.boards[enemy].alive_cells == 0:
+                    await context.bot.send_message(match.players[enemy].chat_id, 'Все ваши корабли уничтожены. Вы выбыли.')
+
         if not hit_any:
             alive_order = [k for k in order if k in alive]
             idx_next = alive_order.index(current)
-            match.turn = alive_order[(idx_next + 1) % len(alive_order)]
+            next_player = alive_order[(idx_next + 1) % len(alive_order)]
+            match.turn = next_player
+            await context.bot.send_message(match.players[next_player].chat_id, 'Ваш ход.')
+        else:
+            match.turn = current
+
         storage.save_match(match)
+        next_label = match.players.get(match.turn)
+        next_name = getattr(next_label, 'name', '') or match.turn
+        result_self = f"{coord_str} - {' '.join(parts_self)}" + (
+            ' Ваш ход.' if match.turn == current else f" Ход {next_name}."
+        )
+        await router_module._send_state(context, match, current, result_self)
+
+        alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
+        if len(alive_players) == 1:
+            winner = alive_players[0]
+            storage.finish(match, winner)
+            await context.bot.send_message(match.players[winner].chat_id, 'Вы победили!')
+            for k in match.players:
+                if k != winner:
+                    await context.bot.send_message(match.players[k].chat_id, 'Игра окончена. Победил соперник.')
+            break
 
 
 async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -161,8 +238,8 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         match.players[key].ready = True
         match.boards[key] = placement.random_board()
     storage.save_match(match)
-    await update.message.reply_text('Тестовый матч начат. Автоматическая игра запущена.')
-    await _auto_play(match, context, update.effective_chat.id)
+    asyncio.create_task(_auto_play_bots(match, context, update.effective_chat.id, human='A'))
+    await update.message.reply_text('Тестовый матч начат. Вы — игрок A; два бота ходят автоматически.')
 
 
 async def send_board15_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
