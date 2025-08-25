@@ -136,11 +136,14 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     results = {}
     hit_any = False
+    repeat = False
     alive_before: dict[str, int] = {}
     for enemy in enemy_keys:
         alive_before[enemy] = match.boards[enemy].alive_cells
         res = battle.apply_shot(match.boards[enemy], coord)
         results[enemy] = res
+        if res == battle.REPEAT:
+            repeat = True
         if res in (battle.HIT, battle.KILL):
             hit_any = True
     for k in match.shots:
@@ -151,6 +154,20 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     storage.save_match(match)
 
     coord_str = parser.format_coord(coord)
+    if repeat:
+        for enemy in enemy_keys:
+            await context.bot.send_message(
+                match.players[enemy].chat_id,
+                f"{coord_str} - соперник стрелял по уже обстрелянной клетке. Ход соперника.",
+            )
+        await _send_state(
+            context,
+            match,
+            player_key,
+            f"{coord_str} - клетка уже обстреляна. Ваш ход.",
+        )
+        return
+
     parts_self = []
     next_player = player_key
     for enemy, res in results.items():
