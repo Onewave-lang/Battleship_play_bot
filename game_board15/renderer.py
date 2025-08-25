@@ -22,12 +22,14 @@ COLORS = {
         "grid": (200, 200, 200, 255),
         "window": (0, 120, 215, 80),
         "mark": (0, 0, 0, 255),
+        "selected": (255, 0, 0, 255),
     },
     "dark": {
         "bg": (0, 0, 0, 255),
         "grid": (80, 80, 80, 255),
         "window": (0, 120, 215, 120),
         "mark": (220, 220, 220, 255),
+        "selected": (255, 0, 0, 255),
     },
 }
 
@@ -74,6 +76,17 @@ def render_board(state: Board15State) -> BytesIO:
         outline=COLORS[THEME]["window"],
         width=3,
     )
+
+    # selected cell
+    if state.selected is not None:
+        sr, sc = state.selected
+        x0 = margin + sc * TILE_PX
+        y0 = margin + sr * TILE_PX
+        draw.ellipse(
+            (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
+            outline=COLORS[THEME]["selected"],
+            width=3,
+        )
 
     # axis labels
     try:

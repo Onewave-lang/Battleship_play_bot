@@ -291,6 +291,14 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     elif data[1] == "pick":
         r, c = int(data[2]), int(data[3])
         state.selected = (state.window_top + r, state.window_left + c)
+        buf = render_board(state)
+        try:
+            await query.edit_message_media(InputMediaPhoto(buf))
+        except Exception:
+            pass
+        await query.edit_message_reply_markup(_keyboard())
+        await query.answer()
+        return
     elif data[1] == "act" and data[2] == "confirm":
         if state.selected is None:
             await query.answer("Клетка не выбрана")
