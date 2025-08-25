@@ -93,7 +93,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if p.user_id == user_id:
             player_key = key
             break
-    enemy_keys = [k for k in match.players if k != player_key]
 
     if text.startswith('@'):
         msg = text[1:].strip()
@@ -124,6 +123,11 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if match.status != 'playing':
         await update.message.reply_text('Матч ещё не начался.')
         return
+
+    enemy_keys = [
+        k for k in match.players
+        if k != player_key and match.boards[k].alive_cells > 0
+    ]
 
     if match.turn != player_key:
         await update.message.reply_text('Сейчас ход другого игрока.')
