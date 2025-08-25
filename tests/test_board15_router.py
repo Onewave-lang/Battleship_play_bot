@@ -133,7 +133,6 @@ def test_router_repeat_shot(monkeypatch):
             effective_user=SimpleNamespace(id=1),
         )
         context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), chat_data={})
-
         send_state = AsyncMock()
         monkeypatch.setattr(router, '_send_state', send_state)
 
