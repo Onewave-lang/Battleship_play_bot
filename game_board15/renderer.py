@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 from io import BytesIO
-from typing import Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -23,6 +22,11 @@ COLORS = {
         "window": (0, 120, 215, 80),
         "mark": (0, 0, 0, 255),
         "selected": (255, 0, 0, 255),
+        "ship": (0, 0, 0, 255),
+        "miss": (0, 0, 0, 255),
+        "hit": (220, 0, 0, 255),
+        "destroyed": (139, 0, 0, 255),
+        "contour": (120, 120, 120, 255),
     },
     "dark": {
         "bg": (0, 0, 0, 255),
@@ -30,7 +34,21 @@ COLORS = {
         "window": (0, 120, 215, 120),
         "mark": (220, 220, 220, 255),
         "selected": (255, 0, 0, 255),
+        "ship": (220, 220, 220, 255),
+        "miss": (220, 220, 220, 255),
+        "hit": (255, 0, 0, 255),
+        "destroyed": (255, 100, 100, 255),
+        "contour": (160, 160, 160, 255),
     },
+}
+
+
+CELL_STYLE = {
+    1: ("square", "ship"),
+    2: ("cross", "miss"),
+    3: ("square", "hit"),
+    4: ("square", "destroyed"),
+    5: ("dot", "contour"),
 }
 
 
@@ -56,13 +74,34 @@ def render_board(state: Board15State) -> BytesIO:
     # marks
     for r in range(15):
         for c in range(15):
-            if state.board[r][c]:
-                x0 = margin + c * TILE_PX
-                y0 = margin + r * TILE_PX
+            val = state.board[r][c]
+            if not val:
+                continue
+            x0 = margin + c * TILE_PX
+            y0 = margin + r * TILE_PX
+            shape, color_key = CELL_STYLE.get(val, ("square", "ship"))
+            color = COLORS[THEME][color_key]
+            if shape == "square":
                 draw.rectangle(
                     (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
-                    fill=COLORS[THEME]["mark"],
+                    fill=color,
                 )
+            elif shape == "cross":
+                draw.line(
+                    (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
+                    fill=color,
+                    width=3,
+                )
+                draw.line(
+                    (x0 + TILE_PX - 4, y0 + 4, x0 + 4, y0 + TILE_PX - 4),
+                    fill=color,
+                    width=3,
+                )
+            elif shape == "dot":
+                cx = x0 + TILE_PX // 2
+                cy = y0 + TILE_PX // 2
+                r = max(2, TILE_PX // 8)
+                draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=color)
 
     # window rectangle
     wt, wl = state.window_top, state.window_left
@@ -132,13 +171,34 @@ def render_player_board(board: Board15) -> BytesIO:
     # ship and shot markers
     for r in range(15):
         for c in range(15):
-            if board.grid[r][c]:
-                x0 = margin + c * TILE_PX
-                y0 = margin + r * TILE_PX
+            val = board.grid[r][c]
+            if not val:
+                continue
+            x0 = margin + c * TILE_PX
+            y0 = margin + r * TILE_PX
+            shape, color_key = CELL_STYLE.get(val, ("square", "ship"))
+            color = COLORS[THEME][color_key]
+            if shape == "square":
                 draw.rectangle(
                     (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
-                    fill=COLORS[THEME]["mark"],
+                    fill=color,
                 )
+            elif shape == "cross":
+                draw.line(
+                    (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
+                    fill=color,
+                    width=3,
+                )
+                draw.line(
+                    (x0 + TILE_PX - 4, y0 + 4, x0 + 4, y0 + TILE_PX - 4),
+                    fill=color,
+                    width=3,
+                )
+            elif shape == "dot":
+                cx = x0 + TILE_PX // 2
+                cy = y0 + TILE_PX // 2
+                r = max(2, TILE_PX // 8)
+                draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=color)
 
     # axis labels
     try:
