@@ -93,12 +93,17 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if p.user_id == user_id:
             player_key = key
             break
-    enemy_keys = [k for k in match.players if k != player_key]
+    enemy_keys = [
+        k
+        for k, b in match.boards.items()
+        if k != player_key and getattr(b, 'alive_cells', 1) > 0
+    ]
 
     if text.startswith('@'):
         msg = text[1:].strip()
         for key, player in match.players.items():
-            if key != player_key:
+            board = match.boards.get(key)
+            if key != player_key and getattr(board, 'alive_cells', 1) > 0:
                 await context.bot.send_message(player.chat_id, msg)
         return
 
@@ -136,36 +141,45 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     results = {}
     hit_any = False
+    repeat = True
     for enemy in enemy_keys:
         res = battle.apply_shot(match.boards[enemy], coord)
         results[enemy] = res
         if res in (battle.HIT, battle.KILL):
             hit_any = True
-    for k in match.shots:
-        shots = match.shots[k]
-        shots.setdefault('move_count', 0)
-        shots.setdefault('joke_start', random.randint(1, 10))
-        shots['move_count'] += 1
+        if res != battle.REPEAT:
+            repeat = False
+    if repeat:
+        await update.message.reply_text('Эта клетка уже открыта')
+        return
+    for k, b in match.boards.items():
+        if getattr(b, 'alive_cells', 1) > 0:
+            shots = match.shots[k]
+            shots.setdefault('move_count', 0)
+            shots.setdefault('joke_start', random.randint(1, 10))
+            shots['move_count'] += 1
     storage.save_match(match)
 
     coord_str = parser.format_coord(coord)
     parts_self = []
     next_player = player_key
     for enemy, res in results.items():
+        enemy_obj = match.players.get(enemy)
+        enemy_label = getattr(enemy_obj, 'name', '') or enemy
         if res == battle.MISS:
             phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-            parts_self.append(f"{enemy}: мимо. {phrase_self}")
+            parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
             await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - соперник промахнулся. {phrase_enemy}")
         elif res == battle.HIT:
             phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
-            parts_self.append(f"{enemy}: ранил. {phrase_self}")
+            parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
             await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - ваш корабль ранен. {phrase_enemy}")
         elif res == battle.KILL:
             phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
-            parts_self.append(f"{enemy}: уничтожен! {phrase_self}")
+            parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
             await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}")
             if match.boards[enemy].alive_cells == 0:
                 await context.bot.send_message(match.players[enemy].chat_id, 'Все ваши корабли уничтожены. Вы выбыли.')
@@ -179,7 +193,9 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     else:
         match.turn = player_key
         storage.save_match(match)
-    result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_player}.")
+    next_obj = match.players.get(next_player)
+    next_name = getattr(next_obj, 'name', '') or next_player
+    result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_name}.")
     await _send_state(context, match, player_key, result_self)
 
     alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0]
@@ -187,6 +203,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         winner = alive_players[0]
         storage.finish(match, winner)
         await context.bot.send_message(match.players[winner].chat_id, 'Вы победили!')
-        for k in match.players:
-            if k != winner:
+        for k, b in match.boards.items():
+            if k != winner and getattr(b, 'alive_cells', 1) > 0:
                 await context.bot.send_message(match.players[k].chat_id, 'Игра окончена. Победил соперник.')
