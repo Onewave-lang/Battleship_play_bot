@@ -35,8 +35,8 @@ def _save_all(data: Dict[str, dict]) -> str | None:
     return None
 
 
-def create_match(a_user_id: int, a_chat_id: int) -> Match15:
-    match = Match15.new(a_user_id, a_chat_id)
+def create_match(a_user_id: int, a_chat_id: int, a_name: str = "") -> Match15:
+    match = Match15.new(a_user_id, a_chat_id, a_name)
     save_match(match)
     return match
 
@@ -56,19 +56,21 @@ def get_match(match_id: str) -> Match15 | None:
         match.boards[key] = Board15(grid=b.get('grid', [[0]*15 for _ in range(15)]), ships=ships, alive_cells=b.get('alive_cells', 20))
     match.shots = m.get('shots', match.shots)
     match.messages = m.get('messages', {})
+    match.eliminated = m.get('eliminated', [])
+    match.eliminated_segments = m.get('eliminated_segments', {})
     return match
 
 
-def join_match(match_id: str, user_id: int, chat_id: int) -> Match15 | None:
+def join_match(match_id: str, user_id: int, chat_id: int, name: str = "") -> Match15 | None:
     match = get_match(match_id)
     if not match:
         return None
     if user_id in [p.user_id for p in match.players.values()]:
         return None
     if 'B' not in match.players:
-        match.players['B'] = Player(user_id=user_id, chat_id=chat_id)
+        match.players['B'] = Player(user_id=user_id, chat_id=chat_id, name=name)
     elif 'C' not in match.players:
-        match.players['C'] = Player(user_id=user_id, chat_id=chat_id)
+        match.players['C'] = Player(user_id=user_id, chat_id=chat_id, name=name)
     else:
         return None
     if len(match.players) == 3:
@@ -115,6 +117,8 @@ def save_board(match: Match15, player_key: str, board: Board15) -> None:
                 )
             current.shots = m_dict.get('shots', current.shots)
             current.messages = m_dict.get('messages', {})
+            current.eliminated = m_dict.get('eliminated', [])
+            current.eliminated_segments = m_dict.get('eliminated_segments', {})
         else:
             current = match
 
@@ -146,6 +150,8 @@ def save_board(match: Match15, player_key: str, board: Board15) -> None:
             },
             'shots': current.shots,
             'messages': current.messages,
+            'eliminated': current.eliminated,
+            'eliminated_segments': current.eliminated_segments,
         }
         _save_all(data)
 
@@ -156,6 +162,8 @@ def save_board(match: Match15, player_key: str, board: Board15) -> None:
     match.boards = current.boards
     match.shots = current.shots
     match.messages = current.messages
+    match.eliminated = current.eliminated
+    match.eliminated_segments = current.eliminated_segments
 
 
 def save_match(match: Match15) -> str | None:
@@ -170,6 +178,8 @@ def save_match(match: Match15) -> str | None:
             'boards': {k: {'grid': b.grid, 'ships': [{'cells': s.cells, 'alive': s.alive} for s in b.ships], 'alive_cells': b.alive_cells} for k, b in match.boards.items()},
             'shots': match.shots,
             'messages': match.messages,
+            'eliminated': match.eliminated,
+            'eliminated_segments': match.eliminated_segments,
         }
         return _save_all(data)
 

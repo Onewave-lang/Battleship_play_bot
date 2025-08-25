@@ -66,15 +66,16 @@ def _phrase_or_joke(match, player_key: str, phrases: list[str]) -> str:
 
 async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     args = getattr(context, 'args', None)
+    name = getattr(update.effective_user, 'first_name', '') or ''
     if args:
         match_id = args[0]
-        match = storage.join_match(match_id, update.effective_user.id, update.effective_chat.id)
+        match = storage.join_match(match_id, update.effective_user.id, update.effective_chat.id, name)
         if not match:
             await update.message.reply_text('Матч не найден или заполнен.')
             return
         await update.message.reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки.')
     else:
-        match = storage.create_match(update.effective_user.id, update.effective_chat.id)
+        match = storage.create_match(update.effective_user.id, update.effective_chat.id, name)
         username = (await context.bot.get_me()).username
         link = f"https://t.me/{username}?start=b15_{match.match_id}"
         share_url = f"https://t.me/share/url?url={quote_plus(link)}"
@@ -89,6 +90,10 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(WELCOME_TEXT, reply_markup=keyboard)
         await update.message.reply_text('Матч создан. Ожидаем подключения соперников.')
     player_key = next(k for k, p in match.players.items() if p.user_id == update.effective_user.id)
+    player = match.players[player_key]
+    if not getattr(player, 'name', ''):
+        player.name = name
+        storage.save_match(match)
     state = Board15State(chat_id=update.effective_chat.id)
     state.board = [row[:] for row in match.boards[player_key].grid]
     buf = render_board(state)
@@ -164,17 +169,23 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             if res == battle.MISS:
                 phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-                parts_self.append(f"{enemy}: мимо. {phrase_self}")
+                enemy_name = match.players.get(enemy)
+                enemy_label = getattr(enemy_name, 'name', '') or enemy
+                parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
                 await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - соперник промахнулся. {phrase_enemy}")
             elif res == battle.HIT:
                 phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
-                parts_self.append(f"{enemy}: ранил. {phrase_self}")
+                enemy_name = match.players.get(enemy)
+                enemy_label = getattr(enemy_name, 'name', '') or enemy
+                parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
                 await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - ваш корабль ранен. {phrase_enemy}")
             elif res == battle.KILL:
                 phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
-                parts_self.append(f"{enemy}: уничтожен! {phrase_self}")
+                enemy_name = match.players.get(enemy)
+                enemy_label = getattr(enemy_name, 'name', '') or enemy
+                parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
                 await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}")
                 if match.boards[enemy].alive_cells == 0:
                     await context.bot.send_message(match.players[enemy].chat_id, 'Все ваши корабли уничтожены. Вы выбыли.')
@@ -187,7 +198,9 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         else:
             match.turn = player_key
         storage.save_match(match)
-        result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_player}.")
+        next_label = match.players.get(next_player)
+        next_name = getattr(next_label, 'name', '') or next_player
+        result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_name}.")
         msg_ids = match.messages.get(player_key, {})
         status_id = msg_ids.get('status')
         if status_id:

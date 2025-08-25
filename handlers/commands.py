@@ -77,7 +77,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     elif args and args[0].startswith('b15_'):
         match_id = args[0][4:]
         from game_board15 import storage as storage15
-        match = storage15.join_match(match_id, update.effective_user.id, update.effective_chat.id)
+        name = getattr(update.effective_user, 'first_name', '') or ''
+        match = storage15.join_match(match_id, update.effective_user.id, update.effective_chat.id, name)
         if match:
             with welcome_photo() as img:
                 await update.message.reply_photo(img, caption='Добро пожаловать в игру!')

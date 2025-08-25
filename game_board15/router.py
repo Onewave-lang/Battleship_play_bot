@@ -136,11 +136,30 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     results = {}
     hit_any = False
+    repeat = False
+    alive_before: dict[str, int] = {}
     for enemy in enemy_keys:
+        alive_before[enemy] = match.boards[enemy].alive_cells
         res = battle.apply_shot(match.boards[enemy], coord)
         results[enemy] = res
-        if res in (battle.HIT, battle.KILL):
+        if res == battle.REPEAT:
+            repeat = True
+        elif res in (battle.HIT, battle.KILL):
             hit_any = True
+    coord_str = parser.format_coord(coord)
+    if repeat:
+        for enemy in enemy_keys:
+            await context.bot.send_message(
+                match.players[enemy].chat_id,
+                f"{coord_str} - соперник стрелял по уже обстрелянной клетке. Ход соперника.",
+            )
+        await _send_state(
+            context,
+            match,
+            player_key,
+            f"{coord_str} - клетка уже обстреляна. Ваш ход.",
+        )
+        return
     for k in match.shots:
         shots = match.shots[k]
         shots.setdefault('move_count', 0)
@@ -148,26 +167,30 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         shots['move_count'] += 1
     storage.save_match(match)
 
-    coord_str = parser.format_coord(coord)
     parts_self = []
     next_player = player_key
     for enemy, res in results.items():
+        enemy_obj = match.players.get(enemy)
+        enemy_label = getattr(enemy_obj, 'name', '') or enemy
         if res == battle.MISS:
             phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-            parts_self.append(f"{enemy}: мимо. {phrase_self}")
+            parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
             await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - соперник промахнулся. {phrase_enemy}")
         elif res == battle.HIT:
             phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
-            parts_self.append(f"{enemy}: ранил. {phrase_self}")
+            parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
             await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - ваш корабль ранен. {phrase_enemy}")
         elif res == battle.KILL:
             phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
-            parts_self.append(f"{enemy}: уничтожен! {phrase_self}")
+            parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
             await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}")
             if match.boards[enemy].alive_cells == 0:
+                if enemy not in match.eliminated:
+                    match.eliminated.append(enemy)
+                    match.eliminated_segments[enemy] = alive_before.get(enemy, 0)
                 await context.bot.send_message(match.players[enemy].chat_id, 'Все ваши корабли уничтожены. Вы выбыли.')
     if not hit_any:
         order = [k for k in ('A', 'B', 'C') if k in match.players and match.boards[k].alive_cells > 0]
@@ -179,14 +202,33 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     else:
         match.turn = player_key
         storage.save_match(match)
-    result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_player}.")
+    next_obj = match.players.get(next_player)
+    next_name = getattr(next_obj, 'name', '') or next_player
+    result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_name}.")
     await _send_state(context, match, player_key, result_self)
 
     alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0]
     if len(alive_players) == 1:
         winner = alive_players[0]
         storage.finish(match, winner)
-        await context.bot.send_message(match.players[winner].chat_id, 'Вы победили!')
+        eliminated = [k for k in match.eliminated if k != winner]
+        second = None
+        if eliminated:
+            second = eliminated[0]
+            for p in eliminated[1:]:
+                if match.eliminated_segments.get(p, 0) > match.eliminated_segments.get(second, 0):
+                    second = p
+        winner_name = getattr(match.players[winner], 'name', '') or winner
+        second_name = getattr(match.players.get(second, None), 'name', '') or second if second else None
         for k in match.players:
-            if k != winner:
-                await context.bot.send_message(match.players[k].chat_id, 'Игра окончена. Победил соперник.')
+            if k == winner:
+                if second_name:
+                    msg = f'Вы победили! Второе место занял игрок {second_name}.'
+                else:
+                    msg = 'Вы победили!'
+            else:
+                if second_name:
+                    msg = f'Игра окончена. Победил игрок {winner_name}. Второе место занял игрок {second_name}.'
+                else:
+                    msg = f'Игра окончена. Победил игрок {winner_name}.'
+            await context.bot.send_message(match.players[k].chat_id, msg)
