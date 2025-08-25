@@ -199,6 +199,7 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         coord_str = parser.format_coord(coord)
         parts_self = []
         next_player = player_key
+        from . import router as router_module
         for enemy, res in results.items():
             if res == battle.MISS:
                 phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
@@ -206,21 +207,36 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 enemy_name = match.players.get(enemy)
                 enemy_label = getattr(enemy_name, 'name', '') or enemy
                 parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
-                await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - соперник промахнулся. {phrase_enemy}")
+                await router_module._send_state(
+                    context,
+                    match,
+                    enemy,
+                    f"{coord_str} - соперник промахнулся. {phrase_enemy}",
+                )
             elif res == battle.HIT:
                 phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
                 enemy_name = match.players.get(enemy)
                 enemy_label = getattr(enemy_name, 'name', '') or enemy
                 parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
-                await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - ваш корабль ранен. {phrase_enemy}")
+                await router_module._send_state(
+                    context,
+                    match,
+                    enemy,
+                    f"{coord_str} - ваш корабль ранен. {phrase_enemy}",
+                )
             elif res == battle.KILL:
                 phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
                 enemy_name = match.players.get(enemy)
                 enemy_label = getattr(enemy_name, 'name', '') or enemy
                 parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
-                await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}")
+                await router_module._send_state(
+                    context,
+                    match,
+                    enemy,
+                    f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}",
+                )
                 if match.boards[enemy].alive_cells == 0:
                     await context.bot.send_message(match.players[enemy].chat_id, 'Все ваши корабли уничтожены. Вы выбыли.')
         if not hit_any:
@@ -235,29 +251,10 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         next_label = match.players.get(next_player)
         next_name = getattr(next_label, 'name', '') or next_player
         result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_name}.")
-        msg_ids = match.messages.get(player_key, {})
-        status_id = msg_ids.get('status')
-        if status_id:
-            try:
-                await context.bot.edit_message_text(
-                    result_self,
-                    chat_id=state.chat_id,
-                    message_id=status_id,
-                )
-            except Exception:
-                status_msg = await context.bot.send_message(state.chat_id, result_self)
-                msg_ids['status'] = status_msg.message_id
-                storage.save_match(match)
-            else:
-                state.status_message_id = status_id
-        else:
-            status_msg = await context.bot.send_message(state.chat_id, result_self)
-            msg_ids['status'] = status_msg.message_id
-            state.status_message_id = status_msg.message_id
-            storage.save_match(match)
         view_key = match.turn if single_user else player_key
         state.board = [row[:] for row in match.boards[view_key].grid]
         state.selected = None
+        await router_module._send_state(context, match, view_key, result_self)
         alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0]
         if len(alive_players) == 1:
             winner = alive_players[0]
@@ -266,6 +263,8 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             for k in match.players:
                 if k != winner:
                     await context.bot.send_message(match.players[k].chat_id, 'Игра окончена. Победил соперник.')
+        await query.answer()
+        return
     elif data[1] == "act" and data[2] == "cancel":
         state.selected = None
     buf = render_board(state)
