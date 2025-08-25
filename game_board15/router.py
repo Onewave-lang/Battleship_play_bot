@@ -89,10 +89,15 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not match:
         await update.message.reply_text('Вы не участвуете в матче. Используйте /board15 <id>.')
         return
-    for key, p in match.players.items():
-        if p.user_id == user_id:
-            player_key = key
-            break
+    if all(p.user_id == user_id for p in match.players.values()):
+        player_key = match.turn
+        single_user = True
+    else:
+        single_user = False
+        for key, p in match.players.items():
+            if p.user_id == user_id:
+                player_key = key
+                break
 
     if text.startswith('@'):
         msg = text[1:].strip()
@@ -129,7 +134,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if k != player_key and match.boards[k].alive_cells > 0
     ]
 
-    if match.turn != player_key:
+    if not single_user and match.turn != player_key:
         await update.message.reply_text('Сейчас ход другого игрока.')
         return
 
@@ -194,7 +199,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     next_obj = match.players.get(next_player)
     next_name = getattr(next_obj, 'name', '') or next_player
     result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_name}.")
-    await _send_state(context, match, player_key, result_self)
+    view_key = match.turn if single_user else player_key
+    await _send_state(context, match, view_key, result_self)
 
     alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0]
     if len(alive_players) == 1:

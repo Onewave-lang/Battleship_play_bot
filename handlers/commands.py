@@ -8,6 +8,7 @@ from io import BytesIO
 from contextlib import contextmanager
 import base64
 from urllib.parse import quote_plus
+import os
 
 import storage
 from logic.render import render_board_own, render_board_enemy
@@ -19,6 +20,8 @@ WELCOME_IMAGE = Path(__file__).resolve().parent.parent / '48E5E3DF-C5DF-4DE3-B30
 _WELCOME_PLACEHOLDER = base64.b64decode(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAADUlEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII='
 )
+
+BOARD15_TEST_ENABLED = os.getenv("BOARD15_TEST_ENABLED") == "1"
 
 
 @contextmanager
@@ -106,14 +109,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             'Если вы переходили по ссылке-приглашению, отправьте её текст '
             'вручную: /start inv_<id>.'
         )
-        keyboard = InlineKeyboardMarkup(
+        buttons = [
             [
-                [
-                    InlineKeyboardButton('Игра вдвоем', callback_data='mode_2'),
-                    InlineKeyboardButton('Игра втроем', callback_data='mode_3'),
-                ]
+                InlineKeyboardButton('Игра вдвоем', callback_data='mode_2'),
+                InlineKeyboardButton('Игра втроем', callback_data='mode_3'),
             ]
-        )
+        ]
+        if BOARD15_TEST_ENABLED:
+            buttons.append([InlineKeyboardButton('Тест 3 игроков', callback_data='mode_test3')])
+        keyboard = InlineKeyboardMarkup(buttons)
         await update.message.reply_text('Выберите режим игры:', reply_markup=keyboard)
 
 
@@ -189,3 +193,5 @@ async def choose_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await query.message.reply_text('Используйте /newgame для классической игры вдвоем.')
     elif query.data == 'mode_3':
         await query.message.reply_text('Используйте /board15 для игры втроем на поле 15×15.')
+    elif query.data == 'mode_test3':
+        await query.message.reply_text('Используйте /board15test для тестовой игры втроем.')
