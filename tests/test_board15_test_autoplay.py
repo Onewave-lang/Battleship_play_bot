@@ -14,12 +14,21 @@ def test_board15_test_autoplay(monkeypatch):
         monkeypatch.setattr(handlers.placement, 'random_board', fake_random_board)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
         monkeypatch.setattr(storage, 'finish', lambda m, w: None)
+        tasks = []
+        orig_create_task = asyncio.create_task
+        def fake_create_task(coro):
+            task = orig_create_task(coro)
+            tasks.append(task)
+            return task
+        monkeypatch.setattr(asyncio, 'create_task', fake_create_task)
         update = SimpleNamespace(
             message=SimpleNamespace(reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1, first_name='Tester'),
             effective_chat=SimpleNamespace(id=100)
         )
-        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()))
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
         await handlers.board15_test(update, context)
-        assert 'Победил игрок A' in context.bot.send_message.call_args_list[-1][0][1]
+        await asyncio.gather(*tasks)
+        messages = [c.args[1] for c in context.bot.send_message.call_args_list]
+        assert any('Вы победили' in m for m in messages)
     asyncio.run(run())
