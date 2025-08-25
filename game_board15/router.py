@@ -136,7 +136,9 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     results = {}
     hit_any = False
+    alive_before: dict[str, int] = {}
     for enemy in enemy_keys:
+        alive_before[enemy] = match.boards[enemy].alive_cells
         res = battle.apply_shot(match.boards[enemy], coord)
         results[enemy] = res
         if res in (battle.HIT, battle.KILL):
@@ -168,6 +170,9 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             parts_self.append(f"{enemy}: уничтожен! {phrase_self}")
             await context.bot.send_message(match.players[enemy].chat_id, f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}")
             if match.boards[enemy].alive_cells == 0:
+                if enemy not in match.eliminated:
+                    match.eliminated.append(enemy)
+                    match.eliminated_segments[enemy] = alive_before.get(enemy, 0)
                 await context.bot.send_message(match.players[enemy].chat_id, 'Все ваши корабли уничтожены. Вы выбыли.')
     if not hit_any:
         order = [k for k in ('A', 'B', 'C') if k in match.players and match.boards[k].alive_cells > 0]
@@ -186,7 +191,22 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if len(alive_players) == 1:
         winner = alive_players[0]
         storage.finish(match, winner)
-        await context.bot.send_message(match.players[winner].chat_id, 'Вы победили!')
+        eliminated = [k for k in match.eliminated if k != winner]
+        second = None
+        if eliminated:
+            second = eliminated[0]
+            for p in eliminated[1:]:
+                if match.eliminated_segments.get(p, 0) > match.eliminated_segments.get(second, 0):
+                    second = p
         for k in match.players:
-            if k != winner:
-                await context.bot.send_message(match.players[k].chat_id, 'Игра окончена. Победил соперник.')
+            if k == winner:
+                if second:
+                    msg = f'Вы победили! Второе место занял игрок {second}.'
+                else:
+                    msg = 'Вы победили!'
+            else:
+                if second:
+                    msg = f'Игра окончена. Победил игрок {winner}. Второе место занял игрок {second}.'
+                else:
+                    msg = f'Игра окончена. Победил игрок {winner}.'
+            await context.bot.send_message(match.players[k].chat_id, msg)
