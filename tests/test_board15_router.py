@@ -148,3 +148,52 @@ def test_router_repeat_shot(monkeypatch):
 
     asyncio.run(run_test())
 
+
+def test_router_skips_eliminated_players(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            status='playing',
+            players={
+                'A': SimpleNamespace(user_id=1, chat_id=10),
+                'B': SimpleNamespace(user_id=2, chat_id=20),
+                'C': SimpleNamespace(user_id=3, chat_id=30),
+            },
+            boards={
+                'A': SimpleNamespace(alive_cells=20),
+                'B': SimpleNamespace(alive_cells=0),
+                'C': SimpleNamespace(alive_cells=20),
+            },
+            turn='A',
+            shots={'A': {}, 'B': {}, 'C': {}},
+            messages={'A': {}},
+        )
+
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(router.parser, 'parse_coord', lambda text: (0, 0))
+        monkeypatch.setattr(router.parser, 'format_coord', lambda coord: 'a1')
+
+        calls = []
+
+        def fake_apply_shot(board, coord):
+            calls.append(board)
+            return router.battle.MISS
+
+        monkeypatch.setattr(router.battle, 'apply_shot', fake_apply_shot)
+        monkeypatch.setattr(router, '_phrase_or_joke', lambda m, pk, ph: '')
+
+        send_state = AsyncMock()
+        monkeypatch.setattr(router, '_send_state', send_state)
+
+        send_message = AsyncMock()
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message), chat_data={})
+        update = SimpleNamespace(message=SimpleNamespace(text='a1'), effective_user=SimpleNamespace(id=1))
+
+        await router.router_text(update, context)
+
+        assert calls == [match.boards['C']]
+        assert all(call.args[0] != 20 for call in send_message.call_args_list)
+        assert match.turn == 'C'
+
+    asyncio.run(run_test())
+

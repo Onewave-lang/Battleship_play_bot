@@ -125,6 +125,11 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.message.reply_text('Матч ещё не начался.')
         return
 
+    enemy_keys = [
+        k for k in match.players
+        if k != player_key and match.boards[k].alive_cells > 0
+    ]
+
     if match.turn != player_key:
         await update.message.reply_text('Сейчас ход другого игрока.')
         return
