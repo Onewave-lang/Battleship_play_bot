@@ -21,18 +21,18 @@ def test_board15_invite_flow(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
             match_id='m1',
-            players={'A': SimpleNamespace(user_id=1, chat_id=1)},
+            players={'A': SimpleNamespace(user_id=1, chat_id=1, name='Alice')},
             boards={'A': SimpleNamespace(grid=[[0] * 15 for _ in range(15)])},
             messages={},
         )
-        monkeypatch.setattr(storage15, 'create_match', lambda uid, cid: match)
+        monkeypatch.setattr(storage15, 'create_match', lambda uid, cid, name=None: match)
         monkeypatch.setattr(storage15, 'save_match', lambda m: None)
         monkeypatch.setattr(h, 'render_board', lambda state: BytesIO(b'test'))
         reply_text = AsyncMock()
         reply_photo = AsyncMock(return_value=SimpleNamespace(message_id=1))
         update = SimpleNamespace(
             message=SimpleNamespace(reply_text=reply_text, reply_photo=reply_photo),
-            effective_user=SimpleNamespace(id=1),
+            effective_user=SimpleNamespace(id=1, first_name='Alice'),
             effective_chat=SimpleNamespace(id=1),
         )
         bot = SimpleNamespace(get_me=AsyncMock(return_value=SimpleNamespace(username='TestBot')))
@@ -77,14 +77,14 @@ def test_send_board15_invite_link(monkeypatch):
 def test_start_board15_join(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
-            players={'A': SimpleNamespace(user_id=1, chat_id=1, ready=False)},
+            players={'A': SimpleNamespace(user_id=1, chat_id=1, ready=False, name='Alice')},
         )
-        monkeypatch.setattr(storage15, 'join_match', lambda mid, uid, cid: match)
+        monkeypatch.setattr(storage15, 'join_match', lambda mid, uid, cid, name=None: match)
         reply_text = AsyncMock()
         reply_photo = AsyncMock()
         update = SimpleNamespace(
             message=SimpleNamespace(reply_text=reply_text, reply_photo=reply_photo),
-            effective_user=SimpleNamespace(id=2),
+            effective_user=SimpleNamespace(id=2, first_name='Bob'),
             effective_chat=SimpleNamespace(id=2),
         )
         bot = SimpleNamespace(send_message=AsyncMock())
