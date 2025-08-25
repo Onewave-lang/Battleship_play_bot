@@ -1,9 +1,19 @@
 import asyncio
+import sys
+import types
 from io import BytesIO
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, call, ANY
+from unittest.mock import AsyncMock, Mock, call, ANY
+
+# Provide minimal Pillow stub to satisfy imports in game_board15.renderer
+pil = types.ModuleType('PIL')
+pil.Image = types.SimpleNamespace()
+pil.ImageDraw = types.SimpleNamespace()
+pil.ImageFont = types.SimpleNamespace()
+sys.modules.setdefault('PIL', pil)
 
 from game_board15 import router, storage
+from game_board15.models import Board15
 
 
 def test_router_auto_sends_boards(monkeypatch):
@@ -54,6 +64,43 @@ def test_router_auto_sends_boards(monkeypatch):
             call(10, 'Соперник готов. Бой начинается! Ваш ход.'),
             call(20, 'Корабли расставлены. Бой начинается! Ход соперника.'),
         ]
+
+    asyncio.run(run_test())
+
+
+def test_router_repeat_shot(monkeypatch):
+    async def run_test():
+        board_enemy = Board15()
+        board_enemy.grid[0][0] = 2  # already opened
+        match = SimpleNamespace(
+            status='playing',
+            players={'A': SimpleNamespace(user_id=1, chat_id=10),
+                     'B': SimpleNamespace(user_id=2, chat_id=20)},
+            boards={'A': Board15(), 'B': board_enemy},
+            turn='A',
+            shots={'A': {'move_count': 0, 'joke_start': 10},
+                   'B': {'move_count': 0, 'joke_start': 10}},
+            messages={},
+        )
+
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        save_match = Mock()
+        monkeypatch.setattr(storage, 'save_match', save_match)
+
+        update = SimpleNamespace(
+            message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+        )
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), chat_data={})
+
+        await router.router_text(update, context)
+
+        update.message.reply_text.assert_called_once_with('Эта клетка уже открыта')
+        assert match.turn == 'A'
+        assert match.shots['A']['move_count'] == 0
+        assert match.shots['B']['move_count'] == 0
+        assert context.bot.send_message.call_count == 0
+        assert save_match.call_count == 0
 
     asyncio.run(run_test())
 

@@ -136,11 +136,17 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     results = {}
     hit_any = False
+    repeat = False
     for enemy in enemy_keys:
         res = battle.apply_shot(match.boards[enemy], coord)
         results[enemy] = res
+        if res == battle.REPEAT:
+            repeat = True
         if res in (battle.HIT, battle.KILL):
             hit_any = True
+    if repeat:
+        await update.message.reply_text('Эта клетка уже открыта')
+        return
     for k in match.shots:
         shots = match.shots[k]
         shots.setdefault('move_count', 0)
