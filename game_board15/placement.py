@@ -4,49 +4,110 @@ from typing import List, Tuple
 
 from .models import Board15, Ship
 
+# standard set of ship sizes for the 15x15 board
 SHIP_SIZES = [4, 3, 3, 2, 2, 2, 1, 1, 1, 1]
+BOARD_SIZE = 15
+
+# retry limits – values are conservative to avoid infinite loops while
+# still allowing enough randomness for most boards
+SHIP_RETRY_LIMIT = 50        # attempts to place the current ship
+PLAYER_RETRY_LIMIT = 25      # attempts to place a fleet for one player
+GLOBAL_RESTART_LIMIT = 5     # overall retries for ``random_board``
 
 
-def can_place(grid: List[List[int]], ship_cells: List[Tuple[int, int]]) -> bool:
-    for r, c in ship_cells:
-        if not (0 <= r < 15 and 0 <= c < 15):
-            return False
-        if grid[r][c] != 0:
-            return False
+def _valid_anchors(mask: List[List[int]], size: int) -> List[Tuple[int, int, str]]:
+    """Return all anchor positions where a ship of ``size`` can be placed.
+
+    The mask contains ``1`` for cells that are already occupied or touch an
+    existing ship.  Only anchors where every cell of the ship is ``0`` in the
+    mask are returned.  Each anchor is represented as ``(row, col, orient)``
+    where ``orient`` is ``'h'`` or ``'v'``.
+    """
+    anchors: List[Tuple[int, int, str]] = []
+    for r in range(BOARD_SIZE):
+        for c in range(BOARD_SIZE):
+            if c + size <= BOARD_SIZE:
+                cells = [(r, c + i) for i in range(size)]
+                if all(mask[rr][cc] == 0 for rr, cc in cells):
+                    anchors.append((r, c, 'h'))
+            if r + size <= BOARD_SIZE:
+                cells = [(r + i, c) for i in range(size)]
+                if all(mask[rr][cc] == 0 for rr, cc in cells):
+                    anchors.append((r, c, 'v'))
+    return anchors
+
+
+def _mark(mask: List[List[int]], cells: List[Tuple[int, int]]) -> None:
+    """Mark ``cells`` and their neighbours as occupied in ``mask``."""
+    for r, c in cells:
         for dr in (-1, 0, 1):
             for dc in (-1, 0, 1):
                 nr, nc = r + dr, c + dc
-                if 0 <= nr < 15 and 0 <= nc < 15:
-                    if grid[nr][nc] != 0:
-                        return False
+                if 0 <= nr < BOARD_SIZE and 0 <= nc < BOARD_SIZE:
+                    mask[nr][nc] = 1
+
+
+def _recompute_mask(board: Board15, mask: List[List[int]]) -> None:
+    """Rebuild ``mask`` and board ``grid`` from the currently placed ships."""
+    for r in range(BOARD_SIZE):
+        for c in range(BOARD_SIZE):
+            board.grid[r][c] = 0
+            mask[r][c] = 0
+    for ship in board.ships:
+        for r, c in ship.cells:
+            board.grid[r][c] = 1
+        _mark(mask, ship.cells)
+
+
+def _place_fleet(board: Board15) -> bool:
+    """Place the entire fleet on ``board`` using backtracking.
+
+    Returns ``True`` on success or ``False`` if the retry limits were exceeded
+    and a restart is required.
+    """
+    mask: List[List[int]] = [[0] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+    idx = 0  # current ship index
+    ship_retries = [0] * len(SHIP_SIZES)
+
+    while idx < len(SHIP_SIZES):
+        size = SHIP_SIZES[idx]
+        anchors = _valid_anchors(mask, size)
+        if not anchors:
+            ship_retries[idx] += 1
+            if ship_retries[idx] >= SHIP_RETRY_LIMIT:
+                return False
+            if not board.ships:
+                # cannot backtrack any further – let caller restart
+                return False
+            board.ships.pop()
+            idx -= 1
+            _recompute_mask(board, mask)
+            continue
+
+        r, c, orient = random.choice(anchors)
+        if orient == 'h':
+            cells = [(r, c + i) for i in range(size)]
+        else:
+            cells = [(r + i, c) for i in range(size)]
+        board.ships.append(Ship(cells=cells))
+        for rr, cc in cells:
+            board.grid[rr][cc] = 1
+        _mark(mask, cells)
+        idx += 1
+
     return True
 
 
-def place_ship(board: Board15, size: int) -> None:
-    placed = False
-    while not placed:
-        orient = random.choice(['h', 'v'])
-        if orient == 'h':
-            r = random.randint(0, 14)
-            c = random.randint(0, 15 - size)
-        else:
-            r = random.randint(0, 15 - size)
-            c = random.randint(0, 14)
-        cells = []
-        for i in range(size):
-            rr = r + (i if orient == 'v' else 0)
-            cc = c + (i if orient == 'h' else 0)
-            cells.append((rr, cc))
-        if can_place(board.grid, cells):
-            ship = Ship(cells=cells)
-            board.ships.append(ship)
-            for rr, cc in cells:
-                board.grid[rr][cc] = 1
-            placed = True
-
-
 def random_board() -> Board15:
-    board = Board15()
-    for size in SHIP_SIZES:
-        place_ship(board, size)
-    return board
+    """Return a new board with a fully placed fleet.
+
+    The function attempts to place the fleet several times, honouring the
+    retry limits to avoid pathological infinite loops.
+    """
+    for _ in range(GLOBAL_RESTART_LIMIT):
+        for _ in range(PLAYER_RETRY_LIMIT):
+            board = Board15()
+            if _place_fleet(board):
+                return board
+        # if placement failed for the player, try again from scratch
+    raise RuntimeError("Failed to place fleet after several attempts")
