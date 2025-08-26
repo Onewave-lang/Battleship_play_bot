@@ -9,7 +9,7 @@ from game_board15.models import Board15
 def test_board15_test_autoplay(monkeypatch):
     async def run():
         boards = [Board15(), Board15(alive_cells=0), Board15(alive_cells=0)]
-        def fake_random_board():
+        def fake_random_board(*args, **kwargs):
             return boards.pop(0)
         monkeypatch.setattr(handlers.placement, 'random_board', fake_random_board)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)

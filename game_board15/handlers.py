@@ -242,9 +242,21 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     match.players['C'] = Player(user_id=0, chat_id=update.effective_chat.id, name='C')
     match.status = 'playing'
     match.turn = 'A'
+    # place fleets for all players ensuring that ships of different players do
+    # not touch each other.  Build a mask of forbidden cells (occupied or
+    # adjacent) and update it after each fleet is generated.
+    mask = [[0] * 15 for _ in range(15)]
     for key in ('A', 'B', 'C'):
+        board = placement.random_board(mask)
         match.players[key].ready = True
-        match.boards[key] = placement.random_board()
+        match.boards[key] = board
+        for ship in board.ships:
+            for r, c in ship.cells:
+                for dr in (-1, 0, 1):
+                    for dc in (-1, 0, 1):
+                        nr, nc = r + dr, c + dc
+                        if 0 <= nr < 15 and 0 <= nc < 15:
+                            mask[nr][nc] = 1
     storage.save_match(match)
     state = Board15State(chat_id=update.effective_chat.id)
     merged = [row[:] for row in match.history]
