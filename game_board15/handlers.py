@@ -419,12 +419,13 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                         enemy,
                         f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}",
                     )
-                    if match.boards[enemy].alive_cells == 0:
-                        enemy_label = getattr(match.players.get(enemy), 'name', '') or enemy
-                        await context.bot.send_message(
-                            match.players[enemy].chat_id,
-                            f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
-                        )
+                if match.boards[enemy].alive_cells == 0:
+                    enemy_label = getattr(match.players.get(enemy), 'name', '') or enemy
+                    target = enemy if match.players[enemy].user_id != 0 else player_key
+                    await context.bot.send_message(
+                        match.players[target].chat_id,
+                        f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
+                    )
 
         storage.save_match(match)
         next_label = match.players.get(next_player)
