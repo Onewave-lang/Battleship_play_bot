@@ -6,23 +6,18 @@ from typing import List, Optional, Tuple
 
 @dataclass
 class Board15State:
-    """State of a 15x15 board with a movable 5x5 window.
+    """State of a 15x15 board used for rendering and message tracking.
 
-    This simplified state container keeps only the data required for
-    rendering the board and tracking user interactions.  The board is a
-    15x15 matrix of integers where ``0`` represents an empty cell.  Other
-    values may be used by the game logic to indicate various markers.
+    Only the data necessary for creating board images and updating Telegram
+    messages is stored.  The board itself is represented as a 15x15 matrix of
+    integers where ``0`` denotes an empty cell and other values are produced by
+    the game logic.
     """
 
     board: List[List[int]] = field(
         default_factory=lambda: [[0] * 15 for _ in range(15)]
     )
-    window_top: int = 0
-    window_left: int = 0
-    phase: str = "aim"
-    last_img_hash: str = ""
     chat_id: Optional[int] = None
     message_id: Optional[int] = None
     status_message_id: Optional[int] = None
-    selected: Optional[Tuple[int, int]] = None
     player_key: Optional[str] = None

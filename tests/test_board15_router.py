@@ -45,7 +45,6 @@ def test_router_auto_sends_boards(monkeypatch):
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
         monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'target'))
         monkeypatch.setattr(router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own'))
-        monkeypatch.setattr(router, '_keyboard', lambda: 'kb')
 
         send_photo = AsyncMock()
         send_message = AsyncMock()
@@ -60,9 +59,9 @@ def test_router_auto_sends_boards(monkeypatch):
 
         assert send_photo.call_args_list == [
             call(10, ANY),
-            call(10, ANY, reply_markup='kb'),
+            call(10, ANY),
             call(20, ANY),
-            call(20, ANY, reply_markup='kb'),
+            call(20, ANY),
         ]
         assert send_message.call_args_list == [
             call(10, 'Соперник готов. Бой начинается! Ваш ход.'),
@@ -151,7 +150,6 @@ def test_router_notifies_next_player_on_miss(monkeypatch):
         monkeypatch.setattr(router, '_phrase_or_joke', lambda m, pk, ph: '')
         monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'target'))
         monkeypatch.setattr(router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own'))
-        monkeypatch.setattr(router, '_keyboard', lambda: 'kb')
 
         send_photo = AsyncMock()
         send_message = AsyncMock()
@@ -171,7 +169,7 @@ def test_router_notifies_next_player_on_miss(monkeypatch):
         b_msgs = [c for c in send_message.call_args_list if c.args[0] == 20]
         assert b_msgs and b_msgs[0].args[1] == 'Ваш ход.'
         b_photos = [c for c in send_photo.call_args_list if c.args[0] == 20]
-        assert any(c.kwargs.get('reply_markup') == 'kb' for c in b_photos)
+        assert b_photos
         assert not any(c.args[1] == 'a1 - мимо' for c in b_msgs)
 
     asyncio.run(run_test())
@@ -206,7 +204,6 @@ def test_router_move_sends_player_board(monkeypatch):
             return BytesIO(b'own')
 
         monkeypatch.setattr(router, 'render_player_board', fake_render_player_board)
-        monkeypatch.setattr(router, '_keyboard', lambda: 'kb')
 
         edit_media = AsyncMock()
         send_photo = AsyncMock()

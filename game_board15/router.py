@@ -6,7 +6,7 @@ from telegram.ext import ContextTypes
 
 from . import storage
 from . import battle, parser
-from .handlers import _keyboard, STATE_KEY
+from .handlers import STATE_KEY
 from .renderer import render_board, render_player_board
 from .state import Board15State
 from logic.phrases import (
@@ -90,21 +90,14 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
             )
         except Exception:
             logger.exception("Failed to update board image for chat %s", chat_id)
-            msg = await context.bot.send_photo(chat_id, buf, reply_markup=_keyboard())
+            msg = await context.bot.send_photo(chat_id, buf)
             board_id = msg.message_id
             msgs['board'] = board_id
+            state.message_id = board_id
         else:
-            try:
-                await context.bot.edit_message_reply_markup(
-                    chat_id=chat_id,
-                    message_id=board_id,
-                    reply_markup=_keyboard(),
-                )
-            except Exception:
-                logger.exception("Failed to refresh board keyboard for chat %s", chat_id)
             state.message_id = board_id
     else:
-        msg = await context.bot.send_photo(chat_id, buf, reply_markup=_keyboard())
+        msg = await context.bot.send_photo(chat_id, buf)
         board_id = msg.message_id
         msgs['board'] = board_id
         state.message_id = board_id
