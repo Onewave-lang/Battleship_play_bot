@@ -9,7 +9,7 @@ from game_board15.models import Board15
 def test_board15_test_manual(monkeypatch):
     async def run():
         boards = [Board15(), Board15(), Board15()]
-        monkeypatch.setattr(handlers.placement, 'random_board', lambda: boards.pop(0))
+        monkeypatch.setattr(handlers.placement, 'random_board', lambda *a, **k: boards.pop(0))
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
         def fake_finish(match, winner):
             match.status = 'finished'
