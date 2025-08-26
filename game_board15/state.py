@@ -19,5 +19,4 @@ class Board15State:
     )
     chat_id: Optional[int] = None
     message_id: Optional[int] = None
-    status_message_id: Optional[int] = None
     player_key: Optional[str] = None

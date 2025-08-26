@@ -44,7 +44,6 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
     player_buf = render_player_board(match.boards[player_key], player_key)
     msgs = match.messages.setdefault(player_key, {})
     board_id = msgs.get('board')
-    status_id = msgs.get('status')
     player_id = msgs.get('player')
 
     # player's own board with ships
@@ -63,41 +62,23 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
         msg = await context.bot.send_photo(chat_id, player_buf)
         msgs['player'] = msg.message_id
 
-    if status_id:
-        try:
-            await context.bot.edit_message_text(
-                message,
-                chat_id=chat_id,
-                message_id=status_id,
-            )
-        except Exception:
-            logger.exception("Failed to update status message for chat %s", chat_id)
-            status = await context.bot.send_message(chat_id, message)
-            msgs['status'] = status.message_id
-        else:
-            state.status_message_id = status_id
-    else:
-        status = await context.bot.send_message(chat_id, message)
-        msgs['status'] = status.message_id
-        state.status_message_id = status.message_id
-
     if board_id:
         try:
             await context.bot.edit_message_media(
                 chat_id=chat_id,
                 message_id=board_id,
-                media=InputMediaPhoto(buf),
+                media=InputMediaPhoto(buf, caption=message),
             )
         except Exception:
             logger.exception("Failed to update board image for chat %s", chat_id)
-            msg = await context.bot.send_photo(chat_id, buf)
+            msg = await context.bot.send_photo(chat_id, buf, caption=message)
             board_id = msg.message_id
             msgs['board'] = board_id
             state.message_id = board_id
         else:
             state.message_id = board_id
     else:
-        msg = await context.bot.send_photo(chat_id, buf)
+        msg = await context.bot.send_photo(chat_id, buf, caption=message)
         board_id = msg.message_id
         msgs['board'] = board_id
         state.message_id = board_id
