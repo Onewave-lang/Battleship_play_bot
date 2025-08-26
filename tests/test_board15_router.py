@@ -13,7 +13,7 @@ pil.ImageFont = types.SimpleNamespace()
 sys.modules.setdefault('PIL', pil)
 
 from game_board15 import router, storage
-from game_board15.models import Board15
+from game_board15.models import Board15, Ship
 
 
 def test_router_auto_sends_boards(monkeypatch):
@@ -68,6 +68,58 @@ def test_router_auto_sends_boards(monkeypatch):
             call(10, 'Соперник готов. Бой начинается! Ваш ход.'),
             call(20, 'Корабли расставлены. Бой начинается! Ход соперника.'),
         ]
+
+    asyncio.run(run_test())
+
+
+def test_router_notifies_other_players_on_hit(monkeypatch):
+    async def run_test():
+        board_self = Board15()
+        board_b = Board15()
+        board_c = Board15()
+        ship = Ship(cells=[(0, 0)])
+        board_b.ships = [ship]
+        board_b.grid[0][0] = 1
+        board_b.alive_cells = 1
+        board_c.alive_cells = 1
+        match = SimpleNamespace(
+            status='playing',
+            players={
+                'A': SimpleNamespace(user_id=1, chat_id=10, name='A'),
+                'B': SimpleNamespace(user_id=2, chat_id=20, name='B'),
+                'C': SimpleNamespace(user_id=3, chat_id=30, name='C'),
+            },
+            boards={'A': board_self, 'B': board_b, 'C': board_c},
+            turn='A',
+            shots={'A': {'move_count': 0, 'joke_start': 10}, 'B': {}, 'C': {}},
+            messages={'A': {}, 'B': {}, 'C': {}},
+            history=[[0] * 15 for _ in range(15)],
+        )
+
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(router.parser, 'parse_coord', lambda text: (0, 0))
+        monkeypatch.setattr(router.parser, 'format_coord', lambda coord: 'a1')
+        monkeypatch.setattr(router, '_phrase_or_joke', lambda m, pk, ph: '')
+
+        def fake_apply_shot(board, coord):
+            return router.battle.HIT if board is board_b else router.battle.MISS
+
+        monkeypatch.setattr(router.battle, 'apply_shot', fake_apply_shot)
+
+        send_state = AsyncMock()
+        monkeypatch.setattr(router, '_send_state', send_state)
+
+        update = SimpleNamespace(message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
+                                  effective_user=SimpleNamespace(id=1))
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), chat_data={}, bot_data={})
+
+        await router.router_text(update, context)
+
+        calls = [c for c in send_state.call_args_list if c.args[2] == 'C']
+        assert calls
+        msg = calls[0].args[3]
+        assert msg == 'a1 - корабль игрока B ранен'
 
     asyncio.run(run_test())
 

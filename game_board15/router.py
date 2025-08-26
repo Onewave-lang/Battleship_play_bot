@@ -191,25 +191,22 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     storage.save_match(match)
 
     coord_str = parser.format_coord(coord)
-    parts_self = []
+    parts_self: list[str] = []
+    parts_others: list[str] = []
+    victims: list[str] = []
     next_player = player_key
     for enemy, res in results.items():
         enemy_obj = match.players.get(enemy)
-        enemy_label = getattr(enemy_obj, 'name', '') or enemy
+        enemy_label = getattr(enemy_obj, "name", "") or enemy
         if res == battle.MISS:
             phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
-            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
             parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
-            await _send_state(
-                context,
-                match,
-                enemy,
-                f"{coord_str} - соперник промахнулся. {phrase_enemy}",
-            )
         elif res == battle.HIT:
             phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
             parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
+            parts_others.append(f"корабль игрока {enemy_label} ранен")
+            victims.append(enemy)
             await _send_state(
                 context,
                 match,
@@ -220,6 +217,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
             parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
+            parts_others.append(f"корабль игрока {enemy_label} уничтожен")
+            victims.append(enemy)
             await _send_state(
                 context,
                 match,
@@ -227,7 +226,23 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}",
             )
             if match.boards[enemy].alive_cells == 0:
-                await context.bot.send_message(match.players[enemy].chat_id, 'Все ваши корабли уничтожены. Вы выбыли.')
+                await context.bot.send_message(
+                    match.players[enemy].chat_id,
+                    "Все ваши корабли уничтожены. Вы выбыли.",
+                )
+
+    others = [
+        k
+        for k in match.players
+        if k not in victims and k != player_key and match.boards[k].alive_cells > 0
+    ]
+    if others:
+        if parts_others:
+            msg_others = f"{coord_str} - {', '.join(parts_others)}"
+        else:
+            msg_others = f"{coord_str} - мимо"
+        for other in others:
+            await _send_state(context, match, other, msg_others)
     if not hit_any:
         order = [k for k in ('A', 'B', 'C') if k in match.players and match.boards[k].alive_cells > 0]
         idx = order.index(player_key)
