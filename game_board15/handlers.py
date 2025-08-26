@@ -148,7 +148,11 @@ async def _auto_play_bots(
         # find first untouched cell scanning from the start each time
         coord = None
         for pt in coords:
-            if match.history[pt[0]][pt[1]] == 0:
+            r, c = pt
+            if (
+                match.history[r][c] == 0
+                and match.boards[current].grid[r][c] != 1
+            ):
                 coord = pt
                 break
         if coord is None:
@@ -348,6 +352,10 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 await query.answer("Не ваш ход")
                 return
         coord = state.selected
+        r, c = coord
+        if match.boards[player_key].grid[r][c] == 1:
+            await query.answer("Здесь ваш корабль")
+            return
         enemies = [k for k in match.players if k != player_key]
         results = {}
         hit_any = False
