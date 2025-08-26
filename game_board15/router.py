@@ -87,7 +87,6 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
                 chat_id=chat_id,
                 message_id=board_id,
                 media=InputMediaPhoto(buf),
-                reply_markup=_keyboard(),
             )
         except Exception:
             logger.exception("Failed to update board image for chat %s", chat_id)
@@ -95,6 +94,14 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
             board_id = msg.message_id
             msgs['board'] = board_id
         else:
+            try:
+                await context.bot.edit_message_reply_markup(
+                    chat_id=chat_id,
+                    message_id=board_id,
+                    reply_markup=_keyboard(),
+                )
+            except Exception:
+                logger.exception("Failed to refresh board keyboard for chat %s", chat_id)
             state.message_id = board_id
     else:
         msg = await context.bot.send_photo(chat_id, buf, reply_markup=_keyboard())
