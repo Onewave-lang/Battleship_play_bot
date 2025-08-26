@@ -213,9 +213,10 @@ async def _auto_play_bots(
                         f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}",
                     )
                 if match.boards[enemy].alive_cells == 0:
+                    enemy_label = getattr(match.players.get(enemy), 'name', '') or enemy
                     await context.bot.send_message(
                         match.players[enemy].chat_id,
-                        'Все ваши корабли уничтожены. Вы выбыли.',
+                        f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
                     )
 
         storage.save_match(match)
@@ -411,9 +412,10 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                         f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}",
                     )
                     if match.boards[enemy].alive_cells == 0:
+                        enemy_label = getattr(match.players.get(enemy), 'name', '') or enemy
                         await context.bot.send_message(
                             match.players[enemy].chat_id,
-                            'Все ваши корабли уничтожены. Вы выбыли.',
+                            f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
                         )
 
         storage.save_match(match)
