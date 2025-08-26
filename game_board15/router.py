@@ -4,7 +4,7 @@ from telegram import Update, InputMediaPhoto
 from telegram.ext import ContextTypes
 
 from . import storage
-from . import placement, battle, parser
+from . import battle, parser
 from .handlers import _keyboard, STATE_KEY
 from .renderer import render_board, render_player_board
 from .state import Board15State
@@ -134,8 +134,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     if match.status == 'placing':
         if text.lower() == 'авто':
-            board = placement.random_board()
-            storage.save_board(match, player_key, board)
+            storage.save_board(match, player_key)
             if match.status == 'playing':
                 for k in match.players:
                     msg = (

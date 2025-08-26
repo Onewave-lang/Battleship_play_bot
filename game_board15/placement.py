@@ -47,25 +47,38 @@ def _mark(mask: List[List[int]], cells: List[Tuple[int, int]]) -> None:
                     mask[nr][nc] = 1
 
 
-def _recompute_mask(board: Board15, mask: List[List[int]]) -> None:
-    """Rebuild ``mask`` and board ``grid`` from the currently placed ships."""
+def _recompute_mask(board: Board15,
+                    mask: List[List[int]],
+                    base: List[List[int]]) -> None:
+    """Rebuild ``mask`` and board ``grid`` from the currently placed ships.
+
+    ``base`` is the initial mask that contains cells which are already occupied
+    or otherwise forbidden for this player (e.g. because they are taken by
+    other players).  The function restores ``mask`` to ``base`` and then marks
+    cells occupied by the ships currently placed on ``board``.
+    """
     for r in range(BOARD_SIZE):
         for c in range(BOARD_SIZE):
             board.grid[r][c] = 0
-            mask[r][c] = 0
+            mask[r][c] = base[r][c]
     for ship in board.ships:
         for r, c in ship.cells:
             board.grid[r][c] = 1
         _mark(mask, ship.cells)
 
 
-def _place_fleet(board: Board15) -> bool:
+def _place_fleet(board: Board15,
+                 mask: List[List[int]],
+                 base_mask: List[List[int]]) -> bool:
     """Place the entire fleet on ``board`` using backtracking.
+
+    ``mask`` is modified in-place.  ``base_mask`` represents cells that are
+    already occupied or touch ships of other players and therefore cannot be
+    used by the newly placed fleet.
 
     Returns ``True`` on success or ``False`` if the retry limits were exceeded
     and a restart is required.
     """
-    mask: List[List[int]] = [[0] * BOARD_SIZE for _ in range(BOARD_SIZE)]
     idx = 0  # current ship index
     ship_retries = [0] * len(SHIP_SIZES)
 
@@ -81,7 +94,7 @@ def _place_fleet(board: Board15) -> bool:
                 return False
             board.ships.pop()
             idx -= 1
-            _recompute_mask(board, mask)
+            _recompute_mask(board, mask, base_mask)
             continue
 
         r, c, orient = random.choice(anchors)
@@ -98,16 +111,25 @@ def _place_fleet(board: Board15) -> bool:
     return True
 
 
-def random_board() -> Board15:
+def random_board(global_mask: List[List[int]] | None = None) -> Board15:
     """Return a new board with a fully placed fleet.
+
+    Parameters
+    ----------
+    global_mask:
+        Optional mask where ``1`` denotes cells that are already occupied or
+        adjacent to ships of other players.  The generated fleet will avoid
+        these cells.
 
     The function attempts to place the fleet several times, honouring the
     retry limits to avoid pathological infinite loops.
     """
+    base_mask = [row[:] for row in global_mask] if global_mask else [[0] * BOARD_SIZE for _ in range(BOARD_SIZE)]
     for _ in range(GLOBAL_RESTART_LIMIT):
         for _ in range(PLAYER_RETRY_LIMIT):
             board = Board15()
-            if _place_fleet(board):
+            mask = [row[:] for row in base_mask]
+            if _place_fleet(board, mask, base_mask):
                 return board
         # if placement failed for the player, try again from scratch
     raise RuntimeError("Failed to place fleet after several attempts")

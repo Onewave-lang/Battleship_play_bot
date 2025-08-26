@@ -33,8 +33,8 @@ def test_router_auto_sends_boards(monkeypatch):
             history=[[0] * 15 for _ in range(15)],
         )
 
-        def fake_save_board(m, key, board):
-            m.boards[key] = board
+        def fake_save_board(m, key, board=None):
+            m.boards[key] = board or Board15(grid=[[0] * 15 for _ in range(15)])
             m.players[key].ready = True
             if all(p.ready for p in m.players.values()):
                 m.status = 'playing'
@@ -43,7 +43,6 @@ def test_router_auto_sends_boards(monkeypatch):
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
         monkeypatch.setattr(storage, 'save_board', fake_save_board)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
-        monkeypatch.setattr(router.placement, 'random_board', lambda: SimpleNamespace(grid=[[0] * 15 for _ in range(15)]))
         monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'target'))
         monkeypatch.setattr(router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own'))
         monkeypatch.setattr(router, '_keyboard', lambda: 'kb')
