@@ -53,7 +53,8 @@ class Match:
             "joke_start": random.randint(1, 10),
         },
     })
-    messages: Dict[str, Dict[str, int]] = field(default_factory=dict)
+    # stores ids of service messages per player: e.g. last board or keyboard
+    messages: Dict[str, Dict[str, int]] = field(default_factory=lambda: {"A": {}, "B": {}})
 
     @staticmethod
     def new(a_user_id: int, a_chat_id: int) -> 'Match':

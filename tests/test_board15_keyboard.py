@@ -70,7 +70,9 @@ def test_send_state_updates_inline_keyboard(monkeypatch):
         kwargs = bot.edit_message_media.await_args.kwargs
         assert kwargs['chat_id'] == 1
         assert kwargs['message_id'] == 10
-        assert kwargs['reply_markup'] is kb
-        assert bot.edit_message_reply_markup.await_count == 0
+        assert 'reply_markup' not in kwargs
+        bot.edit_message_reply_markup.assert_awaited_once()
+        kb_call = bot.edit_message_reply_markup.await_args
+        assert kb_call.kwargs['reply_markup'] is kb
 
     asyncio.run(run_test())

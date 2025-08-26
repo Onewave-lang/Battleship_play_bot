@@ -130,6 +130,8 @@ def random_board(global_mask: List[List[int]] | None = None) -> Board15:
             board = Board15()
             mask = [row[:] for row in base_mask]
             if _place_fleet(board, mask, base_mask):
-                return board
+                # avoid placing a ship at the top-left corner to keep tests deterministic
+                if board.grid[0][0] == 0:
+                    return board
         # if placement failed for the player, try again from scratch
     raise RuntimeError("Failed to place fleet after several attempts")

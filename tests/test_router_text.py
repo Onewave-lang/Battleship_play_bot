@@ -18,13 +18,17 @@ def test_router_invalid_cell_shows_board(monkeypatch):
             turn='A',
             shots={'A': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10},
                    'B': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10}},
+            messages={},
         )
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        kb = object()
+        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
 
         send_message = AsyncMock()
-        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message))
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message, delete_message=AsyncMock()))
         update = SimpleNamespace(
             message=SimpleNamespace(text='63', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
@@ -32,7 +36,7 @@ def test_router_invalid_cell_shows_board(monkeypatch):
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nНе понял клетку. Пример: е5 или д10.', parse_mode='HTML')
+            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nНе понял клетку. Пример: е5 или д10.', parse_mode='HTML', reply_markup=kb)
         ]
     asyncio.run(run_test())
 
@@ -47,13 +51,17 @@ def test_router_wrong_turn_shows_board(monkeypatch):
             turn='B',
             shots={'A': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10},
                    'B': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10}},
+            messages={},
         )
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        kb = object()
+        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
 
         send_message = AsyncMock()
-        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message))
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message, delete_message=AsyncMock()))
         update = SimpleNamespace(
             message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
@@ -61,7 +69,7 @@ def test_router_wrong_turn_shows_board(monkeypatch):
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nСейчас ход соперника.', parse_mode='HTML')
+            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nСейчас ход соперника.', parse_mode='HTML', reply_markup=kb)
         ]
     asyncio.run(run_test())
 
@@ -74,6 +82,7 @@ def test_router_auto_shows_board(monkeypatch):
                      'B': SimpleNamespace(user_id=2, chat_id=20, ready=True)},
             boards={'A': SimpleNamespace(), 'B': SimpleNamespace()},
             turn='A',
+            messages={},
         )
 
         def fake_save_board(m, key, board):
@@ -88,9 +97,12 @@ def test_router_auto_shows_board(monkeypatch):
         monkeypatch.setattr(router, 'random_board', lambda: SimpleNamespace())
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        kb = object()
+        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
 
         send_message = AsyncMock()
-        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message))
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message, delete_message=AsyncMock()))
         update = SimpleNamespace(
             message=SimpleNamespace(text='авто', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
@@ -98,8 +110,8 @@ def test_router_auto_shows_board(monkeypatch):
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nКорабли расставлены. Бой начинается! Ваш ход.', parse_mode='HTML'),
-            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy\nСоперник готов. Бой начинается! Ход соперника.', parse_mode='HTML'),
+            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nКорабли расставлены. Бой начинается! Ваш ход.', parse_mode='HTML', reply_markup=kb),
+            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy\nСоперник готов. Бой начинается! Ход соперника.', parse_mode='HTML', reply_markup=kb),
         ]
     asyncio.run(run_test())
 
@@ -114,6 +126,7 @@ def test_router_auto_waits_and_sends_instruction(monkeypatch):
             },
             boards={'A': SimpleNamespace(), 'B': SimpleNamespace()},
             turn='A',
+            messages={},
         )
 
         def fake_save_board(m, key, board):
@@ -128,9 +141,12 @@ def test_router_auto_waits_and_sends_instruction(monkeypatch):
         monkeypatch.setattr(router, 'random_board', lambda: SimpleNamespace())
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        kb = object()
+        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
 
         send_message = AsyncMock()
-        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message))
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message, delete_message=AsyncMock()))
         update = SimpleNamespace(
             message=SimpleNamespace(text='авто', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
@@ -138,8 +154,8 @@ def test_router_auto_waits_and_sends_instruction(monkeypatch):
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nКорабли расставлены. Ожидаем соперника.', parse_mode='HTML'),
-            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy\nСоперник готов. Отправьте "авто" для расстановки кораблей.', parse_mode='HTML'),
+            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nКорабли расставлены. Ожидаем соперника.', parse_mode='HTML', reply_markup=kb),
+            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy\nСоперник готов. Отправьте "авто" для расстановки кораблей.', parse_mode='HTML', reply_markup=kb),
             call(20, 'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.'),
         ]
 
@@ -164,13 +180,16 @@ def test_router_kill_message(monkeypatch):
             turn='A',
             shots={'A': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10},
                    'B': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10}},
+            messages={},
         )
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        kb = object()
+        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
         send_message = AsyncMock()
-        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message))
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message, delete_message=AsyncMock()))
         update = SimpleNamespace(
             message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
@@ -226,6 +245,7 @@ def test_router_joke_format(monkeypatch):
             turn='A',
             shots={'A': {'history': [], 'last_result': None, 'move_count': 9, 'joke_start': 0},
                    'B': {'history': [], 'last_result': None, 'move_count': 9, 'joke_start': 0}},
+            messages={},
         )
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
@@ -236,9 +256,11 @@ def test_router_joke_format(monkeypatch):
         monkeypatch.setattr(router, 'random_phrase', lambda phrases: phrases[0])
         monkeypatch.setattr(router, 'random_joke', lambda: 'JOKE')
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        kb = object()
+        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
 
         send_message = AsyncMock()
-        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message))
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message, delete_message=AsyncMock()))
         update = SimpleNamespace(
             message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
@@ -267,6 +289,7 @@ def test_router_game_over_messages(monkeypatch):
             turn='A',
             shots={'A': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10},
                    'B': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10}},
+            messages={},
         )
         def fake_finish(m, winner):
             m.status = 'finished'
@@ -275,8 +298,11 @@ def test_router_game_over_messages(monkeypatch):
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
         monkeypatch.setattr(storage, 'finish', fake_finish)
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        kb = object()
+        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
         send_message = AsyncMock()
-        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message))
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message, delete_message=AsyncMock()))
         update = SimpleNamespace(
             message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
