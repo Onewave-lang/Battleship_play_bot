@@ -25,8 +25,8 @@ def test_router_auto_sends_boards(monkeypatch):
                 'B': SimpleNamespace(user_id=2, chat_id=20, ready=False, name='Bob'),
             },
             boards={
-                'A': SimpleNamespace(grid=[[0] * 15 for _ in range(15)]),
-                'B': SimpleNamespace(grid=[[0] * 15 for _ in range(15)]),
+                'A': SimpleNamespace(grid=[[0] * 15 for _ in range(15)], highlight=[]),
+                'B': SimpleNamespace(grid=[[0] * 15 for _ in range(15)], highlight=[]),
             },
             turn='A',
             messages={},

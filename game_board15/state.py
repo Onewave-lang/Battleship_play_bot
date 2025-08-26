@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import List, Optional
+
+from .models import Coord
 
 
 @dataclass
@@ -20,3 +22,4 @@ class Board15State:
     chat_id: Optional[int] = None
     message_id: Optional[int] = None
     player_key: Optional[str] = None
+    highlight: List[Coord] = field(default_factory=list)

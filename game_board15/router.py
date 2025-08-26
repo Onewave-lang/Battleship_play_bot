@@ -42,6 +42,7 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
                 merged[r][c] = 1
     state.board = merged
     state.player_key = player_key
+    state.highlight = match.boards[player_key].highlight.copy()
     buf = render_board(state, player_key)
     player_buf = render_player_board(match.boards[player_key], player_key)
 
