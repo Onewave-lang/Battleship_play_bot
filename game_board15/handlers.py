@@ -356,6 +356,10 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             results[enemy] = res
             if res in (battle.HIT, battle.KILL):
                 hit_any = True
+        if battle.REPEAT in results.values():
+            await query.answer("Эта клетка уже открыта")
+            return
+        battle.update_history(match.history, match.boards, coord, results)
         for k in match.shots:
             shots = match.shots[k]
             shots.setdefault('move_count', 0)
