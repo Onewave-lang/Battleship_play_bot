@@ -104,11 +104,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             await update.message.reply_text('Матч не найден или заполнен.')
     else:
-        await update.message.reply_text(
-            'Привет! Используйте /newgame чтобы создать матч. '
-            'Если вы переходили по ссылке-приглашению, отправьте её текст '
-            'вручную: /start inv_<id>.'
-        )
+        with welcome_photo() as img:
+            await update.message.reply_photo(img, caption='Добро пожаловать в игру!')
         buttons = [
             [
                 InlineKeyboardButton('Игра вдвоем', callback_data='mode_2'),
@@ -190,7 +187,11 @@ async def choose_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     query = update.callback_query
     await query.answer()
     if query.data == 'mode_2':
-        await query.message.reply_text('Используйте /newgame для классической игры вдвоем.')
+        await query.message.reply_text(
+            'Используйте /newgame чтобы создать матч. '
+            'Если вы переходили по ссылке-приглашению, отправьте её текст '
+            'вручную: /start inv_<id>.'
+        )
     elif query.data == 'mode_3':
         await query.message.reply_text('Используйте /board15 для игры втроем на поле 15×15.')
     elif query.data == 'mode_test3':
