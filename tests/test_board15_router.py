@@ -30,6 +30,7 @@ def test_router_auto_sends_boards(monkeypatch):
             },
             turn='A',
             messages={},
+            history=[[0] * 15 for _ in range(15)],
         )
 
         def fake_save_board(m, key, board):
@@ -83,6 +84,7 @@ def test_router_move_sends_player_board(monkeypatch):
             turn='A',
             shots={'A': {}, 'B': {}},
             messages={'A': {'board': 1, 'status': 2}, 'B': {'board': 3, 'status': 4}},
+            history=[[0] * 15 for _ in range(15)],
         )
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
@@ -132,13 +134,14 @@ def test_router_uses_player_names(monkeypatch):
                 'C': SimpleNamespace(user_id=3, chat_id=30, name='Carl'),
             },
             boards={
-                'A': SimpleNamespace(alive_cells=20),
-                'B': SimpleNamespace(alive_cells=20),
-                'C': SimpleNamespace(alive_cells=20),
+                'A': Board15(),
+                'B': Board15(),
+                'C': Board15(),
             },
             turn='A',
             shots={'A': {}, 'B': {}, 'C': {}},
             messages={'A': {}},
+            history=[[0] * 15 for _ in range(15)],
         )
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
@@ -176,6 +179,7 @@ def test_router_repeat_shot(monkeypatch):
             shots={'A': {'move_count': 0, 'joke_start': 10},
                    'B': {'move_count': 0, 'joke_start': 10}},
             messages={},
+            history=[[0] * 15 for _ in range(15)],
         )
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
@@ -212,15 +216,13 @@ def test_router_skips_eliminated_players(monkeypatch):
                 'B': SimpleNamespace(user_id=2, chat_id=20),
                 'C': SimpleNamespace(user_id=3, chat_id=30),
             },
-            boards={
-                'A': SimpleNamespace(alive_cells=20),
-                'B': SimpleNamespace(alive_cells=0),
-                'C': SimpleNamespace(alive_cells=20),
-            },
+            boards={'A': Board15(), 'B': Board15(), 'C': Board15()},
             turn='A',
             shots={'A': {}, 'B': {}, 'C': {}},
             messages={'A': {}},
+            history=[[0] * 15 for _ in range(15)],
         )
+        match.boards['B'].alive_cells = 0
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)

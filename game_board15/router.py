@@ -40,7 +40,13 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
     if not state:
         state = Board15State(chat_id=chat_id)
         states[chat_id] = state
-    state.board = [row[:] for row in match.boards[player_key].grid]
+    merged = [row[:] for row in match.history]
+    own_grid = match.boards[player_key].grid
+    for r in range(15):
+        for c in range(15):
+            if merged[r][c] == 0 and own_grid[r][c] == 1:
+                merged[r][c] = 1
+    state.board = merged
     state.player_key = player_key
     buf = render_board(state, player_key)
     msgs = match.messages.setdefault(player_key, {})
@@ -176,6 +182,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if repeat:
         await update.message.reply_text('Эта клетка уже открыта')
         return
+    battle.update_history(match.history, match.boards, coord, results)
     for k in match.shots:
         shots = match.shots[k]
         shots.setdefault('move_count', 0)

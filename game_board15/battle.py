@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Tuple
+from typing import Tuple, Dict, List
 
 from .models import Board15, Ship
 
@@ -47,3 +47,32 @@ def apply_shot(board: Board15, coord: Tuple[int, int]) -> str:
         board.highlight = [coord]
         return HIT
     return MISS
+
+
+def update_history(
+    history: List[List[int]],
+    boards: Dict[str, Board15],
+    coord: Tuple[int, int],
+    results: Dict[str, str],
+) -> None:
+    """Update global shot history grid based on results for the shot."""
+
+    r, c = coord
+    if any(res == KILL for res in results.values()):
+        for key, res in results.items():
+            if res != KILL:
+                continue
+            board = boards[key]
+            for rr in range(15):
+                for cc in range(15):
+                    val = board.grid[rr][cc]
+                    if val == 4:
+                        history[rr][cc] = 4
+                    elif val == 5 and history[rr][cc] == 0:
+                        history[rr][cc] = 5
+        history[r][c] = 4
+    elif any(res == HIT for res in results.values()):
+        history[r][c] = 3
+    elif all(res == MISS for res in results.values()):
+        if history[r][c] == 0:
+            history[r][c] = 2
