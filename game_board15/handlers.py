@@ -23,6 +23,7 @@ from logic.phrases import (
 from .utils import _phrase_or_joke
 import random
 import asyncio
+import logging
 
 WELCOME_TEXT = 'Выберите способ приглашения соперников:'
 
@@ -87,6 +88,45 @@ async def _auto_play_bots(
     human: str = 'A',
 ) -> None:
     """Automatically let bot players make moves until the game ends."""
+    logger = logging.getLogger(__name__)
+
+    async def _safe_send_state(player_key: str, message: str) -> None:
+        try:
+            await router_module._send_state(context, match, player_key, message)
+        except Exception:
+            logger.exception("Failed to send state to %s", player_key)
+            human_player = match.players.get(human)
+            if (
+                human_player
+                and human_player.user_id != 0
+                and player_key != human
+            ):
+                try:
+                    await context.bot.send_message(
+                        human_player.chat_id,
+                        f"Не удалось отправить обновление игроку {player_key}",
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to notify human about state send failure"
+                    )
+
+    async def _safe_send_message(chat_id: int, text: str) -> None:
+        try:
+            await context.bot.send_message(chat_id, text)
+        except Exception:
+            logger.exception("Failed to send message to chat %s", chat_id)
+            human_player = match.players.get(human)
+            if human_player and human_player.user_id != 0 and chat_id != human_player.chat_id:
+                try:
+                    await context.bot.send_message(
+                        human_player.chat_id,
+                        "Не удалось отправить сообщение участнику",
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to notify human about message send failure"
+                    )
     coords = [(r, c) for r in range(15) for c in range(15)]
     order = ['A', 'B', 'C']
     from . import router as router_module
@@ -96,10 +136,13 @@ async def _auto_play_bots(
         if len(alive) == 1:
             winner = alive[0]
             storage.finish(match, winner)
-            await context.bot.send_message(match.players[winner].chat_id, 'Вы победили!')
+            await _safe_send_message(match.players[winner].chat_id, 'Вы победили!')
             for k in match.players:
                 if k != winner:
-                    await context.bot.send_message(match.players[k].chat_id, 'Игра окончена. Победил соперник.')
+                    await _safe_send_message(
+                        match.players[k].chat_id,
+                        'Игра окончена. Победил соперник.',
+                    )
             break
 
         if match.turn == human:
@@ -155,15 +198,13 @@ async def _auto_play_bots(
                     msg = f"{coord_str} - соперник промахнулся. {phrase_enemy}"
                     if enemy == next_player:
                         msg += ' Ваш ход.'
-                    await router_module._send_state(context, match, enemy, msg)
+                    await _safe_send_state(enemy, msg)
             elif res == battle.HIT:
                 phrase_self = _phrase_or_joke(match, current, SELF_HIT)
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
                 parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
                 if match.players[enemy].user_id != 0:
-                    await router_module._send_state(
-                        context,
-                        match,
+                    await _safe_send_state(
                         enemy,
                         f"{coord_str} - ваш корабль ранен. {phrase_enemy}",
                     )
@@ -172,15 +213,13 @@ async def _auto_play_bots(
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
                 parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
                 if match.players[enemy].user_id != 0:
-                    await router_module._send_state(
-                        context,
-                        match,
+                    await _safe_send_state(
                         enemy,
                         f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}",
                     )
                 if match.boards[enemy].alive_cells == 0:
                     enemy_label = getattr(match.players.get(enemy), 'name', '') or enemy
-                    await context.bot.send_message(
+                    await _safe_send_message(
                         match.players[enemy].chat_id,
                         f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
                     )
@@ -189,7 +228,7 @@ async def _auto_play_bots(
             msg_self = f"{coord_str} - {' '.join(parts_self)}"
             if next_player == human:
                 msg_self += ' Ваш ход.'
-            await router_module._send_state(context, match, human, msg_self)
+            await _safe_send_state(human, msg_self)
 
         storage.save_match(match)
         next_label = match.players.get(next_player)
@@ -198,16 +237,19 @@ async def _auto_play_bots(
             ' Ваш ход.' if next_player == current else f" Ход {next_name}."
         )
         if match.players[current].user_id != 0:
-            await router_module._send_state(context, match, current, result_self)
+            await _safe_send_state(current, result_self)
 
         alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
         if len(alive_players) == 1:
             winner = alive_players[0]
             storage.finish(match, winner)
-            await context.bot.send_message(match.players[winner].chat_id, 'Вы победили!')
+            await _safe_send_message(match.players[winner].chat_id, 'Вы победили!')
             for k in match.players:
                 if k != winner:
-                    await context.bot.send_message(match.players[k].chat_id, 'Игра окончена. Победил соперник.')
+                    await _safe_send_message(
+                        match.players[k].chat_id,
+                        'Игра окончена. Победил соперник.',
+                    )
             break
 
         await asyncio.sleep(1)
