@@ -15,7 +15,15 @@ from telegram.ext import (
     filters,
 )
 
-from handlers.commands import start, newgame, board, send_invite_link, choose_mode
+from handlers.commands import (
+    start,
+    newgame,
+    board,
+    send_invite_link,
+    choose_mode,
+    confirm_newgame,
+    confirm_join,
+)
 from handlers.router import router_text
 
 BOARD15_ENABLED = os.getenv("BOARD15_ENABLED") == "1"
@@ -64,6 +72,8 @@ bot_app.add_handler(CommandHandler("newgame", newgame))
 bot_app.add_handler(CommandHandler("board", board))
 bot_app.add_handler(CallbackQueryHandler(send_invite_link, pattern="^get_link$"))
 bot_app.add_handler(CallbackQueryHandler(choose_mode, pattern="^mode_"))
+bot_app.add_handler(CallbackQueryHandler(confirm_newgame, pattern="^ng_"))
+bot_app.add_handler(CallbackQueryHandler(confirm_join, pattern="^join_"))
 if BOARD15_ENABLED:
     bot_app.add_handler(CommandHandler("board15", board15))
     bot_app.add_handler(CallbackQueryHandler(board15_on_click, pattern=r"^b15\|"))

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
+from types import SimpleNamespace
 
 import logging
 from pathlib import Path
@@ -42,6 +43,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
     if args and args[0].startswith('inv_'):
         match_id = args[0][4:]
+        existing = storage.find_match_by_user(update.effective_user.id)
+        if existing and existing.match_id != match_id:
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton('Да', callback_data=f'join_yes|{existing.match_id}|{match_id}'),
+                    InlineKeyboardButton('Нет', callback_data='join_no'),
+                ]
+            ])
+            await update.message.reply_text(
+                'У вас уже есть незавершенный матч. Завершить его и присоединиться к новому?',
+                reply_markup=keyboard,
+            )
+            return
         match = storage.join_match(match_id, update.effective_user.id, update.effective_chat.id)
         if match:
             with welcome_photo() as img:
@@ -125,6 +139,19 @@ async def newgame(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         update.effective_user.id,
         args,
     )
+    existing = storage.find_match_by_user(update.effective_user.id)
+    if existing:
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton('Да', callback_data=f'ng_yes|{existing.match_id}'),
+                InlineKeyboardButton('Нет', callback_data='ng_no'),
+            ]
+        ])
+        await update.message.reply_text(
+            'У вас уже есть незавершенный матч. Завершить его и начать новый?',
+            reply_markup=keyboard,
+        )
+        return
     await update.message.reply_text('Подождите, подготавливаем игровую среду...')
     match = storage.create_match(update.effective_user.id, update.effective_chat.id)
     username = (await context.bot.get_me()).username
@@ -146,6 +173,57 @@ async def newgame(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         reply_markup=keyboard,
     )
     await update.message.reply_text('Матч создан. Ожидаем подключения соперника.')
+
+
+async def confirm_newgame(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle confirmation to terminate existing match and start a new one."""
+    query = update.callback_query
+    await query.answer()
+    if query.data.startswith('ng_yes|'):
+        old_id = query.data.split('|', 1)[1]
+        old_match = storage.get_match(old_id)
+        if old_match:
+            storage.close_match(old_match)
+        new_update = SimpleNamespace(
+            message=query.message,
+            effective_user=query.from_user,
+            effective_chat=query.message.chat,
+        )
+        await newgame(new_update, context)
+    else:
+        await query.message.reply_text('Вы остались в текущем матче.')
+
+
+async def confirm_join(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle confirmation to leave previous match and join a new one."""
+    query = update.callback_query
+    await query.answer()
+    if query.data.startswith('join_yes|'):
+        _, old_id, new_id = query.data.split('|', 2)
+        old_match = storage.get_match(old_id)
+        if old_match:
+            storage.close_match(old_match)
+        match = storage.join_match(new_id, query.from_user.id, query.message.chat.id)
+        if match:
+            with welcome_photo() as img:
+                await query.message.reply_photo(img, caption='Добро пожаловать в игру!')
+            await query.message.reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки кораблей.')
+            await query.message.reply_text('Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.')
+            msg_a = 'Соперник присоединился. '
+            if match.players['A'].ready:
+                msg_a += 'Ожидаем его расстановку.'
+            else:
+                msg_a += 'Отправьте "авто" для расстановки кораблей.'
+            await context.bot.send_message(match.players['A'].chat_id, msg_a)
+            if 'Отправьте "авто"' in msg_a:
+                await context.bot.send_message(
+                    match.players['A'].chat_id,
+                    'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
+                )
+        else:
+            await query.message.reply_text('Матч не найден или заполнен.')
+    else:
+        await query.message.reply_text('Вы остались в текущем матче.')
 
 
 async def send_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

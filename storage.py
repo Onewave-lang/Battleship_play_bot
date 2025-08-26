@@ -167,6 +167,12 @@ def finish(match: Match, winner: str) -> str | None:
     return save_match(match)
 
 
+def close_match(match: Match) -> str | None:
+    """Mark match as finished without declaring a winner."""
+    match.status = "finished"
+    return save_match(match)
+
+
 def save_match(match: Match) -> str | None:
     with _lock:
         data = _load_all()

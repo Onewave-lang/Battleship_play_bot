@@ -10,6 +10,7 @@ def test_newgame_message_sequence(monkeypatch):
     async def run_test():
         match = SimpleNamespace(match_id='m1')
         monkeypatch.setattr(storage, 'create_match', lambda user_id, chat_id: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: None)
 
         reply_text = AsyncMock()
         reply_photo = AsyncMock()
@@ -54,5 +55,24 @@ def test_send_invite_link(monkeypatch):
         link = f"https://t.me/TestBot?start=inv_{match.match_id}"
         assert reply_text.call_args_list == [call(f'Пригласите друга: {link}')]
         assert query.answer.call_count == 1
+
+    asyncio.run(run_test())
+
+
+def test_newgame_existing_match_prompts(monkeypatch):
+    async def run_test():
+        existing = SimpleNamespace(match_id='old')
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: existing)
+        reply_text = AsyncMock()
+        update = SimpleNamespace(
+            message=SimpleNamespace(reply_text=reply_text),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=1),
+        )
+        context = SimpleNamespace()
+        await newgame(update, context)
+        assert reply_text.call_args_list == [
+            call('У вас уже есть незавершенный матч. Завершить его и начать новый?', reply_markup=ANY)
+        ]
 
     asyncio.run(run_test())
