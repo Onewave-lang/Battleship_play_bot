@@ -2,6 +2,13 @@ from __future__ import annotations
 import re
 from typing import Optional, Tuple
 
+"""Parsing utilities for 15x15 board.
+
+Historically the project used Cyrillic letters to label columns.  The modern
+board displays latin letters instead, therefore outgoing coordinates and
+rendered boards must also use them.  ``ROWS`` keeps the Cyrillic sequence for
+backwards compatible parsing while ``LATIN`` is the user-facing counterpart."""
+
 ROWS = 'абвгдежзиклмнопр'
 LATIN = 'abcdefghijklmnopr'
 
@@ -31,5 +38,6 @@ def parse_coord(cell: str) -> Optional[Tuple[int, int]]:
 
 
 def format_coord(coord: Tuple[int, int]) -> str:
+    """Convert internal (row, col) into user-facing string with latin letters."""
     r, c = coord
-    return f"{ROWS[c]}{r+1}"
+    return f"{LATIN[c]}{r+1}"
