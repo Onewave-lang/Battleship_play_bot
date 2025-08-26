@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List
 
 from models import Board
-from logic.parser import ROWS
+from logic.parser import LATIN
 from wcwidth import wcswidth
 
 
@@ -22,7 +22,13 @@ def format_cell(symbol: str) -> str:
     return symbol + FIGURE_SPACE * pad
 
 
-COL_HEADER = ''.join(format_cell(ch) for ch in ROWS)
+"""Letters on the top of the board are rendered using latin characters.
+
+The project historically used Cyrillic letters internally, but players now see
+latin columns on the board.  ``LATIN`` mirrors the internal set and is used for
+display purposes.
+"""
+COL_HEADER = ''.join(format_cell(ch) for ch in LATIN)
 
 
 def _render_line(cells: List[str]) -> str:

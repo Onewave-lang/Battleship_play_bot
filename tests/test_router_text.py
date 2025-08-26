@@ -181,10 +181,10 @@ def test_router_kill_message(monkeypatch):
         assert len(calls) == 2
         msg_self = calls[0].args[1]
         msg_enemy = calls[1].args[1]
-        assert 'а1 - Корабль соперника уничтожен!' in msg_self
+        assert 'a1 - Корабль соперника уничтожен!' in msg_self
         assert any(p in msg_self for p in phrases.SELF_KILL)
         assert msg_self.strip().endswith('Ваш ход.')
-        assert 'а1 - Соперник уничтожил ваш корабль.' in msg_enemy
+        assert 'a1 - Соперник уничтожил ваш корабль.' in msg_enemy
         assert any(p in msg_enemy for p in phrases.ENEMY_KILL)
         assert msg_enemy.strip().endswith('Ход соперника.')
     asyncio.run(run_test())
@@ -232,7 +232,7 @@ def test_router_joke_format(monkeypatch):
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
         monkeypatch.setattr(router, 'apply_shot', lambda board, coord: router.MISS)
         monkeypatch.setattr(router, 'parse_coord', lambda text: (0, 0))
-        monkeypatch.setattr(router, 'format_coord', lambda coord: 'а1')
+        monkeypatch.setattr(router, 'format_coord', lambda coord: 'a1')
         monkeypatch.setattr(router, 'random_phrase', lambda phrases: phrases[0])
         monkeypatch.setattr(router, 'random_joke', lambda: 'JOKE')
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
