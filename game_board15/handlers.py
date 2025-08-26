@@ -97,7 +97,13 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         player.name = name
         storage.save_match(match)
     state = Board15State(chat_id=update.effective_chat.id)
-    state.board = [row[:] for row in match.boards[player_key].grid]
+    merged = [row[:] for row in match.history]
+    own_grid = match.boards[player_key].grid
+    for r in range(15):
+        for c in range(15):
+            if merged[r][c] == 0 and own_grid[r][c] == 1:
+                merged[r][c] = 1
+    state.board = merged
     state.player_key = player_key
     buf = render_board(state, player_key)
     msg = await update.message.reply_photo(buf, reply_markup=_keyboard())
@@ -152,6 +158,7 @@ async def _auto_play_bots(
             results[enemy] = res
             if res in (battle.HIT, battle.KILL):
                 hit_any = True
+        battle.update_history(match.history, match.boards, coord, results)
         for k in match.shots:
             shots = match.shots[k]
             shots.setdefault('move_count', 0)
@@ -240,7 +247,13 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         match.boards[key] = placement.random_board()
     storage.save_match(match)
     state = Board15State(chat_id=update.effective_chat.id)
-    state.board = [row[:] for row in match.boards['A'].grid]
+    merged = [row[:] for row in match.history]
+    own_grid = match.boards['A'].grid
+    for r in range(15):
+        for c in range(15):
+            if merged[r][c] == 0 and own_grid[r][c] == 1:
+                merged[r][c] = 1
+    state.board = merged
     state.player_key = 'A'
     try:
         buf = render_board(state, 'A')
@@ -388,7 +401,13 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         next_name = getattr(next_label, 'name', '') or next_player
         result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_name}.")
         view_key = match.turn if single_user else player_key
-        state.board = [row[:] for row in match.boards[view_key].grid]
+        merged = [row[:] for row in match.history]
+        own_grid_view = match.boards[view_key].grid
+        for r in range(15):
+            for c in range(15):
+                if merged[r][c] == 0 and own_grid_view[r][c] == 1:
+                    merged[r][c] = 1
+        state.board = merged
         state.selected = None
         await router_module._send_state(context, match, view_key, result_self)
         alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0]

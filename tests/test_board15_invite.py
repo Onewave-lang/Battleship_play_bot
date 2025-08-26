@@ -24,6 +24,7 @@ def test_board15_invite_flow(monkeypatch):
             players={'A': SimpleNamespace(user_id=1, chat_id=1, name='Alice')},
             boards={'A': SimpleNamespace(grid=[[0] * 15 for _ in range(15)])},
             messages={},
+            history=[[0] * 15 for _ in range(15)],
         )
         monkeypatch.setattr(storage15, 'create_match', lambda uid, cid, name=None: match)
         monkeypatch.setattr(storage15, 'save_match', lambda m: None)
