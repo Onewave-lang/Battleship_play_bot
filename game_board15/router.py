@@ -253,7 +253,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         next_player = order[(idx + 1) % len(order)]
         match.turn = next_player
         storage.save_match(match)
-        await _send_state(context, match, next_player, 'Ваш ход.')
+        if match.players[next_player].user_id != 0:
+            await _send_state(context, match, next_player, 'Ваш ход.')
     else:
         match.turn = player_key
         storage.save_match(match)
@@ -264,7 +265,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         else:
             msg_others = f"{coord_str} - мимо"
         for other in others:
-            await _send_state(context, match, other, msg_others)
+            if match.players[other].user_id != 0:
+                await _send_state(context, match, other, msg_others)
     next_obj = match.players.get(next_player)
     next_name = getattr(next_obj, 'name', '') or next_player
     result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_name}.")
