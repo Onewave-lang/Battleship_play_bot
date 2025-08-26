@@ -37,36 +37,13 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
     state.board = merged
     state.player_key = player_key
     buf = render_board(state, player_key)
+    player_buf = render_player_board(match.boards[player_key], player_key)
     msgs = match.messages.setdefault(player_key, {})
     board_id = msgs.get('board')
     status_id = msgs.get('status')
-    if board_id:
-        try:
-            await context.bot.edit_message_media(
-                chat_id=chat_id,
-                message_id=board_id,
-                media=InputMediaPhoto(buf),
-            )
-            await context.bot.edit_message_reply_markup(
-                chat_id=chat_id,
-                message_id=board_id,
-                reply_markup=_keyboard(),
-            )
-        except Exception:
-            msg = await context.bot.send_photo(chat_id, buf, reply_markup=_keyboard())
-            board_id = msg.message_id
-            msgs['board'] = board_id
-        else:
-            state.message_id = board_id
-    else:
-        msg = await context.bot.send_photo(chat_id, buf, reply_markup=_keyboard())
-        board_id = msg.message_id
-        msgs['board'] = board_id
-        state.message_id = board_id
+    player_id = msgs.get('player')
 
     # player's own board with ships
-    player_buf = render_player_board(match.boards[player_key], player_key)
-    player_id = msgs.get('player')
     if player_id:
         try:
             await context.bot.edit_message_media(
@@ -97,6 +74,31 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
         status = await context.bot.send_message(chat_id, message)
         msgs['status'] = status.message_id
         state.status_message_id = status.message_id
+
+    if board_id:
+        try:
+            await context.bot.edit_message_media(
+                chat_id=chat_id,
+                message_id=board_id,
+                media=InputMediaPhoto(buf),
+            )
+            await context.bot.edit_message_reply_markup(
+                chat_id=chat_id,
+                message_id=board_id,
+                reply_markup=_keyboard(),
+            )
+        except Exception:
+            msg = await context.bot.send_photo(chat_id, buf, reply_markup=_keyboard())
+            board_id = msg.message_id
+            msgs['board'] = board_id
+        else:
+            state.message_id = board_id
+    else:
+        msg = await context.bot.send_photo(chat_id, buf, reply_markup=_keyboard())
+        board_id = msg.message_id
+        msgs['board'] = board_id
+        state.message_id = board_id
+
     storage.save_match(match)
 
 

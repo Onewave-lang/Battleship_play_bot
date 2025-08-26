@@ -59,10 +59,10 @@ def test_router_auto_sends_boards(monkeypatch):
         await router.router_text(update, context)
 
         assert send_photo.call_args_list == [
-            call(10, ANY, reply_markup='kb'),
             call(10, ANY),
-            call(20, ANY, reply_markup='kb'),
+            call(10, ANY, reply_markup='kb'),
             call(20, ANY),
+            call(20, ANY, reply_markup='kb'),
         ]
         assert send_message.call_args_list == [
             call(10, 'Соперник готов. Бой начинается! Ваш ход.'),
