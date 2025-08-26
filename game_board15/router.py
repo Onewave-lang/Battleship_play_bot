@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str, message: str) -> None:
-    """Render player's board and update their messages."""
+    """Render player's board and send board image followed by text message."""
 
     chat_id = match.players[player_key].chat_id
     states = context.bot_data.setdefault(STATE_KEY, {})
@@ -32,6 +32,8 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
     if not state:
         state = Board15State(chat_id=chat_id)
         states[chat_id] = state
+
+    # prepare board images
     merged = [row[:] for row in match.history]
     own_grid = match.boards[player_key].grid
     for r in range(15):
@@ -42,11 +44,13 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
     state.player_key = player_key
     buf = render_board(state, player_key)
     player_buf = render_player_board(match.boards[player_key], player_key)
-    msgs = match.messages.setdefault(player_key, {})
-    board_id = msgs.get('board')
-    player_id = msgs.get('player')
 
-    # player's own board with ships
+    msgs = match.messages.setdefault(player_key, {})
+    board_id = msgs.get("board")
+    text_id = msgs.get("text")
+    player_id = msgs.get("player")
+
+    # update player's own board with ships
     if player_id:
         try:
             await context.bot.edit_message_media(
@@ -56,32 +60,32 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
             )
         except Exception:
             logger.exception("Failed to update player's board for chat %s", chat_id)
+            try:
+                await context.bot.delete_message(chat_id, player_id)
+            except Exception:
+                pass
             msg = await context.bot.send_photo(chat_id, player_buf)
-            msgs['player'] = msg.message_id
+            msgs["player"] = msg.message_id
     else:
         msg = await context.bot.send_photo(chat_id, player_buf)
-        msgs['player'] = msg.message_id
+        msgs["player"] = msg.message_id
 
-    if board_id:
-        try:
-            await context.bot.edit_message_media(
-                chat_id=chat_id,
-                message_id=board_id,
-                media=InputMediaPhoto(buf, caption=message),
-            )
-        except Exception:
-            logger.exception("Failed to update board image for chat %s", chat_id)
-            msg = await context.bot.send_photo(chat_id, buf, caption=message)
-            board_id = msg.message_id
-            msgs['board'] = board_id
-            state.message_id = board_id
-        else:
-            state.message_id = board_id
-    else:
-        msg = await context.bot.send_photo(chat_id, buf, caption=message)
-        board_id = msg.message_id
-        msgs['board'] = board_id
-        state.message_id = board_id
+    # remove previous board and text messages
+    for key, msg_id in (("board", board_id), ("text", text_id)):
+        if msg_id:
+            try:
+                await context.bot.delete_message(chat_id, msg_id)
+            except Exception:
+                logger.exception("Failed to delete %s message for chat %s", key, chat_id)
+
+    # send new board image without caption
+    msg = await context.bot.send_photo(chat_id, buf)
+    msgs["board"] = msg.message_id
+    state.message_id = msg.message_id
+
+    # send textual result separately
+    msg_text = await context.bot.send_message(chat_id, message)
+    msgs["text"] = msg_text.message_id
 
     storage.save_match(match)
 

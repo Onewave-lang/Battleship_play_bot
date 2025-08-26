@@ -29,26 +29,36 @@ async def _send_state(
     player_key: str,
     message: str,
 ) -> None:
-    """Send current boards and message to the given player."""
+    """Send boards first, then a separate text message with the result."""
     enemy_key = "B" if player_key == "A" else "A"
     chat_id = match.players[player_key].chat_id
     msgs = match.messages.setdefault(player_key, {})
-    prev_id = msgs.get("keyboard")
-    if prev_id:
+
+    board_id = msgs.get("board")
+    text_id = msgs.get("text")
+    if board_id:
         try:
-            await context.bot.delete_message(chat_id, prev_id)
+            await context.bot.delete_message(chat_id, board_id)
         except Exception:
             pass
+    if text_id:
+        try:
+            await context.bot.delete_message(chat_id, text_id)
+        except Exception:
+            pass
+
     own = render_board_own(match.boards[player_key])
     enemy = render_board_enemy(match.boards[enemy_key])
     kb = move_keyboard()
-    msg = await context.bot.send_message(
+    board_msg = await context.bot.send_message(
         chat_id,
-        f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}\n{message}",
+        f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}",
         parse_mode="HTML",
         reply_markup=kb,
     )
-    msgs["keyboard"] = msg.message_id
+    msgs["board"] = board_msg.message_id
+    text_msg = await context.bot.send_message(chat_id, message, parse_mode="HTML")
+    msgs["text"] = text_msg.message_id
     storage.save_match(match)
 
 

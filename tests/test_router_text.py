@@ -36,7 +36,8 @@ def test_router_invalid_cell_shows_board(monkeypatch):
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nНе понял клетку. Пример: е5 или д10.', parse_mode='HTML', reply_markup=kb)
+            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML', reply_markup=kb),
+            call(10, 'Не понял клетку. Пример: е5 или д10.', parse_mode='HTML'),
         ]
     asyncio.run(run_test())
 
@@ -69,7 +70,8 @@ def test_router_wrong_turn_shows_board(monkeypatch):
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nСейчас ход соперника.', parse_mode='HTML', reply_markup=kb)
+            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML', reply_markup=kb),
+            call(10, 'Сейчас ход соперника.', parse_mode='HTML'),
         ]
     asyncio.run(run_test())
 
@@ -110,8 +112,10 @@ def test_router_auto_shows_board(monkeypatch):
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nКорабли расставлены. Бой начинается! Ваш ход.', parse_mode='HTML', reply_markup=kb),
-            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy\nСоперник готов. Бой начинается! Ход соперника.', parse_mode='HTML', reply_markup=kb),
+            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML', reply_markup=kb),
+            call(10, 'Корабли расставлены. Бой начинается! Ваш ход.', parse_mode='HTML'),
+            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML', reply_markup=kb),
+            call(20, 'Соперник готов. Бой начинается! Ход соперника.', parse_mode='HTML'),
         ]
     asyncio.run(run_test())
 
@@ -154,8 +158,10 @@ def test_router_auto_waits_and_sends_instruction(monkeypatch):
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy\nКорабли расставлены. Ожидаем соперника.', parse_mode='HTML', reply_markup=kb),
-            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy\nСоперник готов. Отправьте "авто" для расстановки кораблей.', parse_mode='HTML', reply_markup=kb),
+            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML', reply_markup=kb),
+            call(10, 'Корабли расставлены. Ожидаем соперника.', parse_mode='HTML'),
+            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML', reply_markup=kb),
+            call(20, 'Соперник готов. Отправьте "авто" для расстановки кораблей.', parse_mode='HTML'),
             call(20, 'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.'),
         ]
 
@@ -197,9 +203,9 @@ def test_router_kill_message(monkeypatch):
         )
         await router.router_text(update, context)
         calls = send_message.call_args_list
-        assert len(calls) == 2
-        msg_self = calls[0].args[1]
-        msg_enemy = calls[1].args[1]
+        assert len(calls) == 4
+        msg_self = calls[1].args[1]
+        msg_enemy = calls[3].args[1]
         assert 'a1 - Корабль соперника уничтожен!' in msg_self
         assert any(p in msg_self for p in phrases.SELF_KILL)
         assert msg_self.strip().endswith('Ваш ход.')
@@ -267,7 +273,7 @@ def test_router_joke_format(monkeypatch):
             effective_chat=SimpleNamespace(id=10),
         )
         await router.router_text(update, context)
-        msg_self = send_message.call_args_list[0].args[1]
+        msg_self = send_message.call_args_list[1].args[1]
         assert 'Слушай анекдот по этому поводу:\nJOKE\n\nХод соперника.' in msg_self
 
     asyncio.run(run_test())
@@ -310,10 +316,10 @@ def test_router_game_over_messages(monkeypatch):
         )
         await router.router_text(update, context)
         calls = send_message.call_args_list
-        assert 'Вы победили. 🏆🎉' in calls[0].args[1]
-        assert 'Все ваши корабли уничтожены' in calls[1].args[1]
-        assert calls[2].args[1] == 'Игра завершена!'
-        assert calls[3].args[1] == 'Игра завершена!'
-        assert calls[2].kwargs['reply_markup'].keyboard[0][0].text == 'Начать новую игру'
-        assert calls[3].kwargs['reply_markup'].keyboard[0][0].text == 'Начать новую игру'
+        assert 'Вы победили. 🏆🎉' in calls[1].args[1]
+        assert 'Все ваши корабли уничтожены' in calls[3].args[1]
+        assert calls[4].args[1] == 'Игра завершена!'
+        assert calls[5].args[1] == 'Игра завершена!'
+        assert calls[4].kwargs['reply_markup'].keyboard[0][0].text == 'Начать новую игру'
+        assert calls[5].kwargs['reply_markup'].keyboard[0][0].text == 'Начать новую игру'
     asyncio.run(run_test())
