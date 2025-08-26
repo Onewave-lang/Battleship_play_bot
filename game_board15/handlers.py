@@ -126,7 +126,6 @@ async def _auto_play_bots(
 ) -> None:
     """Automatically let bot players make moves until the game ends."""
     coords = [(r, c) for r in range(15) for c in range(15)]
-    idx = 0
     order = ['A', 'B', 'C']
     from . import router as router_module
 
@@ -146,13 +145,14 @@ async def _auto_play_bots(
             continue
 
         current = match.turn
-        # find next untried cell starting from current index
-        while idx < len(coords) and match.history[coords[idx][0]][coords[idx][1]] != 0:
-            idx += 1
-        if idx >= len(coords):
+        # find first untouched cell scanning from the start each time
+        coord = None
+        for pt in coords:
+            if match.history[pt[0]][pt[1]] == 0:
+                coord = pt
+                break
+        if coord is None:
             break
-        coord = coords[idx]
-        idx += 1
         enemies = [k for k in alive if k != current]
         results = {}
         hit_any = False
@@ -168,63 +168,64 @@ async def _auto_play_bots(
             shots.setdefault('joke_start', random.randint(1, 10))
             shots['move_count'] += 1
         coord_str = parser.format_coord(coord)
-        parts_self = []
-        for enemy, res in results.items():
-            if res == battle.MISS:
-                phrase_self = _phrase_or_joke(match, current, SELF_MISS)
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-                enemy_name = match.players.get(enemy)
-                enemy_label = getattr(enemy_name, 'name', '') or enemy
-                parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
-                await router_module._send_state(
-                    context,
-                    match,
-                    enemy,
-                    f"{coord_str} - соперник промахнулся. {phrase_enemy}",
-                )
-            elif res == battle.HIT:
-                phrase_self = _phrase_or_joke(match, current, SELF_HIT)
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
-                enemy_name = match.players.get(enemy)
-                enemy_label = getattr(enemy_name, 'name', '') or enemy
-                parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
-                await router_module._send_state(
-                    context,
-                    match,
-                    enemy,
-                    f"{coord_str} - ваш корабль ранен. {phrase_enemy}",
-                )
-            elif res == battle.KILL:
-                phrase_self = _phrase_or_joke(match, current, SELF_KILL)
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
-                enemy_name = match.players.get(enemy)
-                enemy_label = getattr(enemy_name, 'name', '') or enemy
-                parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
-                await router_module._send_state(
-                    context,
-                    match,
-                    enemy,
-                    f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}",
-                )
-                if match.boards[enemy].alive_cells == 0:
-                    await context.bot.send_message(match.players[enemy].chat_id, 'Все ваши корабли уничтожены. Вы выбыли.')
 
         if not hit_any:
             alive_order = [k for k in order if k in alive]
             idx_next = alive_order.index(current)
             next_player = alive_order[(idx_next + 1) % len(alive_order)]
-            match.turn = next_player
-            await context.bot.send_message(match.players[next_player].chat_id, 'Ваш ход.')
         else:
-            match.turn = current
+            next_player = current
+        match.turn = next_player
+
+        parts_self = []
+        for enemy, res in results.items():
+            enemy_name = match.players.get(enemy)
+            enemy_label = getattr(enemy_name, 'name', '') or enemy
+            if res == battle.MISS:
+                phrase_self = _phrase_or_joke(match, current, SELF_MISS)
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
+                parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
+                if match.players[enemy].user_id != 0:
+                    msg = f"{coord_str} - соперник промахнулся. {phrase_enemy}"
+                    if enemy == next_player:
+                        msg += ' Ваш ход.'
+                    await router_module._send_state(context, match, enemy, msg)
+            elif res == battle.HIT:
+                phrase_self = _phrase_or_joke(match, current, SELF_HIT)
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
+                parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
+                if match.players[enemy].user_id != 0:
+                    await router_module._send_state(
+                        context,
+                        match,
+                        enemy,
+                        f"{coord_str} - ваш корабль ранен. {phrase_enemy}",
+                    )
+            elif res == battle.KILL:
+                phrase_self = _phrase_or_joke(match, current, SELF_KILL)
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
+                parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
+                if match.players[enemy].user_id != 0:
+                    await router_module._send_state(
+                        context,
+                        match,
+                        enemy,
+                        f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}",
+                    )
+                if match.boards[enemy].alive_cells == 0:
+                    await context.bot.send_message(
+                        match.players[enemy].chat_id,
+                        'Все ваши корабли уничтожены. Вы выбыли.',
+                    )
 
         storage.save_match(match)
-        next_label = match.players.get(match.turn)
-        next_name = getattr(next_label, 'name', '') or match.turn
+        next_label = match.players.get(next_player)
+        next_name = getattr(next_label, 'name', '') or next_player
         result_self = f"{coord_str} - {' '.join(parts_self)}" + (
-            ' Ваш ход.' if match.turn == current else f" Ход {next_name}."
+            ' Ваш ход.' if next_player == current else f" Ход {next_name}."
         )
-        await router_module._send_state(context, match, current, result_self)
+        if match.players[current].user_id != 0:
+            await router_module._send_state(context, match, current, result_self)
 
         alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
         if len(alive_players) == 1:
@@ -361,60 +362,62 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             shots.setdefault('joke_start', random.randint(1, 10))
             shots['move_count'] += 1
         coord_str = parser.format_coord(coord)
-        parts_self = []
-        next_player = player_key
-        from . import router as router_module
-        for enemy, res in results.items():
-            if res == battle.MISS:
-                phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-                enemy_name = match.players.get(enemy)
-                enemy_label = getattr(enemy_name, 'name', '') or enemy
-                parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
-                await router_module._send_state(
-                    context,
-                    match,
-                    enemy,
-                    f"{coord_str} - соперник промахнулся. {phrase_enemy}",
-                )
-            elif res == battle.HIT:
-                phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
-                enemy_name = match.players.get(enemy)
-                enemy_label = getattr(enemy_name, 'name', '') or enemy
-                parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
-                await router_module._send_state(
-                    context,
-                    match,
-                    enemy,
-                    f"{coord_str} - ваш корабль ранен. {phrase_enemy}",
-                )
-            elif res == battle.KILL:
-                phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
-                enemy_name = match.players.get(enemy)
-                enemy_label = getattr(enemy_name, 'name', '') or enemy
-                parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
-                await router_module._send_state(
-                    context,
-                    match,
-                    enemy,
-                    f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}",
-                )
-                if match.boards[enemy].alive_cells == 0:
-                    await context.bot.send_message(match.players[enemy].chat_id, 'Все ваши корабли уничтожены. Вы выбыли.')
         if not hit_any:
             order = [k for k in ('A', 'B', 'C') if k in match.players and match.boards[k].alive_cells > 0]
             idx = order.index(player_key)
             next_player = order[(idx + 1) % len(order)]
-            match.turn = next_player
-            await context.bot.send_message(match.players[next_player].chat_id, 'Ваш ход.')
         else:
-            match.turn = player_key
+            next_player = player_key
+        match.turn = next_player
+
+        parts_self = []
+        from . import router as router_module
+        for enemy, res in results.items():
+            enemy_name = match.players.get(enemy)
+            enemy_label = getattr(enemy_name, 'name', '') or enemy
+            if res == battle.MISS:
+                phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
+                parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
+                if match.players[enemy].user_id != 0:
+                    msg = f"{coord_str} - соперник промахнулся. {phrase_enemy}"
+                    if enemy == next_player:
+                        msg += ' Ваш ход.'
+                    await router_module._send_state(context, match, enemy, msg)
+            elif res == battle.HIT:
+                phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
+                parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
+                if match.players[enemy].user_id != 0:
+                    await router_module._send_state(
+                        context,
+                        match,
+                        enemy,
+                        f"{coord_str} - ваш корабль ранен. {phrase_enemy}",
+                    )
+            elif res == battle.KILL:
+                phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
+                parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
+                if match.players[enemy].user_id != 0:
+                    await router_module._send_state(
+                        context,
+                        match,
+                        enemy,
+                        f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}",
+                    )
+                    if match.boards[enemy].alive_cells == 0:
+                        await context.bot.send_message(
+                            match.players[enemy].chat_id,
+                            'Все ваши корабли уничтожены. Вы выбыли.',
+                        )
+
         storage.save_match(match)
         next_label = match.players.get(next_player)
         next_name = getattr(next_label, 'name', '') or next_player
-        result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_name}.")
+        result_self = f"{coord_str} - {' '.join(parts_self)}" + (
+            ' Ваш ход.' if next_player == player_key else f" Ход {next_name}."
+        )
         view_key = match.turn if single_user else player_key
         merged = [row[:] for row in match.history]
         own_grid_view = match.boards[view_key].grid
@@ -424,7 +427,8 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                     merged[r][c] = 1
         state.board = merged
         state.selected = None
-        await router_module._send_state(context, match, view_key, result_self)
+        if match.players[view_key].user_id != 0:
+            await router_module._send_state(context, match, view_key, result_self)
         alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0]
         if len(alive_players) == 1:
             winner = alive_players[0]

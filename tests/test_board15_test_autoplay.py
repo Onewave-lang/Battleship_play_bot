@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from game_board15 import handlers, storage
+from game_board15 import handlers, storage, router
 from game_board15.models import Board15, Match15, Player
 
 
@@ -62,5 +62,36 @@ def test_auto_play_bots_skips_closed(monkeypatch):
             await handlers._auto_play_bots(match, context, 0)
 
         assert recorded['coord'] == (0, 3)
+
+    asyncio.run(run())
+
+
+def test_auto_play_bots_notifies_human(monkeypatch):
+    async def run():
+        match = Match15.new(1, 1, 'A')
+        match.players['B'] = Player(user_id=0, chat_id=1, name='B')
+        match.players['C'] = Player(user_id=0, chat_id=1, name='C')
+        match.status = 'playing'
+        match.turn = 'B'
+
+        calls: list[tuple[str, str]] = []
+
+        async def fake_send_state(context, match_, player_key, message):
+            calls.append((player_key, message))
+            if player_key == 'A' and message.endswith('Ваш ход.'):
+                raise RuntimeError('stop')
+
+        monkeypatch.setattr(router, '_send_state', fake_send_state)
+        monkeypatch.setattr(handlers.battle, 'apply_shot', lambda board, coord: handlers.battle.MISS)
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(storage, 'finish', lambda m, w: None)
+
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
+
+        with pytest.raises(RuntimeError):
+            await handlers._auto_play_bots(match, context, 1)
+
+        assert any(player == 'A' and msg.endswith('Ваш ход.') for player, msg in calls)
+        assert all(player == 'A' for player, _ in calls)
 
     asyncio.run(run())
