@@ -81,10 +81,6 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
                 chat_id=chat_id,
                 message_id=board_id,
                 media=InputMediaPhoto(buf),
-            )
-            await context.bot.edit_message_reply_markup(
-                chat_id=chat_id,
-                message_id=board_id,
                 reply_markup=_keyboard(),
             )
         except Exception:
