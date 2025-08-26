@@ -10,6 +10,7 @@ from logic.placement import random_board
 from logic.battle import apply_shot, MISS, HIT, KILL, REPEAT
 from logic.render import render_board_own, render_board_enemy
 from handlers.commands import newgame
+from .move_keyboard import move_keyboard
 from logic.phrases import (
     ENEMY_HIT,
     ENEMY_KILL,
@@ -30,13 +31,25 @@ async def _send_state(
 ) -> None:
     """Send current boards and message to the given player."""
     enemy_key = "B" if player_key == "A" else "A"
+    chat_id = match.players[player_key].chat_id
+    msgs = match.messages.setdefault(player_key, {})
+    prev_id = msgs.get("keyboard")
+    if prev_id:
+        try:
+            await context.bot.delete_message(chat_id, prev_id)
+        except Exception:
+            pass
     own = render_board_own(match.boards[player_key])
     enemy = render_board_enemy(match.boards[enemy_key])
-    await context.bot.send_message(
-        match.players[player_key].chat_id,
+    kb = move_keyboard()
+    msg = await context.bot.send_message(
+        chat_id,
         f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}\n{message}",
         parse_mode="HTML",
+        reply_markup=kb,
     )
+    msgs["keyboard"] = msg.message_id
+    storage.save_match(match)
 
 
 def _phrase_or_joke(match, player_key: str, phrases: list[str]) -> str:
