@@ -7,6 +7,7 @@ from typing import Dict
 from datetime import datetime
 
 from .models import Match15, Board15, Player, Ship
+from . import placement
 
 DATA_FILE = Path("data15.json")
 _lock = Lock()
@@ -78,7 +79,9 @@ def join_match(match_id: str, user_id: int, chat_id: int, name: str = "") -> Mat
     return match
 
 
-def save_board(match: Match15, player_key: str, board: Board15) -> None:
+def save_board(match: Match15,
+               player_key: str,
+               board: Board15 | None = None) -> None:
     """Save player's board and update match state safely.
 
     Similar to the two-player version, we need to avoid race conditions when
@@ -120,7 +123,23 @@ def save_board(match: Match15, player_key: str, board: Board15) -> None:
         else:
             current = match
 
-        # apply board and readiness
+        # build a mask of cells occupied or surrounded by other fleets
+        mask = [[0] * 15 for _ in range(15)]
+        for k, b in current.boards.items():
+            if k == player_key:
+                continue
+            for ship in b.ships:
+                for r, c in ship.cells:
+                    for dr in (-1, 0, 1):
+                        for dc in (-1, 0, 1):
+                            nr, nc = r + dr, c + dc
+                            if 0 <= nr < 15 and 0 <= nc < 15:
+                                mask[nr][nc] = 1
+
+        # generate board if not provided, taking into account the mask
+        if board is None:
+            board = placement.random_board(mask)
+
         current.boards[player_key] = board
         current.players[player_key].ready = True
         if (
