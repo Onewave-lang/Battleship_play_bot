@@ -204,19 +204,29 @@ def finish(match: Match15, winner: str) -> str | None:
     return save_match(match)
 
 
-def find_match_by_user(user_id: int) -> Match15 | None:
+def find_match_by_user(user_id: int, chat_id: int | None = None) -> Match15 | None:
+    """Return the latest active match for ``user_id``.
+
+    When ``chat_id`` is provided, prefer matches where the user participates in
+    the specified chat.  If no such match exists, fall back to the most recent
+    active match regardless of chat.
+    """
     with _lock:
         data = _load_all()
     active = {'waiting', 'placing', 'playing'}
-    candidates = []
+    all_candidates: list[dict] = []
+    chat_candidates: list[dict] = []
     for m in data.values():
         if m.get('status') not in active:
             continue
         players = m.get('players', {})
         for p in players.values():
             if p.get('user_id') == user_id:
-                candidates.append(m)
+                all_candidates.append(m)
+                if chat_id is not None and p.get('chat_id') == chat_id:
+                    chat_candidates.append(m)
                 break
+    candidates = chat_candidates if chat_candidates else all_candidates
     if not candidates:
         return None
     latest = max(candidates, key=lambda m: datetime.fromisoformat(m['created_at']))

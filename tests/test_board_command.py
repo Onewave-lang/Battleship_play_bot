@@ -15,7 +15,7 @@ def test_board_command_shows_fields(monkeypatch):
             },
             boards={'A': SimpleNamespace(), 'B': SimpleNamespace()},
         )
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(commands, 'render_board_own', lambda board: 'own')
         monkeypatch.setattr(commands, 'render_board_enemy', lambda board: 'enemy')
 
@@ -23,6 +23,7 @@ def test_board_command_shows_fields(monkeypatch):
         update = SimpleNamespace(
             message=SimpleNamespace(reply_text=reply_text),
             effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=1),
         )
 
         await commands.board(update, None)

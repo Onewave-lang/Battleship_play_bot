@@ -40,7 +40,7 @@ def test_router_auto_sends_boards(monkeypatch):
                 m.status = 'playing'
                 m.turn = 'A'
 
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(storage, 'save_board', fake_save_board)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
         monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'target'))
@@ -53,6 +53,7 @@ def test_router_auto_sends_boards(monkeypatch):
         update = SimpleNamespace(
             message=SimpleNamespace(text='авто', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=2, first_name='Bob'),
+            effective_chat=SimpleNamespace(id=20),
         )
 
         await router.router_text(update, context)
@@ -95,7 +96,7 @@ def test_router_notifies_other_players_on_hit(monkeypatch):
             history=[[0] * 15 for _ in range(15)],
         )
 
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
         monkeypatch.setattr(router.parser, 'parse_coord', lambda text: (0, 0))
         monkeypatch.setattr(router.parser, 'format_coord', lambda coord: 'a1')
@@ -109,8 +110,11 @@ def test_router_notifies_other_players_on_hit(monkeypatch):
         send_state = AsyncMock()
         monkeypatch.setattr(router, '_send_state', send_state)
 
-        update = SimpleNamespace(message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
-                                  effective_user=SimpleNamespace(id=1))
+        update = SimpleNamespace(
+            message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
         context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), chat_data={}, bot_data={})
 
         await router.router_text(update, context)
@@ -138,7 +142,7 @@ def test_router_move_sends_player_board(monkeypatch):
             history=[[0] * 15 for _ in range(15)],
         )
 
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
         monkeypatch.setattr(router.parser, 'parse_coord', lambda text: (0, 0))
         monkeypatch.setattr(router.parser, 'format_coord', lambda coord: 'a1')
@@ -166,7 +170,11 @@ def test_router_move_sends_player_board(monkeypatch):
             chat_data={},
             bot_data={},
         )
-        update = SimpleNamespace(message=SimpleNamespace(text='a1', reply_text=AsyncMock()), effective_user=SimpleNamespace(id=1))
+        update = SimpleNamespace(
+            message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
 
         await router.router_text(update, context)
 
@@ -195,7 +203,7 @@ def test_router_uses_player_names(monkeypatch):
             history=[[0] * 15 for _ in range(15)],
         )
 
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
         monkeypatch.setattr(router.parser, 'parse_coord', lambda text: (0, 0))
         monkeypatch.setattr(router.parser, 'format_coord', lambda coord: 'a1')
@@ -204,7 +212,11 @@ def test_router_uses_player_names(monkeypatch):
         send_state = AsyncMock()
         monkeypatch.setattr(router, '_send_state', send_state)
 
-        update = SimpleNamespace(message=SimpleNamespace(text='a1'), effective_user=SimpleNamespace(id=1))
+        update = SimpleNamespace(
+            message=SimpleNamespace(text='a1'),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
         context = SimpleNamespace(chat_data={}, bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
 
         await router.router_text(update, context)
@@ -233,13 +245,14 @@ def test_router_repeat_shot(monkeypatch):
             history=[[0] * 15 for _ in range(15)],
         )
 
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         save_match = Mock()
         monkeypatch.setattr(storage, 'save_match', save_match)
 
         update = SimpleNamespace(
             message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
         )
         context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), chat_data={}, bot_data={})
         send_state = AsyncMock()
@@ -275,7 +288,7 @@ def test_router_skips_eliminated_players(monkeypatch):
         )
         match.boards['B'].alive_cells = 0
 
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
         monkeypatch.setattr(router.parser, 'parse_coord', lambda text: (0, 0))
         monkeypatch.setattr(router.parser, 'format_coord', lambda coord: 'a1')
@@ -294,7 +307,11 @@ def test_router_skips_eliminated_players(monkeypatch):
 
         send_message = AsyncMock()
         context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message), chat_data={}, bot_data={})
-        update = SimpleNamespace(message=SimpleNamespace(text='a1'), effective_user=SimpleNamespace(id=1))
+        update = SimpleNamespace(
+            message=SimpleNamespace(text='a1'),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
 
         await router.router_text(update, context)
 

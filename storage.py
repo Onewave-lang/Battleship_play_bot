@@ -190,26 +190,33 @@ def save_match(match: Match) -> str | None:
         return _save_all(data)
 
 
-def find_match_by_user(user_id: int) -> Match | None:
+def find_match_by_user(user_id: int, chat_id: int | None = None) -> Match | None:
     """Return the latest active match for ``user_id``.
 
+    If ``chat_id`` is provided, a match is returned only if the user is a
+    participant in that chat.  When no such match exists, the behaviour
+    falls back to the previous implementation: return the most recent active
+    match regardless of chat.
+
     Only matches in ``waiting``, ``placing`` or ``playing`` states are
-    considered.  If multiple active matches exist, the one with the most
-    recent ``created_at`` timestamp is returned.  Matches in the
-    ``finished`` state are ignored.
+    considered.  Matches in the ``finished`` state are ignored.
     """
     with _lock:
         data = _load_all()
     active_statuses = {"waiting", "placing", "playing"}
-    candidates = []
+    all_candidates = []
+    chat_candidates = []
     for m in data.values():
         if m.get("status") not in active_statuses:
             continue
         players = m.get("players", {})
         for p in players.values():
             if p.get("user_id") == user_id:
-                candidates.append(m)
+                all_candidates.append(m)
+                if chat_id is not None and p.get("chat_id") == chat_id:
+                    chat_candidates.append(m)
                 break
+    candidates = chat_candidates if chat_candidates else all_candidates
     if not candidates:
         return None
     latest = max(candidates, key=lambda m: datetime.fromisoformat(m["created_at"]))

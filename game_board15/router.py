@@ -111,7 +111,7 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     text = update.message.text.strip()
-    match = storage.find_match_by_user(user_id)
+    match = storage.find_match_by_user(user_id, update.effective_chat.id)
     if not match:
         await update.message.reply_text('Вы не участвуете в матче. Используйте /board15 <id>.')
         return

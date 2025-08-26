@@ -38,14 +38,14 @@ def test_newgame_message_sequence(monkeypatch):
 def test_send_invite_link(monkeypatch):
     async def run_test():
         match = SimpleNamespace(match_id='m1')
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         reply_text = AsyncMock()
         query = SimpleNamespace(
             from_user=SimpleNamespace(id=1),
             message=SimpleNamespace(reply_text=reply_text),
             answer=AsyncMock(),
         )
-        update = SimpleNamespace(callback_query=query)
+        update = SimpleNamespace(callback_query=query, effective_chat=SimpleNamespace(id=1))
         bot = SimpleNamespace(get_me=AsyncMock(return_value=SimpleNamespace(username='TestBot')))
         context = SimpleNamespace(bot=bot)
 

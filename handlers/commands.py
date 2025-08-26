@@ -155,7 +155,7 @@ async def send_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     """Send invitation link to the match creator."""
     query = update.callback_query
     await query.answer()
-    match = storage.find_match_by_user(query.from_user.id)
+    match = storage.find_match_by_user(query.from_user.id, update.effective_chat.id)
     if not match:
         await query.message.reply_text('Матч не найден.')
         return
@@ -171,7 +171,7 @@ async def board(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         update.effective_user.id,
         args,
     )
-    match = storage.find_match_by_user(update.effective_user.id)
+    match = storage.find_match_by_user(update.effective_user.id, update.effective_chat.id)
     if not match:
         await update.message.reply_text('Вы не участвуете в матче. Используйте /newgame.')
         return

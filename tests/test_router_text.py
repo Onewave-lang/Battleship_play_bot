@@ -19,7 +19,7 @@ def test_router_invalid_cell_shows_board(monkeypatch):
             shots={'A': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10},
                    'B': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10}},
         )
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
 
@@ -28,6 +28,7 @@ def test_router_invalid_cell_shows_board(monkeypatch):
         update = SimpleNamespace(
             message=SimpleNamespace(text='63', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
@@ -47,7 +48,7 @@ def test_router_wrong_turn_shows_board(monkeypatch):
             shots={'A': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10},
                    'B': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10}},
         )
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
 
@@ -56,6 +57,7 @@ def test_router_wrong_turn_shows_board(monkeypatch):
         update = SimpleNamespace(
             message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
@@ -82,7 +84,7 @@ def test_router_auto_shows_board(monkeypatch):
                 m.turn = 'A'
 
         monkeypatch.setattr(storage, 'save_board', fake_save_board)
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(router, 'random_board', lambda: SimpleNamespace())
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
@@ -92,6 +94,7 @@ def test_router_auto_shows_board(monkeypatch):
         update = SimpleNamespace(
             message=SimpleNamespace(text='авто', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
@@ -121,7 +124,7 @@ def test_router_auto_waits_and_sends_instruction(monkeypatch):
                 m.turn = 'A'
 
         monkeypatch.setattr(storage, 'save_board', fake_save_board)
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(router, 'random_board', lambda: SimpleNamespace())
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
@@ -131,6 +134,7 @@ def test_router_auto_waits_and_sends_instruction(monkeypatch):
         update = SimpleNamespace(
             message=SimpleNamespace(text='авто', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
@@ -161,7 +165,7 @@ def test_router_kill_message(monkeypatch):
             shots={'A': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10},
                    'B': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10}},
         )
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
@@ -170,6 +174,7 @@ def test_router_kill_message(monkeypatch):
         update = SimpleNamespace(
             message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
         )
         await router.router_text(update, context)
         calls = send_message.call_args_list
@@ -196,13 +201,14 @@ def test_router_at_sends_to_opponent(monkeypatch):
             shots={'A': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10},
                    'B': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10}},
         )
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
 
         send_message = AsyncMock()
         context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message))
         update = SimpleNamespace(
             message=SimpleNamespace(text='@ Привет', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [call(20, 'Привет')]
@@ -221,7 +227,7 @@ def test_router_joke_format(monkeypatch):
             shots={'A': {'history': [], 'last_result': None, 'move_count': 9, 'joke_start': 0},
                    'B': {'history': [], 'last_result': None, 'move_count': 9, 'joke_start': 0}},
         )
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
         monkeypatch.setattr(router, 'apply_shot', lambda board, coord: router.MISS)
@@ -236,6 +242,7 @@ def test_router_joke_format(monkeypatch):
         update = SimpleNamespace(
             message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
         )
         await router.router_text(update, context)
         msg_self = send_message.call_args_list[0].args[1]
@@ -264,7 +271,7 @@ def test_router_game_over_messages(monkeypatch):
         def fake_finish(m, winner):
             m.status = 'finished'
             return None
-        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: match)
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
         monkeypatch.setattr(storage, 'finish', fake_finish)
@@ -273,6 +280,7 @@ def test_router_game_over_messages(monkeypatch):
         update = SimpleNamespace(
             message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
         )
         await router.router_text(update, context)
         calls = send_message.call_args_list
