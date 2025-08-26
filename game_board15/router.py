@@ -171,6 +171,10 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if coord is None:
         await update.message.reply_text('Не понял клетку. Пример: e5.')
         return
+    r, c = coord
+    if match.boards[player_key].grid[r][c] == 1:
+        await update.message.reply_text('Здесь ваш корабль')
+        return
 
     results = {}
     hit_any = False

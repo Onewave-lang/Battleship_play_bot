@@ -66,6 +66,34 @@ def test_auto_play_bots_skips_closed(monkeypatch):
     asyncio.run(run())
 
 
+def test_auto_play_bots_skips_own_ship(monkeypatch):
+    async def run():
+        match = Match15.new(1, 1, 'A')
+        match.players['B'] = Player(user_id=0, chat_id=0, name='B')
+        match.status = 'playing'
+        match.turn = 'B'
+        match.boards['B'].grid[0][0] = 1
+
+        recorded = {}
+
+        def fake_apply_shot(board, coord):
+            recorded['coord'] = coord
+            raise RuntimeError('stop')
+
+        monkeypatch.setattr(handlers.battle, 'apply_shot', fake_apply_shot)
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(storage, 'finish', lambda m, w: None)
+
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
+
+        with pytest.raises(RuntimeError):
+            await handlers._auto_play_bots(match, context, 0)
+
+        assert recorded['coord'] == (0, 1)
+
+    asyncio.run(run())
+
+
 def test_auto_play_bots_notifies_human(monkeypatch):
     async def run():
         match = Match15.new(1, 1, 'A')
