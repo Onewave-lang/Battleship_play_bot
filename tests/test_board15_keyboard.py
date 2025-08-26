@@ -1,13 +1,15 @@
 import asyncio
 from io import BytesIO
 from types import SimpleNamespace
+from io import BytesIO
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from game_board15 import router
 from game_board15.models import Board15
 
 
-def test_send_state_sets_keyboard_on_new_board(monkeypatch):
+def test_send_state_sends_board_without_keyboard(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
             players={'A': SimpleNamespace(chat_id=1)},
@@ -18,8 +20,6 @@ def test_send_state_sets_keyboard_on_new_board(monkeypatch):
 
         monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'img'))
         monkeypatch.setattr(router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own'))
-        kb = object()
-        monkeypatch.setattr(router, '_keyboard', lambda: kb)
         monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
 
         bot = SimpleNamespace(
@@ -35,13 +35,13 @@ def test_send_state_sets_keyboard_on_new_board(monkeypatch):
         bot.send_photo.assert_awaited_once()
         call = bot.send_photo.await_args
         assert call.args[0] == 1
-        assert call.kwargs['reply_markup'] is kb
+        assert 'reply_markup' not in call.kwargs
         assert bot.edit_message_reply_markup.await_count == 0
 
     asyncio.run(run_test())
 
 
-def test_send_state_updates_inline_keyboard(monkeypatch):
+def test_send_state_updates_without_keyboard(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
             players={'A': SimpleNamespace(chat_id=1)},
@@ -52,8 +52,6 @@ def test_send_state_updates_inline_keyboard(monkeypatch):
 
         monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'img'))
         monkeypatch.setattr(router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own'))
-        kb = object()
-        monkeypatch.setattr(router, '_keyboard', lambda: kb)
         monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
 
         bot = SimpleNamespace(
@@ -71,8 +69,6 @@ def test_send_state_updates_inline_keyboard(monkeypatch):
         assert kwargs['chat_id'] == 1
         assert kwargs['message_id'] == 10
         assert 'reply_markup' not in kwargs
-        bot.edit_message_reply_markup.assert_awaited_once()
-        kb_call = bot.edit_message_reply_markup.await_args
-        assert kb_call.kwargs['reply_markup'] is kb
+        assert bot.edit_message_reply_markup.await_count == 0
 
     asyncio.run(run_test())

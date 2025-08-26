@@ -9,7 +9,6 @@ from .state import Board15State
 from .models import Board15
 
 TILE_PX = int(os.getenv("BOARD15_TILE_PX", "44"))
-VIEW = int(os.getenv("BOARD15_VIEW", "5"))
 FONT_PATH = os.getenv(
     "BOARD15_FONT_PATH", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 )
@@ -19,9 +18,7 @@ COLORS = {
     "light": {
         "bg": (255, 255, 255, 255),
         "grid": (200, 200, 200, 255),
-        "window": (0, 120, 215, 80),
         "mark": (0, 0, 0, 255),
-        "selected": (255, 0, 0, 255),
         "ship": (0, 0, 0, 255),
         "miss": (0, 0, 0, 255),
         "hit": (220, 0, 0, 255),
@@ -31,9 +28,7 @@ COLORS = {
     "dark": {
         "bg": (0, 0, 0, 255),
         "grid": (80, 80, 80, 255),
-        "window": (0, 120, 215, 120),
         "mark": (220, 220, 220, 255),
-        "selected": (255, 0, 0, 255),
         "ship": (220, 220, 220, 255),
         "miss": (220, 220, 220, 255),
         "hit": (255, 0, 0, 255),
@@ -68,10 +63,7 @@ CELL_STYLE = {
 
 
 def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
-    """Render the 15x15 board into a PNG image.
-
-    Only a 5x5 window is highlighted to guide the user's current view.
-    """
+    """Render the 15x15 board into a PNG image."""
 
     margin = TILE_PX
     size = 15 * TILE_PX
@@ -120,30 +112,6 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
                 cy = y0 + TILE_PX // 2
                 r = max(2, TILE_PX // 8)
                 draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=color)
-
-    # window rectangle
-    wt, wl = state.window_top, state.window_left
-    draw.rectangle(
-        (
-            margin + wl * TILE_PX,
-            margin + wt * TILE_PX,
-            margin + (wl + VIEW) * TILE_PX,
-            margin + (wt + VIEW) * TILE_PX,
-        ),
-        outline=COLORS[THEME]["window"],
-        width=3,
-    )
-
-    # selected cell
-    if state.selected is not None:
-        sr, sc = state.selected
-        x0 = margin + sc * TILE_PX
-        y0 = margin + sr * TILE_PX
-        draw.ellipse(
-            (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
-            outline=COLORS[THEME]["selected"],
-            width=3,
-        )
 
     # axis labels
     try:

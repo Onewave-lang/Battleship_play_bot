@@ -40,7 +40,6 @@ def test_send_state_uses_history(monkeypatch):
 
         monkeypatch.setattr(router, 'render_board', fake_render_board)
         monkeypatch.setattr(router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own'))
-        monkeypatch.setattr(router, '_keyboard', lambda: None)
         monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
 
         context = SimpleNamespace(
@@ -93,7 +92,6 @@ def test_kill_contour_visible_to_all_players(monkeypatch):
         monkeypatch.setattr(
             router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own')
         )
-        monkeypatch.setattr(router, '_keyboard', lambda: None)
         monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
 
         context = SimpleNamespace(

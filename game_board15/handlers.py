@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from telegram import (
     Update,
-    InputMediaPhoto,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
 )
@@ -10,7 +9,7 @@ from telegram.ext import ContextTypes
 from urllib.parse import quote_plus
 
 from .state import Board15State
-from .renderer import render_board, VIEW
+from .renderer import render_board
 from . import storage, parser, battle, placement
 from .models import Player
 from logic.phrases import (
@@ -28,30 +27,6 @@ import asyncio
 WELCOME_TEXT = 'Выберите способ приглашения соперников:'
 
 STATE_KEY = "board15_states"
-
-
-def _keyboard() -> InlineKeyboardMarkup:
-    arrows = [
-        [
-            InlineKeyboardButton("◀️", callback_data="b15|mv|-1|0"),
-            InlineKeyboardButton("▲", callback_data="b15|mv|0|-1"),
-            InlineKeyboardButton("▼", callback_data="b15|mv|0|1"),
-            InlineKeyboardButton("▶️", callback_data="b15|mv|1|0"),
-        ]
-    ]
-    matrix = []
-    for r in range(VIEW):
-        row = []
-        for c in range(VIEW):
-            row.append(InlineKeyboardButton("·", callback_data=f"b15|pick|{r}|{c}"))
-        matrix.append(row)
-    actions = [
-        [
-            InlineKeyboardButton("✅", callback_data="b15|act|confirm"),
-            InlineKeyboardButton("↩️", callback_data="b15|act|cancel"),
-        ]
-    ]
-    return InlineKeyboardMarkup(arrows + matrix + actions)
 
 
 async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -94,7 +69,7 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     state.board = merged
     state.player_key = player_key
     buf = render_board(state, player_key)
-    msg = await update.message.reply_photo(buf, reply_markup=_keyboard())
+    msg = await update.message.reply_photo(buf)
     status = await update.message.reply_text('Выберите клетку или введите ход текстом.')
     state.message_id = msg.message_id
     state.status_message_id = status.message_id
@@ -280,13 +255,12 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     reply_photo = getattr(update.message, "reply_photo", None)
     board_msg_id = None
     if reply_photo is not None:
-        msg = await reply_photo(buf, reply_markup=_keyboard())
+        msg = await reply_photo(buf)
         board_msg_id = msg.message_id
     else:
         msg = await context.bot.send_photo(
             chat_id=update.effective_chat.id,
             photo=buf,
-            reply_markup=_keyboard(),
         )
         board_msg_id = msg.message_id
     status = await update.message.reply_text('Выберите клетку или введите ход текстом.')
@@ -313,156 +287,3 @@ async def send_board15_invite_link(update: Update, context: ContextTypes.DEFAULT
     username = (await context.bot.get_me()).username
     link = f"https://t.me/{username}?start=b15_{match.match_id}"
     await query.message.reply_text(f"Пригласите друга: {link}")
-
-
-async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    data = query.data.split("|")
-    states = context.bot_data.get(STATE_KEY, {})
-    state: Board15State | None = states.get(update.effective_chat.id)
-    if not state:
-        await query.answer()
-        return
-    if data[1] == "mv":
-        dx, dy = int(data[2]), int(data[3])
-        state.window_left = max(0, min(15 - VIEW, state.window_left + dx))
-        state.window_top = max(0, min(15 - VIEW, state.window_top + dy))
-    elif data[1] == "pick":
-        r, c = int(data[2]), int(data[3])
-        state.selected = (state.window_top + r, state.window_left + c)
-        buf = render_board(state, state.player_key)
-        try:
-            await query.edit_message_media(InputMediaPhoto(buf))
-        except Exception:
-            pass
-        await query.edit_message_reply_markup(_keyboard())
-        await query.answer()
-        return
-    elif data[1] == "act" and data[2] == "confirm":
-        if state.selected is None:
-            await query.answer("Клетка не выбрана")
-            return
-        match = storage.find_match_by_user(query.from_user.id, update.effective_chat.id)
-        if not match:
-            await query.answer("Матч не найден")
-            return
-        if all(p.user_id == query.from_user.id for p in match.players.values()):
-            player_key = match.turn
-            single_user = True
-        else:
-            single_user = False
-            player_key = next(k for k, p in match.players.items() if p.user_id == query.from_user.id)
-            if match.turn != player_key:
-                await query.answer("Не ваш ход")
-                return
-        coord = state.selected
-        r, c = coord
-        if match.boards[player_key].grid[r][c] == 1:
-            await query.answer("Здесь ваш корабль")
-            return
-        enemies = [k for k in match.players if k != player_key]
-        results = {}
-        hit_any = False
-        for enemy in enemies:
-            res = battle.apply_shot(match.boards[enemy], coord)
-            results[enemy] = res
-            if res in (battle.HIT, battle.KILL):
-                hit_any = True
-        if battle.REPEAT in results.values():
-            await query.answer("Эта клетка уже открыта")
-            return
-        battle.update_history(match.history, match.boards, coord, results)
-        for k in match.shots:
-            shots = match.shots[k]
-            shots.setdefault('move_count', 0)
-            shots.setdefault('joke_start', random.randint(1, 10))
-            shots['move_count'] += 1
-        coord_str = parser.format_coord(coord)
-        if not hit_any:
-            order = [k for k in ('A', 'B', 'C') if k in match.players and match.boards[k].alive_cells > 0]
-            idx = order.index(player_key)
-            next_player = order[(idx + 1) % len(order)]
-        else:
-            next_player = player_key
-        match.turn = next_player
-
-        parts_self = []
-        from . import router as router_module
-        for enemy, res in results.items():
-            enemy_name = match.players.get(enemy)
-            enemy_label = getattr(enemy_name, 'name', '') or enemy
-            if res == battle.MISS:
-                phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-                parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
-                if match.players[enemy].user_id != 0:
-                    msg = f"{coord_str} - соперник промахнулся. {phrase_enemy}"
-                    if enemy == next_player:
-                        msg += ' Ваш ход.'
-                    await router_module._send_state(context, match, enemy, msg)
-            elif res == battle.HIT:
-                phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
-                parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
-                if match.players[enemy].user_id != 0:
-                    await router_module._send_state(
-                        context,
-                        match,
-                        enemy,
-                        f"{coord_str} - ваш корабль ранен. {phrase_enemy}",
-                    )
-            elif res == battle.KILL:
-                phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
-                parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
-                if match.players[enemy].user_id != 0:
-                    await router_module._send_state(
-                        context,
-                        match,
-                        enemy,
-                        f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}",
-                    )
-                if match.boards[enemy].alive_cells == 0:
-                    enemy_label = getattr(match.players.get(enemy), 'name', '') or enemy
-                    target = enemy if match.players[enemy].user_id != 0 else player_key
-                    await context.bot.send_message(
-                        match.players[target].chat_id,
-                        f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
-                    )
-
-        storage.save_match(match)
-        next_label = match.players.get(next_player)
-        next_name = getattr(next_label, 'name', '') or next_player
-        result_self = f"{coord_str} - {' '.join(parts_self)}" + (
-            ' Ваш ход.' if next_player == player_key else f" Ход {next_name}."
-        )
-        view_key = match.turn if single_user else player_key
-        merged = [row[:] for row in match.history]
-        own_grid_view = match.boards[view_key].grid
-        for r in range(15):
-            for c in range(15):
-                if merged[r][c] == 0 and own_grid_view[r][c] == 1:
-                    merged[r][c] = 1
-        state.board = merged
-        state.selected = None
-        if match.players[view_key].user_id != 0:
-            await router_module._send_state(context, match, view_key, result_self)
-        alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0]
-        if len(alive_players) == 1:
-            winner = alive_players[0]
-            storage.finish(match, winner)
-            await context.bot.send_message(match.players[winner].chat_id, 'Вы победили!')
-            for k in match.players:
-                if k != winner:
-                    await context.bot.send_message(match.players[k].chat_id, 'Игра окончена. Победил соперник.')
-        await query.answer()
-        return
-    elif data[1] == "act" and data[2] == "cancel":
-        state.selected = None
-    buf = render_board(state, state.player_key)
-    try:
-        await query.edit_message_media(InputMediaPhoto(buf))
-    except Exception:
-        pass
-    await query.edit_message_reply_markup(_keyboard())
-    await query.answer()
