@@ -70,22 +70,50 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
         msg = await context.bot.send_photo(chat_id, player_buf)
         msgs["player"] = msg.message_id
 
-    # remove previous board and text messages
-    for key, msg_id in (("board", board_id), ("text", text_id)):
-        if msg_id:
+    # update main board image
+    if board_id:
+        try:
+            await context.bot.edit_message_media(
+                chat_id=chat_id,
+                message_id=board_id,
+                media=InputMediaPhoto(buf),
+            )
+            state.message_id = board_id
+        except Exception:
+            logger.exception("Failed to update board image for chat %s", chat_id)
             try:
-                await context.bot.delete_message(chat_id, msg_id)
+                await context.bot.delete_message(chat_id, board_id)
             except Exception:
-                logger.exception("Failed to delete %s message for chat %s", key, chat_id)
+                pass
+            msg = await context.bot.send_photo(chat_id, buf)
+            board_id = msg.message_id
+            state.message_id = board_id
+    else:
+        msg = await context.bot.send_photo(chat_id, buf)
+        board_id = msg.message_id
+        state.message_id = board_id
+    msgs["board"] = board_id
 
-    # send new board image without caption
-    msg = await context.bot.send_photo(chat_id, buf)
-    msgs["board"] = msg.message_id
-    state.message_id = msg.message_id
-
-    # send textual result separately
-    msg_text = await context.bot.send_message(chat_id, message)
-    msgs["text"] = msg_text.message_id
+    # update textual result separately
+    if text_id:
+        try:
+            await context.bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=text_id,
+                text=message,
+            )
+        except Exception:
+            logger.exception("Failed to update text message for chat %s", chat_id)
+            try:
+                await context.bot.delete_message(chat_id, text_id)
+            except Exception:
+                pass
+            msg_text = await context.bot.send_message(chat_id, message)
+            text_id = msg_text.message_id
+    else:
+        msg_text = await context.bot.send_message(chat_id, message)
+        text_id = msg_text.message_id
+    msgs["text"] = text_id
 
     storage.save_match(match)
 

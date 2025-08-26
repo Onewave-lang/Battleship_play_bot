@@ -22,6 +22,7 @@ def test_send_state_sets_keyboard_on_new_board(monkeypatch):
                 SimpleNamespace(message_id=50),
                 SimpleNamespace(message_id=51),
             ]),
+            edit_message_text=AsyncMock(),
             delete_message=AsyncMock(),
         )
         context = SimpleNamespace(bot=bot)
@@ -40,7 +41,7 @@ def test_send_state_sets_keyboard_on_new_board(monkeypatch):
     asyncio.run(run_test())
 
 
-def test_send_state_updates_keyboard(monkeypatch):
+def test_send_state_edits_existing_messages(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
             players={'A': SimpleNamespace(chat_id=1)},
@@ -53,6 +54,37 @@ def test_send_state_updates_keyboard(monkeypatch):
         monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
         monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
         bot = SimpleNamespace(
+            edit_message_text=AsyncMock(),
+            send_message=AsyncMock(),
+            delete_message=AsyncMock(),
+        )
+        context = SimpleNamespace(bot=bot)
+
+        await router._send_state(context, match, 'A', 'msg')
+
+        assert bot.edit_message_text.await_count == 2
+        bot.send_message.assert_not_called()
+        bot.delete_message.assert_not_called()
+        assert match.messages['A']['board'] == 10
+        assert match.messages['A']['text'] == 11
+
+    asyncio.run(run_test())
+
+
+def test_send_state_recreates_messages_on_edit_failure(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            players={'A': SimpleNamespace(chat_id=1)},
+            boards={'A': SimpleNamespace(), 'B': SimpleNamespace()},
+            messages={'A': {'board': 10, 'text': 11}},
+        )
+        monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
+        monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
+        kb = object()
+        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
+        monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
+        bot = SimpleNamespace(
+            edit_message_text=AsyncMock(side_effect=[Exception(), Exception()]),
             send_message=AsyncMock(side_effect=[
                 SimpleNamespace(message_id=60),
                 SimpleNamespace(message_id=61),
