@@ -239,6 +239,21 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         for k in match.players
         if k not in victims and k != player_key and match.boards[k].alive_cells > 0
     ]
+    if not hit_any:
+        order = [
+            k
+            for k in ('A', 'B', 'C')
+            if k in match.players and match.boards[k].alive_cells > 0
+        ]
+        idx = order.index(player_key)
+        next_player = order[(idx + 1) % len(order)]
+        match.turn = next_player
+        storage.save_match(match)
+        await _send_state(context, match, next_player, 'Ваш ход.')
+    else:
+        match.turn = player_key
+        storage.save_match(match)
+    others = [k for k in others if k != next_player]
     if others:
         if parts_others:
             msg_others = f"{coord_str} - {', '.join(parts_others)}"
@@ -246,16 +261,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             msg_others = f"{coord_str} - мимо"
         for other in others:
             await _send_state(context, match, other, msg_others)
-    if not hit_any:
-        order = [k for k in ('A', 'B', 'C') if k in match.players and match.boards[k].alive_cells > 0]
-        idx = order.index(player_key)
-        next_player = order[(idx + 1) % len(order)]
-        match.turn = next_player
-        storage.save_match(match)
-        await context.bot.send_message(match.players[next_player].chat_id, 'Ваш ход.')
-    else:
-        match.turn = player_key
-        storage.save_match(match)
     next_obj = match.players.get(next_player)
     next_name = getattr(next_obj, 'name', '') or next_player
     result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_name}.")

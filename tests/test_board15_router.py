@@ -127,6 +127,56 @@ def test_router_notifies_other_players_on_hit(monkeypatch):
     asyncio.run(run_test())
 
 
+def test_router_notifies_next_player_on_miss(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            status='playing',
+            players={
+                'A': SimpleNamespace(user_id=1, chat_id=10, name='A'),
+                'B': SimpleNamespace(user_id=2, chat_id=20, name='B'),
+                'C': SimpleNamespace(user_id=3, chat_id=30, name='C'),
+            },
+            boards={'A': Board15(), 'B': Board15(), 'C': Board15()},
+            turn='A',
+            shots={'A': {'move_count': 0, 'joke_start': 10}, 'B': {}, 'C': {}},
+            messages={'A': {}, 'B': {}, 'C': {}},
+            history=[[0] * 15 for _ in range(15)],
+        )
+
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(router.parser, 'parse_coord', lambda text: (0, 0))
+        monkeypatch.setattr(router.parser, 'format_coord', lambda coord: 'a1')
+        monkeypatch.setattr(router.battle, 'apply_shot', lambda board, coord: router.battle.MISS)
+        monkeypatch.setattr(router, '_phrase_or_joke', lambda m, pk, ph: '')
+        monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'target'))
+        monkeypatch.setattr(router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own'))
+        monkeypatch.setattr(router, '_keyboard', lambda: 'kb')
+
+        send_photo = AsyncMock()
+        send_message = AsyncMock()
+        context = SimpleNamespace(
+            bot=SimpleNamespace(send_photo=send_photo, send_message=send_message),
+            chat_data={},
+            bot_data={},
+        )
+        update = SimpleNamespace(
+            message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
+
+        await router.router_text(update, context)
+
+        b_msgs = [c for c in send_message.call_args_list if c.args[0] == 20]
+        assert b_msgs and b_msgs[0].args[1] == 'Ваш ход.'
+        b_photos = [c for c in send_photo.call_args_list if c.args[0] == 20]
+        assert any(c.kwargs.get('reply_markup') == 'kb' for c in b_photos)
+        assert not any(c.args[1] == 'a1 - мимо' for c in b_msgs)
+
+    asyncio.run(run_test())
+
+
 def test_router_move_sends_player_board(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
