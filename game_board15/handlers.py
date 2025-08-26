@@ -282,6 +282,13 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if reply_photo is not None:
         msg = await reply_photo(buf, reply_markup=_keyboard())
         board_msg_id = msg.message_id
+    else:
+        msg = await context.bot.send_photo(
+            chat_id=update.effective_chat.id,
+            photo=buf,
+            reply_markup=_keyboard(),
+        )
+        board_msg_id = msg.message_id
     status = await update.message.reply_text('Выберите клетку или введите ход текстом.')
     state.message_id = board_msg_id
     state.status_message_id = status.message_id
