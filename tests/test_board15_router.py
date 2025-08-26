@@ -47,7 +47,12 @@ def test_router_auto_sends_boards(monkeypatch):
         monkeypatch.setattr(router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own'))
 
         send_photo = AsyncMock()
-        context = SimpleNamespace(bot=SimpleNamespace(send_photo=send_photo), chat_data={}, bot_data={})
+        send_message = AsyncMock()
+        context = SimpleNamespace(
+            bot=SimpleNamespace(send_photo=send_photo, send_message=send_message),
+            chat_data={},
+            bot_data={},
+        )
         update = SimpleNamespace(
             message=SimpleNamespace(text='авто', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=2, first_name='Bob'),
@@ -58,9 +63,13 @@ def test_router_auto_sends_boards(monkeypatch):
 
         assert send_photo.call_args_list == [
             call(10, ANY),
-            call(10, ANY, caption='Соперник готов. Бой начинается! Ваш ход.'),
+            call(10, ANY),
             call(20, ANY),
-            call(20, ANY, caption='Корабли расставлены. Бой начинается! Ход соперника.'),
+            call(20, ANY),
+        ]
+        assert send_message.call_args_list == [
+            call(10, 'Соперник готов. Бой начинается! Ваш ход.'),
+            call(20, 'Корабли расставлены. Бой начинается! Ход соперника.'),
         ]
 
     asyncio.run(run_test())
@@ -147,8 +156,9 @@ def test_router_notifies_next_player_on_miss(monkeypatch):
         monkeypatch.setattr(router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own'))
 
         send_photo = AsyncMock()
+        send_message = AsyncMock()
         context = SimpleNamespace(
-            bot=SimpleNamespace(send_photo=send_photo),
+            bot=SimpleNamespace(send_photo=send_photo, send_message=send_message),
             chat_data={},
             bot_data={},
         )
@@ -160,9 +170,9 @@ def test_router_notifies_next_player_on_miss(monkeypatch):
 
         await router.router_text(update, context)
 
-        b_photos = [c for c in send_photo.call_args_list if c.args[0] == 20]
-        assert b_photos and b_photos[1].kwargs['caption'] == 'Ваш ход.'
-        assert not any(p.kwargs.get('caption') == 'a1 - мимо' for p in b_photos)
+        b_msgs = [c for c in send_message.call_args_list if c.args[0] == 20]
+        assert b_msgs and b_msgs[0].args[1].endswith('Ваш ход.')
+        assert 'a1 - мимо' not in b_msgs[0].args[1]
 
     asyncio.run(run_test())
 
