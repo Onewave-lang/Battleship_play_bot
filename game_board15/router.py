@@ -235,7 +235,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             if match.boards[enemy].alive_cells == 0:
                 await context.bot.send_message(
                     match.players[enemy].chat_id,
-                    "Все ваши корабли уничтожены. Вы выбыли.",
+                    f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
                 )
 
     others = [
