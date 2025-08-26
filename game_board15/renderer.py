@@ -18,7 +18,7 @@ COLORS = {
     "light": {
         "bg": (255, 255, 255, 255),
         "grid": (200, 200, 200, 255),
-        "mark": (0, 0, 0, 255),
+        "mark": (220, 0, 0, 255),
         "ship": (0, 0, 0, 255),
         "miss": (0, 0, 0, 255),
         "hit": (220, 0, 0, 255),
@@ -28,7 +28,7 @@ COLORS = {
     "dark": {
         "bg": (0, 0, 0, 255),
         "grid": (80, 80, 80, 255),
-        "mark": (220, 220, 220, 255),
+        "mark": (255, 0, 0, 255),
         "ship": (220, 220, 220, 255),
         "miss": (220, 220, 220, 255),
         "hit": (255, 0, 0, 255),
@@ -78,6 +78,8 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
         draw.line((margin, offset, margin + size, offset), fill=COLORS[THEME]["grid"])
         draw.line((offset, margin, offset, margin + size), fill=COLORS[THEME]["grid"])
 
+    highlight = set(state.highlight)
+
     # marks
     for r in range(15):
         for c in range(15):
@@ -86,11 +88,16 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
                 continue
             x0 = margin + c * TILE_PX
             y0 = margin + r * TILE_PX
+            coord = (r, c)
             shape, color_key = CELL_STYLE.get(val, ("square", "ship"))
-            if val == 1 and player_key:
-                color = PLAYER_SHIP_COLORS.get(THEME, {}).get(player_key, COLORS[THEME]["ship"])
+            if coord in highlight:
+                color = COLORS[THEME]["mark"]
+                shape = "cross" if val in (2, 5) else "square"
             else:
-                color = COLORS[THEME][color_key]
+                if val == 1 and player_key:
+                    color = PLAYER_SHIP_COLORS.get(THEME, {}).get(player_key, COLORS[THEME]["ship"])
+                else:
+                    color = COLORS[THEME][color_key]
             if shape == "square":
                 draw.rectangle(
                     (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
@@ -153,6 +160,7 @@ def render_player_board(board: Board15, player_key: str | None = None) -> BytesI
         offset = margin + i * TILE_PX
         draw.line((margin, offset, margin + size, offset), fill=COLORS[THEME]["grid"])
         draw.line((offset, margin, offset, margin + size), fill=COLORS[THEME]["grid"])
+    highlight = set(board.highlight)
 
     # ship and shot markers
     for r in range(15):
@@ -162,11 +170,16 @@ def render_player_board(board: Board15, player_key: str | None = None) -> BytesI
                 continue
             x0 = margin + c * TILE_PX
             y0 = margin + r * TILE_PX
+            coord = (r, c)
             shape, color_key = CELL_STYLE.get(val, ("square", "ship"))
-            if val == 1 and player_key:
-                color = PLAYER_SHIP_COLORS.get(THEME, {}).get(player_key, COLORS[THEME]["ship"])
+            if coord in highlight:
+                color = COLORS[THEME]["mark"]
+                shape = "cross" if val in (2, 5) else "square"
             else:
-                color = COLORS[THEME][color_key]
+                if val == 1 and player_key:
+                    color = PLAYER_SHIP_COLORS.get(THEME, {}).get(player_key, COLORS[THEME]["ship"])
+                else:
+                    color = COLORS[THEME][color_key]
             if shape == "square":
                 draw.rectangle(
                     (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
