@@ -98,7 +98,8 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         storage.save_match(match)
     state = Board15State(chat_id=update.effective_chat.id)
     state.board = [row[:] for row in match.boards[player_key].grid]
-    buf = render_board(state)
+    state.player_key = player_key
+    buf = render_board(state, player_key)
     msg = await update.message.reply_photo(buf, reply_markup=_keyboard())
     status = await update.message.reply_text('Выберите клетку или введите ход текстом.')
     state.message_id = msg.message_id
@@ -240,8 +241,9 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     storage.save_match(match)
     state = Board15State(chat_id=update.effective_chat.id)
     state.board = [row[:] for row in match.boards['A'].grid]
+    state.player_key = 'A'
     try:
-        buf = render_board(state)
+        buf = render_board(state, 'A')
     except Exception:
         from io import BytesIO
         buf = BytesIO()
@@ -291,7 +293,7 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     elif data[1] == "pick":
         r, c = int(data[2]), int(data[3])
         state.selected = (state.window_top + r, state.window_left + c)
-        buf = render_board(state)
+        buf = render_board(state, state.player_key)
         try:
             await query.edit_message_media(InputMediaPhoto(buf))
         except Exception:
@@ -401,7 +403,7 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
     elif data[1] == "act" and data[2] == "cancel":
         state.selected = None
-    buf = render_board(state)
+    buf = render_board(state, state.player_key)
     try:
         await query.edit_message_media(InputMediaPhoto(buf))
     except Exception:

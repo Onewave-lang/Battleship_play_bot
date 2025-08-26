@@ -43,8 +43,8 @@ def test_router_auto_sends_boards(monkeypatch):
         monkeypatch.setattr(storage, 'save_board', fake_save_board)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
         monkeypatch.setattr(router.placement, 'random_board', lambda: SimpleNamespace(grid=[[0] * 15 for _ in range(15)]))
-        monkeypatch.setattr(router, 'render_board', lambda state: BytesIO(b'target'))
-        monkeypatch.setattr(router, 'render_player_board', lambda board: BytesIO(b'own'))
+        monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'target'))
+        monkeypatch.setattr(router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own'))
         monkeypatch.setattr(router, '_keyboard', lambda: 'kb')
 
         send_photo = AsyncMock()
@@ -91,10 +91,10 @@ def test_router_move_sends_player_board(monkeypatch):
         monkeypatch.setattr(router.parser, 'format_coord', lambda coord: 'a1')
         monkeypatch.setattr(router.battle, 'apply_shot', lambda board, coord: router.battle.MISS)
         monkeypatch.setattr(router, '_phrase_or_joke', lambda m, pk, ph: '')
-        monkeypatch.setattr(router, 'render_board', lambda state: BytesIO(b'target'))
+        monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'target'))
         called = []
 
-        def fake_render_player_board(board):
+        def fake_render_player_board(board, player_key=None):
             called.append(board)
             return BytesIO(b'own')
 

@@ -42,6 +42,19 @@ COLORS = {
     },
 }
 
+PLAYER_SHIP_COLORS = {
+    "light": {
+        "A": (173, 216, 230, 255),  # light blue
+        "B": (144, 238, 144, 255),  # light green
+        "C": (255, 200, 140, 255),  # light orange
+    },
+    "dark": {
+        "A": (173, 216, 230, 255),
+        "B": (144, 238, 144, 255),
+        "C": (255, 200, 140, 255),
+    },
+}
+
 
 CELL_STYLE = {
     1: ("square", "ship"),
@@ -52,7 +65,7 @@ CELL_STYLE = {
 }
 
 
-def render_board(state: Board15State) -> BytesIO:
+def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
     """Render the 15x15 board into a PNG image.
 
     Only a 5x5 window is highlighted to guide the user's current view.
@@ -80,7 +93,10 @@ def render_board(state: Board15State) -> BytesIO:
             x0 = margin + c * TILE_PX
             y0 = margin + r * TILE_PX
             shape, color_key = CELL_STYLE.get(val, ("square", "ship"))
-            color = COLORS[THEME][color_key]
+            if val == 1 and player_key:
+                color = PLAYER_SHIP_COLORS.get(THEME, {}).get(player_key, COLORS[THEME]["ship"])
+            else:
+                color = COLORS[THEME][color_key]
             if shape == "square":
                 draw.rectangle(
                     (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
@@ -147,7 +163,7 @@ def render_board(state: Board15State) -> BytesIO:
     return buf
 
 
-def render_player_board(board: Board15) -> BytesIO:
+def render_player_board(board: Board15, player_key: str | None = None) -> BytesIO:
     """Render player's own board with their ships.
 
     Unlike :func:`render_board`, this version shows the full board without a
@@ -177,7 +193,10 @@ def render_player_board(board: Board15) -> BytesIO:
             x0 = margin + c * TILE_PX
             y0 = margin + r * TILE_PX
             shape, color_key = CELL_STYLE.get(val, ("square", "ship"))
-            color = COLORS[THEME][color_key]
+            if val == 1 and player_key:
+                color = PLAYER_SHIP_COLORS.get(THEME, {}).get(player_key, COLORS[THEME]["ship"])
+            else:
+                color = COLORS[THEME][color_key]
             if shape == "square":
                 draw.rectangle(
                     (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
