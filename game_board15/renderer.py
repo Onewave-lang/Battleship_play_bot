@@ -61,7 +61,9 @@ CELL_STYLE = {
     2: ("cross", "miss"),
     3: ("square", "hit"),
     4: ("square", "destroyed"),
-    5: ("dot", "contour"),
+    # Cells adjacent to a destroyed ship are marked as a cross so they look
+    # the same as already shot cells on the board.
+    5: ("cross", "miss"),
 }
 
 

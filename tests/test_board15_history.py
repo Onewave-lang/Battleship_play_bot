@@ -60,3 +60,58 @@ def test_send_state_uses_history(monkeypatch):
         assert captured['board'][2][2] == 1
 
     asyncio.run(run_test())
+
+
+def test_kill_contour_visible_to_all_players(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            players={
+                'A': SimpleNamespace(chat_id=1),
+                'B': SimpleNamespace(chat_id=2),
+                'C': SimpleNamespace(chat_id=3),
+            },
+            boards={'A': Board15(), 'B': Board15(), 'C': Board15()},
+            history=[[0] * 15 for _ in range(15)],
+            messages={'A': {}, 'B': {}, 'C': {}},
+        )
+        ship = Ship(cells=[(1, 1)])
+        match.boards['A'].ships = [ship]
+        match.boards['A'].grid[1][1] = 1
+
+        res_a = apply_shot(match.boards['A'], (1, 1))
+        res_c = apply_shot(match.boards['C'], (1, 1))
+        assert res_a == KILL
+        update_history(match.history, match.boards, (1, 1), {'A': res_a, 'C': res_c})
+
+        captured = {}
+
+        def fake_render_board(state, player_key=None):
+            captured[player_key] = [row[:] for row in state.board]
+            return BytesIO(b'img')
+
+        monkeypatch.setattr(router, 'render_board', fake_render_board)
+        monkeypatch.setattr(
+            router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own')
+        )
+        monkeypatch.setattr(router, '_keyboard', lambda: None)
+        monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
+
+        context = SimpleNamespace(
+            bot=SimpleNamespace(
+                edit_message_media=AsyncMock(),
+                send_photo=AsyncMock(return_value=SimpleNamespace(message_id=1)),
+                edit_message_text=AsyncMock(),
+                send_message=AsyncMock(return_value=SimpleNamespace(message_id=2)),
+            ),
+            bot_data={},
+            chat_data={},
+        )
+
+        for key in ('A', 'B', 'C'):
+            await router._send_state(context, match, key, 'msg')
+
+        assert captured['A'][0][0] == 5
+        assert captured['B'][0][0] == 5
+        assert captured['C'][0][0] == 5
+
+    asyncio.run(run_test())
