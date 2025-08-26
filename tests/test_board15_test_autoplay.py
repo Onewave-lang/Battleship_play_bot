@@ -28,7 +28,11 @@ def test_board15_test_autoplay(monkeypatch):
             effective_user=SimpleNamespace(id=1, first_name='Tester'),
             effective_chat=SimpleNamespace(id=100)
         )
-        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
+        context = SimpleNamespace(
+            bot=SimpleNamespace(send_message=AsyncMock(), send_photo=AsyncMock()),
+            bot_data={},
+        )
+        context.bot.send_photo.return_value = SimpleNamespace(message_id=1)
         await handlers.board15_test(update, context)
         await asyncio.gather(*tasks)
         messages = [c.args[1] for c in context.bot.send_message.call_args_list]

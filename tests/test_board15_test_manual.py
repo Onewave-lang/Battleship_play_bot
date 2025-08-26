@@ -52,11 +52,18 @@ def test_board15_test_manual(monkeypatch):
             effective_user=SimpleNamespace(id=1, first_name='Tester'),
             effective_chat=SimpleNamespace(id=100),
         )
-        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
+        context = SimpleNamespace(
+            bot=SimpleNamespace(send_message=AsyncMock(), send_photo=AsyncMock()),
+            bot_data={},
+        )
+        context.bot.send_photo.return_value = SimpleNamespace(message_id=1)
         await handlers.board15_test(update, context)
         await asyncio.sleep(0.1)
         assert context.bot.send_message.call_count == 0
         states = context.bot_data.setdefault(handlers.STATE_KEY, {})
+        saved_state = states[update.effective_chat.id]
+        assert saved_state.message_id == 1
+        assert created_match.messages['A']['board'] == 1
         state = handlers.Board15State(chat_id=update.effective_chat.id)
         state.selected = (0, 0)
         states[update.effective_chat.id] = state
