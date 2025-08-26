@@ -20,7 +20,7 @@ def test_board15_test_manual(monkeypatch):
             created_match = storage.Match15.new(uid, cid, name)
             return created_match
         monkeypatch.setattr(handlers.storage, 'create_match', fake_create_match)
-        monkeypatch.setattr(handlers.storage, 'find_match_by_user', lambda uid: created_match)
+        monkeypatch.setattr(handlers.storage, 'find_match_by_user', lambda uid, chat_id=None: created_match)
         shot_counter = {'count': 0}
         def fake_apply_shot(board, coord):
             if created_match.turn == 'A':

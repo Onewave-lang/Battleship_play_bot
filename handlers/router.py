@@ -58,10 +58,10 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if text_lower == 'начать новую игру':
         await newgame(update, context)
         return
-    match = storage.find_match_by_user(user_id)
+    match = storage.find_match_by_user(user_id, update.effective_chat.id)
     if not match and os.getenv("BOARD15_ENABLED") == "1":
         from game_board15 import storage as storage15, router as router15
-        match15 = storage15.find_match_by_user(user_id)
+        match15 = storage15.find_match_by_user(user_id, update.effective_chat.id)
         if match15:
             await router15.router_text(update, context)
             return

@@ -294,7 +294,7 @@ async def send_board15_invite_link(update: Update, context: ContextTypes.DEFAULT
     """Send invitation link for 15x15 mode."""
     query = update.callback_query
     await query.answer()
-    match = storage.find_match_by_user(query.from_user.id)
+    match = storage.find_match_by_user(query.from_user.id, update.effective_chat.id)
     if not match:
         await query.message.reply_text('Матч не найден.')
         return
@@ -330,7 +330,7 @@ async def board15_on_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         if state.selected is None:
             await query.answer("Клетка не выбрана")
             return
-        match = storage.find_match_by_user(query.from_user.id)
+        match = storage.find_match_by_user(query.from_user.id, update.effective_chat.id)
         if not match:
             await query.answer("Матч не найден")
             return

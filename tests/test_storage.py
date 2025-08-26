@@ -109,3 +109,18 @@ def test_find_match_by_user_ignores_finished(monkeypatch, tmp_path):
 
     assert storage.find_match_by_user(1).match_id == active.match_id
     assert storage.find_match_by_user(2) is None
+
+
+def test_find_match_by_user_prefers_chat(monkeypatch, tmp_path):
+    """When user participates in multiple matches, chat_id narrows the search."""
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "data.json")
+    m1 = storage.create_match(1, 100)
+    m1.status = "playing"
+    storage.save_match(m1)
+    m2 = storage.create_match(1, 200)
+    m2.status = "playing"
+    storage.save_match(m2)
+
+    assert storage.find_match_by_user(1, chat_id=100).match_id == m1.match_id
+    # unknown chat_id falls back to latest by created_at
+    assert storage.find_match_by_user(1, chat_id=999).match_id == m2.match_id

@@ -42,6 +42,7 @@ def test_send_state_for_all_players(tmp_path, monkeypatch):
     update = SimpleNamespace(
         effective_user=SimpleNamespace(id=1),
         message=DummyMessage("a1"),
+        effective_chat=SimpleNamespace(id=1),
     )
 
     asyncio.run(run_router(update))
