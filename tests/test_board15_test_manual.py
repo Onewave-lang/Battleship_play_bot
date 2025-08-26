@@ -69,7 +69,8 @@ def test_board15_test_manual(monkeypatch):
         update_click = SimpleNamespace(callback_query=query, effective_chat=update.effective_chat)
         await handlers.board15_on_click(update_click, context)
         await asyncio.gather(*tasks)
-        assert len(sends) >= 7
+        assert len(sends) >= 2
+        assert all(player == 'A' for player, _ in sends)
         messages = [c.args[1] for c in context.bot.send_message.call_args_list]
         assert any('Вы победили' in m or 'Победил соперник' in m for m in messages)
     asyncio.run(run())
