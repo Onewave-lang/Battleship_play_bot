@@ -2,8 +2,10 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import pytest
+
 from game_board15 import handlers, storage
-from game_board15.models import Board15
+from game_board15.models import Board15, Match15, Player
 
 
 def test_board15_test_autoplay(monkeypatch):
@@ -31,4 +33,34 @@ def test_board15_test_autoplay(monkeypatch):
         await asyncio.gather(*tasks)
         messages = [c.args[1] for c in context.bot.send_message.call_args_list]
         assert any('Вы победили' in m for m in messages)
+    asyncio.run(run())
+
+
+def test_auto_play_bots_skips_closed(monkeypatch):
+    async def run():
+        match = Match15.new(1, 1, 'A')
+        match.players['B'] = Player(user_id=0, chat_id=0, name='B')
+        match.status = 'playing'
+        match.turn = 'B'
+        match.history[0][0] = 2
+        match.history[0][1] = 3
+        match.history[0][2] = 5
+
+        recorded = {}
+
+        def fake_apply_shot(board, coord):
+            recorded['coord'] = coord
+            raise RuntimeError('stop')
+
+        monkeypatch.setattr(handlers.battle, 'apply_shot', fake_apply_shot)
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(storage, 'finish', lambda m, w: None)
+
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
+
+        with pytest.raises(RuntimeError):
+            await handlers._auto_play_bots(match, context, 0)
+
+        assert recorded['coord'] == (0, 3)
+
     asyncio.run(run())
