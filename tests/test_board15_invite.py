@@ -27,7 +27,7 @@ def test_board15_invite_flow(monkeypatch):
         )
         monkeypatch.setattr(storage15, 'create_match', lambda uid, cid, name=None: match)
         monkeypatch.setattr(storage15, 'save_match', lambda m: None)
-        monkeypatch.setattr(h, 'render_board', lambda state: BytesIO(b'test'))
+        monkeypatch.setattr(h, 'render_board', lambda state, player_key=None: BytesIO(b'test'))
         reply_text = AsyncMock()
         reply_photo = AsyncMock(return_value=SimpleNamespace(message_id=1))
         update = SimpleNamespace(

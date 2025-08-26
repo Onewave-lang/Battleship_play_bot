@@ -41,7 +41,8 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
         state = Board15State(chat_id=chat_id)
         states[chat_id] = state
     state.board = [row[:] for row in match.boards[player_key].grid]
-    buf = render_board(state)
+    state.player_key = player_key
+    buf = render_board(state, player_key)
     msgs = match.messages.setdefault(player_key, {})
     board_id = msgs.get('board')
     status_id = msgs.get('status')
@@ -66,7 +67,7 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
         state.message_id = board_id
 
     # player's own board with ships
-    player_buf = render_player_board(match.boards[player_key])
+    player_buf = render_player_board(match.boards[player_key], player_key)
     player_id = msgs.get('player')
     if player_id:
         try:
