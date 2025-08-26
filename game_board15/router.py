@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import random
 from telegram import Update, InputMediaPhoto
 from telegram.ext import ContextTypes
@@ -17,6 +18,9 @@ from logic.phrases import (
     SELF_MISS,
 )
 from .utils import _phrase_or_joke
+
+
+logger = logging.getLogger(__name__)
 
 
 async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str, message: str) -> None:
@@ -52,6 +56,7 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
                 media=InputMediaPhoto(player_buf),
             )
         except Exception:
+            logger.exception("Failed to update player's board for chat %s", chat_id)
             msg = await context.bot.send_photo(chat_id, player_buf)
             msgs['player'] = msg.message_id
     else:
@@ -66,6 +71,7 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
                 message_id=status_id,
             )
         except Exception:
+            logger.exception("Failed to update status message for chat %s", chat_id)
             status = await context.bot.send_message(chat_id, message)
             msgs['status'] = status.message_id
         else:
@@ -81,13 +87,10 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
                 chat_id=chat_id,
                 message_id=board_id,
                 media=InputMediaPhoto(buf),
-            )
-            await context.bot.edit_message_reply_markup(
-                chat_id=chat_id,
-                message_id=board_id,
                 reply_markup=_keyboard(),
             )
         except Exception:
+            logger.exception("Failed to update board image for chat %s", chat_id)
             msg = await context.bot.send_photo(chat_id, buf, reply_markup=_keyboard())
             board_id = msg.message_id
             msgs['board'] = board_id

@@ -32,8 +32,11 @@ def test_send_state_updates_inline_keyboard(monkeypatch):
 
         await router._send_state(context, match, 'A', 'msg')
 
-        bot.edit_message_reply_markup.assert_awaited_once_with(
-            chat_id=1, message_id=10, reply_markup=kb
-        )
+        bot.edit_message_media.assert_awaited_once()
+        kwargs = bot.edit_message_media.await_args.kwargs
+        assert kwargs['chat_id'] == 1
+        assert kwargs['message_id'] == 10
+        assert kwargs['reply_markup'] is kb
+        assert bot.edit_message_reply_markup.await_count == 0
 
     asyncio.run(run_test())
