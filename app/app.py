@@ -63,5 +63,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         game.keyboard_msg_id = None
 
     keyboard = move_keyboard(game)
-    msg = await context.bot.send_message(chat_id=chat_id, text="Ваш ход", reply_markup=keyboard)
+    # Render a static 5×5 board so that the keyboard is visually attached to
+    # the latest field representation.  This mirrors the coordinates used in
+    # ``move_keyboard`` and ensures that after each turn the player always sees
+    # a fresh board with the inline keyboard directly underneath it.
+    letters = "ABCDE"
+    board_lines = [" ".join(f"{letters[r]}{c + 1}" for c in range(5)) for r in range(5)]
+    board_text = "\n".join(board_lines)
+
+    msg = await context.bot.send_message(
+        chat_id=chat_id,
+        text=board_text,
+        reply_markup=keyboard,
+    )
     game.keyboard_msg_id = msg.message_id
