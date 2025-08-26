@@ -69,14 +69,13 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     state.board = merged
     state.player_key = player_key
     buf = render_board(state, player_key)
-    msg = await update.message.reply_photo(buf)
-    status = await update.message.reply_text('Выберите клетку или введите ход текстом.')
+    msg = await update.message.reply_photo(
+        buf, caption='Выберите клетку или введите ход текстом.'
+    )
     state.message_id = msg.message_id
-    state.status_message_id = status.message_id
     context.bot_data.setdefault(STATE_KEY, {})[update.effective_chat.id] = state
     match.messages[player_key] = {
         'board': msg.message_id,
-        'status': status.message_id,
     }
     storage.save_match(match)
 
@@ -255,21 +254,19 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     reply_photo = getattr(update.message, "reply_photo", None)
     board_msg_id = None
     if reply_photo is not None:
-        msg = await reply_photo(buf)
+        msg = await reply_photo(buf, caption='Выберите клетку или введите ход текстом.')
         board_msg_id = msg.message_id
     else:
         msg = await context.bot.send_photo(
             chat_id=update.effective_chat.id,
             photo=buf,
+            caption='Выберите клетку или введите ход текстом.',
         )
         board_msg_id = msg.message_id
-    status = await update.message.reply_text('Выберите клетку или введите ход текстом.')
     state.message_id = board_msg_id
-    state.status_message_id = status.message_id
     context.bot_data.setdefault(STATE_KEY, {})[update.effective_chat.id] = state
     match.messages['A'] = {
         'board': board_msg_id,
-        'status': status.message_id,
     }
     storage.save_match(match)
     asyncio.create_task(_auto_play_bots(match, context, update.effective_chat.id, human='A'))

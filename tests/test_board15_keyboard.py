@@ -15,7 +15,7 @@ def test_send_state_sends_board_without_keyboard(monkeypatch):
             players={'A': SimpleNamespace(chat_id=1)},
             boards={'A': Board15()},
             history=[[0] * 15 for _ in range(15)],
-            messages={'A': {'player': 20, 'status': 11}},
+            messages={'A': {'player': 20}},
         )
 
         monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'img'))
@@ -47,7 +47,7 @@ def test_send_state_updates_without_keyboard(monkeypatch):
             players={'A': SimpleNamespace(chat_id=1)},
             boards={'A': Board15()},
             history=[[0] * 15 for _ in range(15)],
-            messages={'A': {'board': 10, 'status': 11}},
+            messages={'A': {'board': 10}},
         )
 
         monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'img'))

@@ -45,9 +45,10 @@ def test_board15_invite_flow(monkeypatch):
         assert reply_text.call_args_list == [
             call('Выберите способ приглашения соперников:', reply_markup=ANY),
             call('Матч создан. Ожидаем подключения соперников.'),
-            call('Выберите клетку или введите ход текстом.'),
         ]
-        assert reply_photo.call_args_list == [call(ANY)]
+        assert reply_photo.call_args_list == [
+            call(ANY, caption='Выберите клетку или введите ход текстом.')
+        ]
 
     asyncio.run(run_test())
 
