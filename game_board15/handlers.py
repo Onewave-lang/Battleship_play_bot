@@ -236,6 +236,8 @@ async def _auto_play_bots(
                     await context.bot.send_message(match.players[k].chat_id, 'Игра окончена. Победил соперник.')
             break
 
+        await asyncio.sleep(1)
+
 
 async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Start a three-player test match with two dummy opponents."""
