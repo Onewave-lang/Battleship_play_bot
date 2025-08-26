@@ -211,6 +211,12 @@ async def _auto_play_bots(
                         f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
                     )
 
+        if current != human and human in match.players and match.players[human].user_id != 0:
+            msg_self = f"{coord_str} - {' '.join(parts_self)}"
+            if next_player == human:
+                msg_self += ' Ваш ход.'
+            await router_module._send_state(context, match, human, msg_self)
+
         storage.save_match(match)
         next_label = match.players.get(next_player)
         next_name = getattr(next_label, 'name', '') or next_player
