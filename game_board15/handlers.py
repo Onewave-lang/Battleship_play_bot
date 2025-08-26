@@ -146,6 +146,9 @@ async def _auto_play_bots(
             continue
 
         current = match.turn
+        # find next untried cell starting from current index
+        while idx < len(coords) and match.history[coords[idx][0]][coords[idx][1]] != 0:
+            idx += 1
         if idx >= len(coords):
             break
         coord = coords[idx]
