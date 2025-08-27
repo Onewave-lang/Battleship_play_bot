@@ -102,10 +102,14 @@ async def _auto_play_bots(
                 and player_key != human
             ):
                 try:
-                    await context.bot.send_message(
+                    msg = await context.bot.send_message(
                         human_player.chat_id,
                         f"Не удалось отправить обновление игроку {player_key}",
                     )
+                    msgs = match.messages.setdefault(human, {})
+                    hist = msgs.setdefault("text_history", [])
+                    hist.append(msg.message_id)
+                    msgs["text"] = msg.message_id
                 except Exception:
                     logger.exception(
                         "Failed to notify human about state send failure"

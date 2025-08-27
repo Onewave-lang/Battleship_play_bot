@@ -14,13 +14,13 @@ class DummyBot:
         self.msg_id = 1
 
     async def send_message(self, chat_id, *args, **kwargs):
-        kind = 'board' if 'reply_markup' in kwargs else 'text'
+        kind = 'board_send' if 'reply_markup' in kwargs else 'text_send'
         self.logs.setdefault(chat_id, []).append(kind)
         self.msg_id += 1
         return SimpleNamespace(message_id=self.msg_id)
 
     async def edit_message_text(self, chat_id, message_id, text, **kwargs):
-        kind = 'board' if 'reply_markup' in kwargs else 'text'
+        kind = 'board_edit' if 'reply_markup' in kwargs else 'text_edit'
         self.logs.setdefault(chat_id, []).append(kind)
 
     async def delete_message(self, *args, **kwargs):
@@ -74,6 +74,6 @@ def test_router_message_order(tmp_path, monkeypatch):
 
     asyncio.run(play_moves())
 
-    expected = ['board', 'text', 'board', 'text']
+    expected = ['board_send', 'text_send', 'board_edit', 'text_edit']
     assert bot.logs[1] == expected
     assert bot.logs[2] == expected

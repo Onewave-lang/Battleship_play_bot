@@ -30,12 +30,12 @@ class DummyBot:
         self.logs.setdefault(chat_id, []).append('photo')
 
     async def send_message(self, chat_id, *args, **kwargs):
-        self.logs.setdefault(chat_id, []).append('text')
+        self.logs.setdefault(chat_id, []).append('text_send')
         self.msg_id += 1
         return SimpleNamespace(message_id=self.msg_id)
 
     async def edit_message_text(self, chat_id, message_id, text, **kwargs):
-        self.logs.setdefault(chat_id, []).append('text')
+        self.logs.setdefault(chat_id, []).append('text_edit')
 
     async def delete_message(self, *args, **kwargs):
         pass
@@ -94,7 +94,7 @@ def test_board15_message_order(tmp_path, monkeypatch):
 
     asyncio.run(play_moves())
 
-    expected = ['photo', 'photo', 'text', 'photo', 'photo', 'text']
+    expected = ['photo', 'photo', 'text_send', 'photo', 'photo', 'text_send']
     assert bot.logs[1] == expected
     assert bot.logs[2] == expected
     assert bot.logs[3] == expected
