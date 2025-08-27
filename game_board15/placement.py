@@ -135,3 +135,24 @@ def random_board(global_mask: List[List[int]] | None = None) -> Board15:
                     return board
         # if placement failed for the player, try again from scratch
     raise RuntimeError("Failed to place fleet after several attempts")
+
+def random_board_global(global_mask: List[List[int]]) -> Board15:
+    """Place a fleet avoiding and updating a shared ``global_mask``.
+
+    ``global_mask`` uses ``1`` to mark cells that are occupied or adjacent to
+    existing ships.  The mask is updated in-place with the new fleet's cells
+    and contour so that subsequent calls will avoid those areas.
+    """
+    base_mask = [row[:] for row in global_mask]
+    for _ in range(GLOBAL_RESTART_LIMIT):
+        for _ in range(PLAYER_RETRY_LIMIT):
+            board = Board15()
+            mask = [row[:] for row in base_mask]
+            if _place_fleet(board, mask, base_mask):
+                if board.grid[0][0] == 0:
+                    for r in range(BOARD_SIZE):
+                        for c in range(BOARD_SIZE):
+                            global_mask[r][c] = mask[r][c]
+                    return board
+        # if placement failed for the player, try again from scratch
+    raise RuntimeError("Failed to place fleet after several attempts")

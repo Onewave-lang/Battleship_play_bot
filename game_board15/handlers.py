@@ -280,16 +280,9 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     # adjacent) and update it after each fleet is generated.
     mask = [[0] * 15 for _ in range(15)]
     for key in ('A', 'B', 'C'):
-        board = placement.random_board(mask)
+        board = placement.random_board_global(mask)
         match.players[key].ready = True
         match.boards[key] = board
-        for ship in board.ships:
-            for r, c in ship.cells:
-                for dr in (-1, 0, 1):
-                    for dc in (-1, 0, 1):
-                        nr, nc = r + dr, c + dc
-                        if 0 <= nr < 15 and 0 <= nc < 15:
-                            mask[nr][nc] = 1
     storage.save_match(match)
     state = Board15State(chat_id=update.effective_chat.id)
     merged = [row[:] for row in match.history]

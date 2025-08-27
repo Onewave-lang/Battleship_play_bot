@@ -25,7 +25,7 @@ def test_three_player_match(monkeypatch):
             make_board((13, 13)),  # B
             make_board((12, 12)),  # C
         ])
-        monkeypatch.setattr(handlers.placement, "random_board", lambda mask=None: next(boards))
+        monkeypatch.setattr(handlers.placement, "random_board_global", lambda mask: next(boards))
 
         match = Match15.new(1, 100, "Tester")
         monkeypatch.setattr(storage, "create_match", lambda uid, cid, name: match)

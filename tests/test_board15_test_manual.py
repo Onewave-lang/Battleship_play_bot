@@ -25,7 +25,7 @@ def test_board15_test_manual(monkeypatch):
             make_board((0, 0)),    # B
             make_board((0, 1)),    # C
         ])
-        monkeypatch.setattr(handlers.placement, "random_board", lambda *a, **k: next(boards))
+        monkeypatch.setattr(handlers.placement, "random_board_global", lambda mask: next(boards))
 
         # in-memory match handling
         match = Match15.new(1, 100, "Tester")
