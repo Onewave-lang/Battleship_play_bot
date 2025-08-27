@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from game_board15 import router, storage
-from game_board15.models import Match15, Player, Ship
+from game_board15.models import Match15, Player, Ship, Board15
 
 
 def test_router_notifies_on_bot_elimination(monkeypatch):
@@ -12,10 +12,13 @@ def test_router_notifies_on_bot_elimination(monkeypatch):
         match = Match15.new(1, 1, 'A')
         match.players['B'] = Player(user_id=0, chat_id=1, name='B')
         match.status = 'playing'
+        match.board = Board15()
+        match.cell_owner = [[None] * 15 for _ in range(15)]
         ship = Ship(cells=[(0, 0)])
-        match.boards['B'].ships = [ship]
-        match.boards['B'].grid[0][0] = 1
-        match.boards['B'].alive_cells = 1
+        match.board.ships = [ship]
+        match.board.grid[0][0] = 1
+        match.cell_owner[0][0] = 'B'
+        match.alive = {'B': 1}
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
@@ -27,12 +30,12 @@ def test_router_notifies_on_bot_elimination(monkeypatch):
         monkeypatch.setattr(router.parser, 'format_coord', lambda coord: 'a1')
         monkeypatch.setattr(router, '_phrase_or_joke', lambda m, pk, ph: '')
 
-        def fake_apply_shot(board, coord):
-            board.alive_cells = 0
+        def fake_apply_shot(*args, **kwargs):
+            match.alive['B'] = 0
             return router.battle.KILL
 
         monkeypatch.setattr(router.battle, 'apply_shot', fake_apply_shot)
-        monkeypatch.setattr(router.battle, 'update_history', lambda h, b, c, r: None)
+        monkeypatch.setattr(router.battle, 'update_history', lambda *a, **k: None)
 
         context = SimpleNamespace(
             bot=SimpleNamespace(send_message=AsyncMock()),

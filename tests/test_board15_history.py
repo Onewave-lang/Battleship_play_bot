@@ -4,19 +4,21 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from game_board15 import router
-from game_board15.battle import apply_shot, update_history, KILL
+from game_board15.battle import apply_shot, update_history, KILL, MISS
 from game_board15.models import Board15, Ship
 
 
 def test_update_history_records_kill_and_contour():
     history = [[0] * 15 for _ in range(15)]
-    boards = {'B': Board15()}
+    board = Board15()
+    cell_owner = [[None] * 15 for _ in range(15)]
     ship = Ship(cells=[(1, 1)])
-    boards['B'].ships = [ship]
-    boards['B'].grid[1][1] = 1
-    res = apply_shot(boards['B'], (1, 1))
+    board.ships = [ship]
+    board.grid[1][1] = 1
+    cell_owner[1][1] = 'B'
+    res = apply_shot(board, (1, 1))
     assert res == KILL
-    update_history(history, boards, (1, 1), {'B': res})
+    update_history(history, board, cell_owner, (1, 1), {'B': res})
     assert history[1][1] == 4
     assert history[0][0] == 5
 
@@ -25,11 +27,13 @@ def test_send_state_uses_history(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
             players={'A': SimpleNamespace(chat_id=1)},
-            boards={'A': Board15()},
+            board=Board15(),
+            cell_owner=[[None] * 15 for _ in range(15)],
             history=[[0] * 15 for _ in range(15)],
             messages={'A': {}},
         )
-        match.boards['A'].grid[2][2] = 1
+        match.board.grid[2][2] = 1
+        match.cell_owner[2][2] = 'A'
         match.history[0][0] = 2
 
         captured = {}
@@ -69,18 +73,20 @@ def test_kill_contour_visible_to_all_players(monkeypatch):
                 'B': SimpleNamespace(chat_id=2),
                 'C': SimpleNamespace(chat_id=3),
             },
-            boards={'A': Board15(), 'B': Board15(), 'C': Board15()},
+            board=Board15(),
+            cell_owner=[[None] * 15 for _ in range(15)],
             history=[[0] * 15 for _ in range(15)],
             messages={'A': {}, 'B': {}, 'C': {}},
         )
         ship = Ship(cells=[(1, 1)])
-        match.boards['A'].ships = [ship]
-        match.boards['A'].grid[1][1] = 1
+        match.board.ships = [ship]
+        match.board.grid[1][1] = 1
+        match.cell_owner[1][1] = 'A'
 
-        res_a = apply_shot(match.boards['A'], (1, 1))
-        res_c = apply_shot(match.boards['C'], (1, 1))
+        res_a = apply_shot(match.board, (1, 1))
+        res_c = MISS
         assert res_a == KILL
-        update_history(match.history, match.boards, (1, 1), {'A': res_a, 'C': res_c})
+        update_history(match.history, match.board, match.cell_owner, (1, 1), {'A': res_a, 'C': res_c})
 
         captured = {}
 
@@ -119,13 +125,15 @@ def test_render_board_shows_cumulative_history(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
             players={'A': SimpleNamespace(chat_id=1)},
-            boards={'A': Board15()},
+            board=Board15(),
+            cell_owner=[[None] * 15 for _ in range(15)],
             history=[[0] * 15 for _ in range(15)],
             messages={'A': {}},
         )
         ship = Ship(cells=[(1, 1)])
-        match.boards['A'].ships = [ship]
-        match.boards['A'].grid[1][1] = 1
+        match.board.ships = [ship]
+        match.board.grid[1][1] = 1
+        match.cell_owner[1][1] = 'A'
 
         captured = []
 
@@ -151,13 +159,13 @@ def test_render_board_shows_cumulative_history(monkeypatch):
         )
 
         # first shot miss
-        res = apply_shot(match.boards['A'], (0, 0))
-        update_history(match.history, match.boards, (0, 0), {'A': res})
+        res = apply_shot(match.board, (0, 0))
+        update_history(match.history, match.board, match.cell_owner, (0, 0), {'A': res})
         await router._send_state(context, match, 'A', 'first')
 
         # second shot kill
-        res = apply_shot(match.boards['A'], (1, 1))
-        update_history(match.history, match.boards, (1, 1), {'A': res})
+        res = apply_shot(match.board, (1, 1))
+        update_history(match.history, match.board, match.cell_owner, (1, 1), {'A': res})
         await router._send_state(context, match, 'A', 'second')
 
         first, second = captured

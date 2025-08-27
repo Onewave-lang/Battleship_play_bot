@@ -52,15 +52,15 @@ def test_board_updates_accumulate(tmp_path, monkeypatch):
     context = SimpleNamespace(bot=bot, bot_data={})
 
     coord1 = (0, 0)
-    res1 = battle.apply_shot(match.boards['B'], coord1)
-    battle.update_history(match.history, match.boards, coord1, {'B': res1})
+    res1 = battle.apply_shot(match.board, coord1)
+    battle.update_history(match.history, match.board, match.cell_owner, coord1, {'B': res1})
     match.shots['A']['last_coord'] = coord1
     asyncio.run(router._send_state(context, match, 'A', 'msg'))
     assert boards[0][0][0] == 2
 
     coord2 = (1, 1)
-    res2 = battle.apply_shot(match.boards['A'], coord2)
-    battle.update_history(match.history, match.boards, coord2, {'A': res2})
+    res2 = battle.apply_shot(match.board, coord2)
+    battle.update_history(match.history, match.board, match.cell_owner, coord2, {'A': res2})
     match.shots['B']['last_coord'] = coord2
     asyncio.run(router._send_state(context, match, 'B', 'msg'))
     assert boards[1][0][0] == 2

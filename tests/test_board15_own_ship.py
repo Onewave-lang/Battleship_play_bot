@@ -13,14 +13,15 @@ def test_router_text_blocks_own_ship(monkeypatch):
         match = Match15.new(1, 1, 'A')
         match.players['B'] = Player(user_id=2, chat_id=2, name='B')
         match.status = 'playing'
-        match.boards['A'].grid[0][0] = 1
+        match.board.grid[0][0] = 1
+        match.cell_owner[0][0] = 'A'
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(router.parser, 'parse_coord', lambda text: (0, 0))
 
         called = {'val': False}
 
-        def fake_apply_shot(board, coord):
+        def fake_apply_shot(*args, **kwargs):
             called['val'] = True
             return router.battle.MISS
 

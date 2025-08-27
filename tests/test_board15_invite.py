@@ -22,7 +22,8 @@ def test_board15_invite_flow(monkeypatch):
         match = SimpleNamespace(
             match_id='m1',
             players={'A': SimpleNamespace(user_id=1, chat_id=1, name='Alice')},
-            boards={'A': SimpleNamespace(grid=[[0] * 15 for _ in range(15)], highlight=[])},
+            board=SimpleNamespace(grid=[[0] * 15 for _ in range(15)], highlight=[]),
+            cell_owner=[[None] * 15 for _ in range(15)],
             messages={},
             history=[[0] * 15 for _ in range(15)],
         )

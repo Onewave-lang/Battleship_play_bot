@@ -83,11 +83,13 @@ def test_auto_play_bots_skips_own_ship(monkeypatch):
         match.players['B'] = Player(user_id=0, chat_id=0, name='B')
         match.status = 'playing'
         match.turn = 'B'
-        match.boards['B'].grid[0][0] = 1
+        match.board.grid[0][0] = 1
+        match.cell_owner[0][0] = 'B'
 
         recorded = {}
 
-        def fake_apply_shot(board, coord):
+        def fake_apply_shot(*args, **kwargs):
+            coord = args[1] if len(args) > 1 else kwargs.get('coord')
             recorded['coord'] = coord
             raise RuntimeError('stop')
 

@@ -24,17 +24,15 @@ def test_router_auto_sends_boards(monkeypatch):
                 'A': SimpleNamespace(user_id=1, chat_id=10, ready=True, name='Alice'),
                 'B': SimpleNamespace(user_id=2, chat_id=20, ready=False, name='Bob'),
             },
-            boards={
-                'A': SimpleNamespace(grid=[[0] * 15 for _ in range(15)], highlight=[]),
-                'B': SimpleNamespace(grid=[[0] * 15 for _ in range(15)], highlight=[]),
-            },
+            board=SimpleNamespace(grid=[[0] * 15 for _ in range(15)], highlight=[]),
+            cell_owner=[[None] * 15 for _ in range(15)],
             turn='A',
             messages={},
             history=[[0] * 15 for _ in range(15)],
         )
 
         def fake_save_board(m, key, board=None):
-            m.boards[key] = board or Board15(grid=[[0] * 15 for _ in range(15)])
+            m.board = board or Board15(grid=[[0] * 15 for _ in range(15)])
             m.players[key].ready = True
             if all(p.ready for p in m.players.values()):
                 m.status = 'playing'
@@ -77,14 +75,6 @@ def test_router_auto_sends_boards(monkeypatch):
 
 def test_router_notifies_other_players_on_hit(monkeypatch):
     async def run_test():
-        board_self = Board15()
-        board_b = Board15()
-        board_c = Board15()
-        ship = Ship(cells=[(0, 0)])
-        board_b.ships = [ship]
-        board_b.grid[0][0] = 1
-        board_b.alive_cells = 1
-        board_c.alive_cells = 1
         match = SimpleNamespace(
             status='playing',
             players={
@@ -92,12 +82,17 @@ def test_router_notifies_other_players_on_hit(monkeypatch):
                 'B': SimpleNamespace(user_id=2, chat_id=20, name='B'),
                 'C': SimpleNamespace(user_id=3, chat_id=30, name='C'),
             },
-            boards={'A': board_self, 'B': board_b, 'C': board_c},
+            board=Board15(),
+            cell_owner=[[None] * 15 for _ in range(15)],
             turn='A',
             shots={'A': {'move_count': 0, 'joke_start': 10}, 'B': {}, 'C': {}},
             messages={'A': {}, 'B': {}, 'C': {}},
             history=[[0] * 15 for _ in range(15)],
         )
+        ship = Ship(cells=[(0, 0)])
+        match.board.ships = [ship]
+        match.board.grid[0][0] = 1
+        match.cell_owner[0][0] = 'B'
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
@@ -105,8 +100,10 @@ def test_router_notifies_other_players_on_hit(monkeypatch):
         monkeypatch.setattr(router.parser, 'format_coord', lambda coord: 'a1')
         monkeypatch.setattr(router, '_phrase_or_joke', lambda m, pk, ph: '')
 
-        def fake_apply_shot(board, coord):
-            return router.battle.HIT if board is board_b else router.battle.MISS
+        def fake_apply_shot(*args, **kwargs):
+            coord = args[1] if len(args) > 1 else kwargs.get('coord')
+            r, c = coord
+            return router.battle.HIT if match.cell_owner[r][c] == 'B' else router.battle.MISS
 
         monkeypatch.setattr(router.battle, 'apply_shot', fake_apply_shot)
 
@@ -140,7 +137,8 @@ def test_router_notifies_next_player_on_miss(monkeypatch):
                 'B': SimpleNamespace(user_id=2, chat_id=20, name='B'),
                 'C': SimpleNamespace(user_id=3, chat_id=30, name='C'),
             },
-            boards={'A': Board15(), 'B': Board15(), 'C': Board15()},
+            board=Board15(),
+            cell_owner=[[None] * 15 for _ in range(15)],
             turn='A',
             shots={'A': {'move_count': 0, 'joke_start': 10}, 'B': {}, 'C': {}},
             messages={'A': {}, 'B': {}, 'C': {}},
@@ -186,7 +184,8 @@ def test_router_move_sends_player_board(monkeypatch):
                 'A': SimpleNamespace(user_id=1, chat_id=10, name='Alice'),
                 'B': SimpleNamespace(user_id=2, chat_id=20, name='Bob'),
             },
-            boards={'A': Board15(), 'B': Board15()},
+            board=Board15(),
+            cell_owner=[[None] * 15 for _ in range(15)],
             turn='A',
             shots={'A': {}, 'B': {}},
             messages={'A': {'board': 1}, 'B': {'board': 3}},
@@ -242,11 +241,8 @@ def test_router_uses_player_names(monkeypatch):
                 'B': SimpleNamespace(user_id=2, chat_id=20, name='Bob'),
                 'C': SimpleNamespace(user_id=3, chat_id=30, name='Carl'),
             },
-            boards={
-                'A': Board15(),
-                'B': Board15(),
-                'C': Board15(),
-            },
+            board=Board15(),
+            cell_owner=[[None] * 15 for _ in range(15)],
             turn='A',
             shots={'A': {}, 'B': {}, 'C': {}},
             messages={'A': {}},
@@ -281,19 +277,19 @@ def test_router_uses_player_names(monkeypatch):
 
 def test_router_repeat_shot(monkeypatch):
     async def run_test():
-        board_enemy = Board15()
-        board_enemy.grid[0][0] = 2  # already opened
         match = SimpleNamespace(
             status='playing',
             players={'A': SimpleNamespace(user_id=1, chat_id=10),
                      'B': SimpleNamespace(user_id=2, chat_id=20)},
-            boards={'A': Board15(), 'B': board_enemy},
+            board=Board15(),
+            cell_owner=[[None] * 15 for _ in range(15)],
             turn='A',
             shots={'A': {'move_count': 0, 'joke_start': 10},
                    'B': {'move_count': 0, 'joke_start': 10}},
             messages={},
             history=[[0] * 15 for _ in range(15)],
         )
+        match.board.grid[0][0] = 2  # already opened
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         save_match = Mock()
@@ -330,23 +326,21 @@ def test_router_skips_eliminated_players(monkeypatch):
                 'B': SimpleNamespace(user_id=2, chat_id=20),
                 'C': SimpleNamespace(user_id=3, chat_id=30),
             },
-            boards={'A': Board15(), 'B': Board15(), 'C': Board15()},
+            board=Board15(),
+            cell_owner=[[None] * 15 for _ in range(15)],
             turn='A',
             shots={'A': {}, 'B': {}, 'C': {}},
             messages={'A': {}},
             history=[[0] * 15 for _ in range(15)],
+            alive={'A': 20, 'B': 0, 'C': 20},
         )
-        match.boards['B'].alive_cells = 0
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
         monkeypatch.setattr(router.parser, 'parse_coord', lambda text: (0, 0))
         monkeypatch.setattr(router.parser, 'format_coord', lambda coord: 'a1')
 
-        calls = []
-
-        def fake_apply_shot(board, coord):
-            calls.append(board)
+        def fake_apply_shot(*args, **kwargs):
             return router.battle.MISS
 
         monkeypatch.setattr(router.battle, 'apply_shot', fake_apply_shot)
@@ -365,7 +359,6 @@ def test_router_skips_eliminated_players(monkeypatch):
 
         await router.router_text(update, context)
 
-        assert calls == [match.boards['C']]
         assert all(call.args[0] != 20 for call in send_message.call_args_list)
         assert match.turn == 'C'
 
