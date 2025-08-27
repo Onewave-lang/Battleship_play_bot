@@ -42,6 +42,7 @@ def test_send_state_sends_board_without_keyboard(monkeypatch):
         assert bot.delete_message.await_count == 0
         assert match.messages['A']['board'] == 50
         assert match.messages['A']['text'] == 60
+        assert match.messages['A']['text_history'] == [60]
 
     asyncio.run(run_test())
 
@@ -62,7 +63,7 @@ def test_send_state_edits_existing_messages(monkeypatch):
             edit_message_media=AsyncMock(),
             edit_message_text=AsyncMock(),
             send_photo=AsyncMock(),
-            send_message=AsyncMock(),
+            send_message=AsyncMock(return_value=SimpleNamespace(message_id=31)),
             delete_message=AsyncMock(),
         )
         context = SimpleNamespace(bot=bot, bot_data={}, chat_data={})
@@ -70,12 +71,13 @@ def test_send_state_edits_existing_messages(monkeypatch):
         await router._send_state(context, match, 'A', 'msg')
 
         assert bot.edit_message_media.await_count == 2
-        bot.edit_message_text.assert_awaited_once()
+        bot.edit_message_text.assert_not_called()
         bot.send_photo.assert_not_called()
-        bot.send_message.assert_not_called()
+        bot.send_message.assert_awaited_once()
         bot.delete_message.assert_not_called()
         assert match.messages['A']['board'] == 10
-        assert match.messages['A']['text'] == 30
+        assert match.messages['A']['text'] == 31
+        assert match.messages['A']['text_history'] == [31]
 
     asyncio.run(run_test())
 
@@ -95,7 +97,7 @@ def test_send_state_recreates_messages_on_edit_failure(monkeypatch):
 
         bot = SimpleNamespace(
             edit_message_media=AsyncMock(side_effect=[None, Exception()]),
-            edit_message_text=AsyncMock(side_effect=Exception()),
+            edit_message_text=AsyncMock(),
             send_photo=AsyncMock(return_value=SimpleNamespace(message_id=40)),
             send_message=AsyncMock(return_value=SimpleNamespace(message_id=41)),
             delete_message=AsyncMock(),
@@ -105,11 +107,12 @@ def test_send_state_recreates_messages_on_edit_failure(monkeypatch):
         await router._send_state(context, match, 'A', 'msg')
 
         assert bot.edit_message_media.await_count == 2
-        bot.edit_message_text.assert_awaited_once()
-        assert bot.delete_message.await_args_list == [call(1, 10), call(1, 30)]
+        bot.edit_message_text.assert_not_called()
+        assert bot.delete_message.await_args_list == [call(1, 10)]
         bot.send_photo.assert_awaited_once()
         bot.send_message.assert_awaited_once()
         assert match.messages['A']['board'] == 40
         assert match.messages['A']['text'] == 41
+        assert match.messages['A']['text_history'] == [41]
 
     asyncio.run(run_test())

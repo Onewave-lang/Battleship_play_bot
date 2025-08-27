@@ -61,7 +61,6 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
 
     msgs = match.messages.setdefault(player_key, {})
     board_id = msgs.get("board")
-    text_id = msgs.get("text")
     player_id = msgs.get("player")
 
     # update player's own board with ships
@@ -108,26 +107,16 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
         state.message_id = board_id
     msgs["board"] = board_id
 
-    # update textual result separately
-    if text_id:
-        try:
-            await context.bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=text_id,
-                text=message,
-            )
-        except Exception:
-            logger.exception("Failed to update text message for chat %s", chat_id)
-            try:
-                await context.bot.delete_message(chat_id, text_id)
-            except Exception:
-                pass
-            msg_text = await context.bot.send_message(chat_id, message)
-            text_id = msg_text.message_id
-    else:
+    # always send a new text message and keep history
+    try:
         msg_text = await context.bot.send_message(chat_id, message)
+    except Exception:
+        logger.exception("Failed to send text message for chat %s", chat_id)
+    else:
         text_id = msg_text.message_id
-    msgs["text"] = text_id
+        history = msgs.setdefault("text_history", [])
+        history.append(text_id)
+        msgs["text"] = text_id
 
 
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
