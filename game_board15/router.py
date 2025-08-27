@@ -77,6 +77,7 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
                 await context.bot.delete_message(chat_id, player_id)
             except Exception:
                 pass
+            player_buf.seek(0)
             msg = await context.bot.send_photo(chat_id, player_buf)
             msgs["player"] = msg.message_id
     else:
@@ -98,6 +99,7 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
                 await context.bot.delete_message(chat_id, board_id)
             except Exception:
                 pass
+            buf.seek(0)
             msg = await context.bot.send_photo(chat_id, buf)
             board_id = msg.message_id
             state.message_id = board_id
