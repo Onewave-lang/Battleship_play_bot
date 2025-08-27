@@ -69,6 +69,7 @@ def get_match(match_id: str) -> Match | None:
             alive_cells=b.get('alive_cells', 20),
         )
     match.turn = m.get('turn', 'A')
+    match.history = m.get('history', [[0] * 10 for _ in range(10)])
     match.shots = m.get('shots', match.shots)
     match.messages = m.get('messages', {})
     return match
@@ -126,6 +127,7 @@ def save_board(match: Match, player_key: str, board: Board) -> None:
             current.turn = m_dict.get('turn', 'A')
             current.shots = m_dict.get('shots', current.shots)
             current.messages = m_dict.get('messages', {})
+            current.history = m_dict.get('history', [[0] * 10 for _ in range(10)])
         else:
             current = match
 
@@ -149,6 +151,7 @@ def save_board(match: Match, player_key: str, board: Board) -> None:
                        for k, b in current.boards.items()},
             'shots': current.shots,
             'messages': current.messages,
+            'history': current.history,
         }
         _save_all(data)
 
@@ -158,6 +161,7 @@ def save_board(match: Match, player_key: str, board: Board) -> None:
     match.players = current.players
     match.boards = current.boards
     match.shots = current.shots
+    match.history = current.history
     match.messages = current.messages
 
 
@@ -192,6 +196,7 @@ def save_match(match: Match) -> str | None:
             },
             "shots": match.shots,
             "messages": match.messages,
+            "history": match.history,
         }
         return _save_all(data)
 
