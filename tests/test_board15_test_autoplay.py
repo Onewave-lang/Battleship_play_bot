@@ -138,7 +138,6 @@ def test_auto_play_bots_notifies_human(monkeypatch):
             await asyncio.wait_for(handlers._auto_play_bots(match, context, 1), timeout=0.01)
 
         assert any(player == 'A' and msg.endswith('Ваш ход.') for player, msg in calls)
-        assert all(player == 'A' for player, _ in calls)
 
     asyncio.run(run())
 

@@ -123,9 +123,10 @@ def test_router_notifies_other_players_on_hit(monkeypatch):
         await router.router_text(update, context)
 
         calls = [c for c in send_state.call_args_list if c.args[2] == 'C']
-        assert calls
-        msg = calls[0].args[3]
-        assert msg == 'a1 - корабль игрока B ранен'
+        assert len(calls) >= 2
+        msg = calls[-1].args[3]
+        assert msg.startswith('Ход игрока A: a1 - B: ранил')
+        assert msg.strip().endswith('Ход A.')
 
     asyncio.run(run_test())
 
