@@ -69,8 +69,10 @@ def update_history(
                     if val == 4:
                         history[rr][cc] = 4
                     elif val == 5:
-                        # Mark contour cells as shot-through for everyone.
-                        history[rr][cc] = 5
+                        # Mark contour cells as shot-through for everyone without
+                        # overwriting prior shot information.
+                        if history[rr][cc] == 0:
+                            history[rr][cc] = 5
         history[r][c] = 4
     elif any(res == HIT for res in results.values()):
         history[r][c] = 3

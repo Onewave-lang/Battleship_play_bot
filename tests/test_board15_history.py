@@ -113,3 +113,57 @@ def test_kill_contour_visible_to_all_players(monkeypatch):
         assert captured['C'][0][0] == 5
 
     asyncio.run(run_test())
+
+
+def test_render_board_shows_cumulative_history(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            players={'A': SimpleNamespace(chat_id=1)},
+            boards={'A': Board15()},
+            history=[[0] * 15 for _ in range(15)],
+            messages={'A': {}},
+        )
+        ship = Ship(cells=[(1, 1)])
+        match.boards['A'].ships = [ship]
+        match.boards['A'].grid[1][1] = 1
+
+        captured = []
+
+        def fake_render_board(state, player_key=None):
+            captured.append([row[:] for row in state.board])
+            return BytesIO(b'img')
+
+        monkeypatch.setattr(router, 'render_board', fake_render_board)
+        monkeypatch.setattr(
+            router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own')
+        )
+        monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
+
+        context = SimpleNamespace(
+            bot=SimpleNamespace(
+                edit_message_media=AsyncMock(),
+                send_photo=AsyncMock(return_value=SimpleNamespace(message_id=1)),
+                edit_message_text=AsyncMock(),
+                send_message=AsyncMock(return_value=SimpleNamespace(message_id=2)),
+            ),
+            bot_data={},
+            chat_data={},
+        )
+
+        # first shot miss
+        res = apply_shot(match.boards['A'], (0, 0))
+        update_history(match.history, match.boards, (0, 0), {'A': res})
+        await router._send_state(context, match, 'A', 'first')
+
+        # second shot kill
+        res = apply_shot(match.boards['A'], (1, 1))
+        update_history(match.history, match.boards, (1, 1), {'A': res})
+        await router._send_state(context, match, 'A', 'second')
+
+        first, second = captured
+        assert first[0][0] == 2
+        assert first[1][1] == 1
+        assert second[0][0] == 2
+        assert second[1][1] == 4
+
+    asyncio.run(run_test())

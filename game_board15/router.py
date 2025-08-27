@@ -1,6 +1,7 @@
 from __future__ import annotations
 import logging
 import random
+import copy
 from telegram import Update, InputMediaPhoto
 from telegram.ext import ContextTypes
 
@@ -34,7 +35,7 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
         states[chat_id] = state
 
     # prepare board images
-    merged = [row[:] for row in match.history]
+    merged = copy.deepcopy(match.history)
     own_grid = match.boards[player_key].grid
     for r in range(15):
         for c in range(15):
@@ -128,8 +129,6 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
         text_id = msg_text.message_id
     msgs["text"] = text_id
 
-    storage.save_match(match)
-
 
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -214,16 +213,20 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if repeat:
         await update.message.reply_text('Эта клетка уже открыта')
         return
+    coord_str = parser.format_coord(coord)
+    before_history = [row[:] for row in match.history]
     battle.update_history(match.history, match.boards, coord, results)
+    if match.history == before_history:
+        logger.warning("History unchanged after shot %s", coord_str)
+    if all(all(cell == 0 for cell in row) for row in match.history):
+        logger.warning("History is empty after shot %s", coord_str)
     match.shots[player_key]["last_coord"] = coord
     for k in match.shots:
         shots = match.shots[k]
         shots.setdefault('move_count', 0)
         shots.setdefault('joke_start', random.randint(1, 10))
         shots['move_count'] += 1
-    storage.save_match(match)
 
-    coord_str = parser.format_coord(coord)
     parts_self: list[str] = []
     parts_others: list[str] = []
     victims: list[str] = []
@@ -278,12 +281,10 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         idx = order.index(player_key)
         next_player = order[(idx + 1) % len(order)]
         match.turn = next_player
-        storage.save_match(match)
         if match.players[next_player].user_id != 0:
             await _send_state(context, match, next_player, 'Ваш ход.')
     else:
         match.turn = player_key
-        storage.save_match(match)
     others = [k for k in others if k != next_player]
     if others:
         if parts_others:
@@ -298,6 +299,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_name}.")
     view_key = match.turn if single_user else player_key
     await _send_state(context, match, view_key, result_self)
+
+    storage.save_match(match)
 
     alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0]
     if len(alive_players) == 1:
