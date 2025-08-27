@@ -279,7 +279,10 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
             enemy_msgs[enemy] = f"ваш корабль уничтожен. {phrase_enemy}"
             targets.append(enemy)
-            if match.boards[enemy].alive_cells == 0:
+            if (
+                match.boards[enemy].alive_cells == 0
+                and match.players[enemy].user_id != 0
+            ):
                 await context.bot.send_message(
                     match.players[enemy].chat_id,
                     f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
@@ -305,13 +308,14 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     next_name = getattr(next_obj, 'name', '') or next_player
     if enemy_msgs:
         for enemy, msg_body_enemy in enemy_msgs.items():
-            next_phrase = ' Ваш ход.' if match.turn == enemy else f" Ход {next_name}."
-            await _send_state(
-                context,
-                match,
-                enemy,
-                f"Ход игрока {player_label}: {coord_str} - {msg_body_enemy}{next_phrase}",
-            )
+            if match.players[enemy].user_id != 0:
+                next_phrase = ' Ваш ход.' if match.turn == enemy else f" Ход {next_name}."
+                await _send_state(
+                    context,
+                    match,
+                    enemy,
+                    f"Ход игрока {player_label}: {coord_str} - {msg_body_enemy}{next_phrase}",
+                )
     if others:
         msg_body = ' '.join(parts_self) if parts_self else 'мимо'
         for other in others:
@@ -335,7 +339,13 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if len(alive_players) == 1:
         winner = alive_players[0]
         storage.finish(match, winner)
-        await context.bot.send_message(match.players[winner].chat_id, 'Вы победили!')
+        if match.players[winner].user_id != 0:
+            await context.bot.send_message(
+                match.players[winner].chat_id, 'Вы победили!'
+            )
         for k in match.players:
-            if k != winner:
-                await context.bot.send_message(match.players[k].chat_id, 'Игра окончена. Победил соперник.')
+            if k != winner and match.players[k].user_id != 0:
+                await context.bot.send_message(
+                    match.players[k].chat_id,
+                    'Игра окончена. Победил соперник.',
+                )
