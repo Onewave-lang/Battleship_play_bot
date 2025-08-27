@@ -50,7 +50,13 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
             last = tuple(last)
         state.highlight.append(last)
     buf = render_board(state, player_key)
+    if buf.getbuffer().nbytes == 0:
+        logger.warning("render_board returned empty buffer for chat %s", chat_id)
+        return
     player_buf = render_player_board(match.boards[player_key], player_key)
+    if player_buf.getbuffer().nbytes == 0:
+        logger.warning("render_player_board returned empty buffer for chat %s", chat_id)
+        return
 
     msgs = match.messages.setdefault(player_key, {})
     board_id = msgs.get("board")
