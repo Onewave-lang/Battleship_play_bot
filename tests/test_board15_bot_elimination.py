@@ -21,7 +21,8 @@ def test_router_notifies_on_bot_elimination(monkeypatch):
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
         monkeypatch.setattr(storage, 'finish', lambda m, w: None)
 
-        monkeypatch.setattr(router, '_send_state', AsyncMock())
+        send_state = AsyncMock()
+        monkeypatch.setattr(router, '_send_state', send_state)
         monkeypatch.setattr(router.parser, 'parse_coord', lambda text: (0, 0))
         monkeypatch.setattr(router.parser, 'format_coord', lambda coord: 'a1')
         monkeypatch.setattr(router, '_phrase_or_joke', lambda m, pk, ph: '')
@@ -33,7 +34,11 @@ def test_router_notifies_on_bot_elimination(monkeypatch):
         monkeypatch.setattr(router.battle, 'apply_shot', fake_apply_shot)
         monkeypatch.setattr(router.battle, 'update_history', lambda h, b, c, r: None)
 
-        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={}, chat_data={})
+        context = SimpleNamespace(
+            bot=SimpleNamespace(send_message=AsyncMock()),
+            bot_data={},
+            chat_data={},
+        )
         update = SimpleNamespace(
             message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
@@ -42,7 +47,8 @@ def test_router_notifies_on_bot_elimination(monkeypatch):
 
         await router.router_text(update, context)
 
-        calls = [(c.args[0], c.args[1]) for c in context.bot.send_message.call_args_list]
-        assert (1, '⛔ Игрок B выбыл (флот уничтожен)') in calls
+        assert context.bot.send_message.call_count == 0
+        calls = [(c.args[2], c.args[3]) for c in send_state.call_args_list]
+        assert any(player == 'A' and 'B: уничтожен!' in msg for player, msg in calls)
 
     asyncio.run(run())

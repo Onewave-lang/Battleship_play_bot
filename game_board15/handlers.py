@@ -143,9 +143,12 @@ async def _auto_play_bots(
         if len(alive) == 1:
             winner = alive[0]
             storage.finish(match, winner)
-            await _safe_send_message(match.players[winner].chat_id, 'Вы победили!')
+            if match.players[winner].user_id != 0:
+                await _safe_send_message(
+                    match.players[winner].chat_id, 'Вы победили!'
+                )
             for k in match.players:
-                if k != winner:
+                if k != winner and match.players[k].user_id != 0:
                     await _safe_send_message(
                         match.players[k].chat_id,
                         'Игра окончена. Победил соперник.',
@@ -215,7 +218,7 @@ async def _auto_play_bots(
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
                 parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
                 enemy_msgs[enemy] = f"ваш корабль уничтожен. {phrase_enemy}"
-                if match.boards[enemy].alive_cells == 0:
+                if match.boards[enemy].alive_cells == 0 and match.players[enemy].user_id != 0:
                     enemy_label = getattr(match.players.get(enemy), 'name', '') or enemy
                     await _safe_send_message(
                         match.players[enemy].chat_id,
@@ -226,11 +229,12 @@ async def _auto_play_bots(
         next_name = getattr(next_label, 'name', '') or next_player
         if enemy_msgs:
             for enemy, msg_body in enemy_msgs.items():
-                next_phrase = ' Ваш ход.' if next_player == enemy else f" Ход {next_name}."
-                await _safe_send_state(
-                    enemy,
-                    f"Ход игрока {player_label}: {coord_str} - {msg_body}{next_phrase}",
-                )
+                if match.players[enemy].user_id != 0:
+                    next_phrase = ' Ваш ход.' if next_player == enemy else f" Ход {next_name}."
+                    await _safe_send_state(
+                        enemy,
+                        f"Ход игрока {player_label}: {coord_str} - {msg_body}{next_phrase}",
+                    )
 
         if current != human and human in match.players and match.players[human].user_id != 0:
             msg_self = f"Ход игрока {player_label}: {coord_str} - {' '.join(parts_self)}"
@@ -248,9 +252,12 @@ async def _auto_play_bots(
         if len(alive_players) == 1:
             winner = alive_players[0]
             storage.finish(match, winner)
-            await _safe_send_message(match.players[winner].chat_id, 'Вы победили!')
+            if match.players[winner].user_id != 0:
+                await _safe_send_message(
+                    match.players[winner].chat_id, 'Вы победили!'
+                )
             for k in match.players:
-                if k != winner:
+                if k != winner and match.players[k].user_id != 0:
                     await _safe_send_message(
                         match.players[k].chat_id,
                         'Игра окончена. Победил соперник.',
