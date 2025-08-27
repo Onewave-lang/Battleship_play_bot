@@ -38,7 +38,10 @@ class Match15:
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     players: Dict[str, Player] = field(default_factory=dict)
     turn: str = "A"
-    boards: Dict[str, Board15] = field(default_factory=dict)
+    # single board containing ships of all players
+    board: Board15 = field(default_factory=Board15)
+    # mapping from ship cell to the owning player key
+    cell_owner: Dict[Coord, str] = field(default_factory=dict)
     # global shot history for rendering target board
     history: List[List[int]] = field(default_factory=lambda: [[0] * 15 for _ in range(15)])
     shots: Dict[str, Dict[str, object]] = field(
@@ -60,6 +63,5 @@ class Match15:
         match_id = uuid.uuid4().hex
         match = Match15(match_id=match_id)
         match.players["A"] = Player(user_id=a_user_id, chat_id=a_chat_id, name=a_name)
-        for k in ("A", "B", "C"):
-            match.boards[k] = Board15()
+        # board and cell_owner are initialised by default factories
         return match

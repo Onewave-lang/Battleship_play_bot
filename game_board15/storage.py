@@ -51,10 +51,20 @@ def get_match(match_id: str) -> Match15 | None:
     match = Match15(match_id=m['match_id'], status=m['status'], created_at=m['created_at'])
     match.turn = m.get('turn', 'A')
     match.players = {k: Player(**p) for k, p in m.get('players', {}).items()}
-    match.boards = {}
-    for key, b in m.get('boards', {}).items():
-        ships = [Ship(cells=[tuple(cell) for cell in s.get('cells', [])], alive=s.get('alive', True)) for s in b.get('ships', [])]
-        match.boards[key] = Board15(grid=b.get('grid', [[0]*15 for _ in range(15)]), ships=ships, alive_cells=b.get('alive_cells', 20))
+    b = m.get('board', {})
+    ships = [
+        Ship(cells=[tuple(cell) for cell in s.get('cells', [])], alive=s.get('alive', True))
+        for s in b.get('ships', [])
+    ]
+    match.board = Board15(
+        grid=b.get('grid', [[0] * 15 for _ in range(15)]),
+        ships=ships,
+        alive_cells=b.get('alive_cells', 20),
+    )
+    match.cell_owner = {
+        tuple(map(int, key.split(','))): val
+        for key, val in m.get('cell_owner', {}).items()
+    }
     match.history = m.get('history', [[0] * 15 for _ in range(15)])
     match.shots = m.get('shots', match.shots)
     match.messages = m.get('messages', {})
@@ -84,20 +94,16 @@ def save_board(match: Match15,
                board: Board15 | None = None) -> None:
     """Save player's board and update match state safely.
 
-    Similar to the two-player version, we need to avoid race conditions when
-    several players send the ``авто`` command simultaneously.  The previous
-    implementation called :func:`get_match` while holding the global lock,
-    which attempted to acquire the same lock again and caused a deadlock.
-    Instead we reconstruct the latest state manually based on the data stored
-    on disk.
+    Ships from all players are stored on a single board.  Each occupied cell is
+    recorded in ``cell_owner`` to track ownership.  When a player submits a
+    board, any previous ships from that player are removed before the new ones
+    are added.
     """
 
     with _lock:
         data = _load_all()
         m_dict = data.get(match.match_id)
         if m_dict:
-            # Reconstruct current match state without calling get_match (to
-            # avoid re-acquiring the lock)
             current = Match15(
                 match_id=m_dict['match_id'],
                 status=m_dict['status'],
@@ -105,18 +111,21 @@ def save_board(match: Match15,
             )
             current.turn = m_dict.get('turn', 'A')
             current.players = {k: Player(**p) for k, p in m_dict.get('players', {}).items()}
-            current.boards = {}
-            for key, b in m_dict.get('boards', {}).items():
-                ships = [
-                    Ship(cells=[tuple(cell) for cell in s.get('cells', [])],
-                         alive=s.get('alive', True))
-                    for s in b.get('ships', [])
-                ]
-                current.boards[key] = Board15(
-                    grid=b.get('grid', [[0] * 15 for _ in range(15)]),
-                    ships=ships,
-                    alive_cells=b.get('alive_cells', 20),
-                )
+            b = m_dict.get('board', {})
+            ships = [
+                Ship(cells=[tuple(cell) for cell in s.get('cells', [])],
+                     alive=s.get('alive', True))
+                for s in b.get('ships', [])
+            ]
+            current.board = Board15(
+                grid=b.get('grid', [[0] * 15 for _ in range(15)]),
+                ships=ships,
+                alive_cells=b.get('alive_cells', 20),
+            )
+            current.cell_owner = {
+                tuple(map(int, key.split(','))): val
+                for key, val in m_dict.get('cell_owner', {}).items()
+            }
             current.shots = m_dict.get('shots', current.shots)
             current.messages = m_dict.get('messages', {})
             current.history = m_dict.get('history', [[0] * 15 for _ in range(15)])
@@ -125,22 +134,36 @@ def save_board(match: Match15,
 
         # build a mask of cells occupied or surrounded by other fleets
         mask = [[0] * 15 for _ in range(15)]
-        for k, b in current.boards.items():
-            if k == player_key:
+        for (r, c), owner in current.cell_owner.items():
+            if owner == player_key:
                 continue
-            for ship in b.ships:
-                for r, c in ship.cells:
-                    for dr in (-1, 0, 1):
-                        for dc in (-1, 0, 1):
-                            nr, nc = r + dr, c + dc
-                            if 0 <= nr < 15 and 0 <= nc < 15:
-                                mask[nr][nc] = 1
+            for dr in (-1, 0, 1):
+                for dc in (-1, 0, 1):
+                    nr, nc = r + dr, c + dc
+                    if 0 <= nr < 15 and 0 <= nc < 15:
+                        mask[nr][nc] = 1
 
         # generate board if not provided, taking into account the mask
         if board is None:
             board = placement.random_board(mask)
 
-        current.boards[player_key] = board
+        # remove previous ships of this player
+        player_cells = [cell for cell, owner in current.cell_owner.items() if owner == player_key]
+        for r, c in player_cells:
+            current.board.grid[r][c] = 0
+            del current.cell_owner[(r, c)]
+        if player_cells:
+            current.board.ships = [s for s in current.board.ships if not any(cell in player_cells for cell in s.cells)]
+
+        # add new ships
+        for ship in board.ships:
+            current.board.ships.append(ship)
+            for r, c in ship.cells:
+                current.board.grid[r][c] = 1
+                current.cell_owner[(r, c)] = player_key
+
+        current.board.alive_cells = len(current.cell_owner)
+
         current.players[player_key].ready = True
         if (
             len(current.players) == 3
@@ -157,14 +180,12 @@ def save_board(match: Match15,
             'created_at': current.created_at,
             'players': {k: vars(p) for k, p in current.players.items()},
             'turn': current.turn,
-            'boards': {
-                k: {
-                    'grid': b.grid,
-                    'ships': [{'cells': s.cells, 'alive': s.alive} for s in b.ships],
-                    'alive_cells': b.alive_cells,
-                }
-                for k, b in current.boards.items()
+            'board': {
+                'grid': current.board.grid,
+                'ships': [{'cells': s.cells, 'alive': s.alive} for s in current.board.ships],
+                'alive_cells': current.board.alive_cells,
             },
+            'cell_owner': {f"{r},{c}": o for (r, c), o in current.cell_owner.items()},
             'shots': current.shots,
             'messages': current.messages,
             'history': current.history,
@@ -175,7 +196,8 @@ def save_board(match: Match15,
     match.status = current.status
     match.turn = current.turn
     match.players = current.players
-    match.boards = current.boards
+    match.board = current.board
+    match.cell_owner = current.cell_owner
     match.shots = current.shots
     match.history = current.history
     match.messages = current.messages
@@ -190,7 +212,12 @@ def save_match(match: Match15) -> str | None:
             'created_at': match.created_at,
             'players': {k: vars(p) for k, p in match.players.items()},
             'turn': match.turn,
-            'boards': {k: {'grid': b.grid, 'ships': [{'cells': s.cells, 'alive': s.alive} for s in b.ships], 'alive_cells': b.alive_cells} for k, b in match.boards.items()},
+            'board': {
+                'grid': match.board.grid,
+                'ships': [{'cells': s.cells, 'alive': s.alive} for s in match.board.ships],
+                'alive_cells': match.board.alive_cells,
+            },
+            'cell_owner': {f"{r},{c}": o for (r, c), o in match.cell_owner.items()},
             'shots': match.shots,
             'messages': match.messages,
             'history': match.history,
