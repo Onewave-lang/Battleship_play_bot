@@ -171,6 +171,7 @@ async def _auto_play_bots(
             if res in (battle.HIT, battle.KILL):
                 hit_any = True
         battle.update_history(match.history, match.boards, coord, results)
+        match.shots[current]["last_coord"] = coord
         for k in match.shots:
             shots = match.shots[k]
             shots.setdefault('move_count', 0)

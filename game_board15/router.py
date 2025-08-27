@@ -43,6 +43,12 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
     state.board = merged
     state.player_key = player_key
     state.highlight = match.boards[player_key].highlight.copy()
+    shots = getattr(match, "shots", {})
+    last = shots.get(player_key, {}).get("last_coord")
+    if last is not None:
+        if isinstance(last, list):
+            last = tuple(last)
+        state.highlight.append(last)
     buf = render_board(state, player_key)
     player_buf = render_player_board(match.boards[player_key], player_key)
 
@@ -136,6 +142,12 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 player_key = key
                 break
 
+    if not hasattr(match, "shots"):
+        match.shots = {k: {} for k in match.players}
+    else:
+        for k in match.players:
+            match.shots.setdefault(k, {})
+
     if text.startswith('@'):
         msg = text[1:].strip()
         for key, player in match.players.items():
@@ -197,6 +209,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.message.reply_text('Эта клетка уже открыта')
         return
     battle.update_history(match.history, match.boards, coord, results)
+    match.shots[player_key]["last_coord"] = coord
     for k in match.shots:
         shots = match.shots[k]
         shots.setdefault('move_count', 0)
