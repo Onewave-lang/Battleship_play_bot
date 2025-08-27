@@ -48,6 +48,7 @@ class Match15:
                 "last_result": None,
                 "move_count": 0,
                 "joke_start": random.randint(1, 10),
+                "last_coord": None,
             }
             for k in ("A", "B", "C")
         }
