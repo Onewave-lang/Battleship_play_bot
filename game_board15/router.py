@@ -217,39 +217,31 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         shots['move_count'] += 1
 
     parts_self: list[str] = []
-    parts_others: list[str] = []
-    victims: list[str] = []
+    enemy_msgs: dict[str, str] = {}
+    targets: list[str] = []
     next_player = player_key
+    player_obj = match.players.get(player_key)
+    player_label = getattr(player_obj, "name", "") or player_key
     for enemy, res in results.items():
         enemy_obj = match.players.get(enemy)
         enemy_label = getattr(enemy_obj, "name", "") or enemy
         if res == battle.MISS:
             phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
+            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
             parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
+            enemy_msgs[enemy] = f"соперник промахнулся. {phrase_enemy}"
         elif res == battle.HIT:
             phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
             parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
-            parts_others.append(f"корабль игрока {enemy_label} ранен")
-            victims.append(enemy)
-            await _send_state(
-                context,
-                match,
-                enemy,
-                f"{coord_str} - ваш корабль ранен. {phrase_enemy}",
-            )
+            enemy_msgs[enemy] = f"ваш корабль ранен. {phrase_enemy}"
+            targets.append(enemy)
         elif res == battle.KILL:
             phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
             parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
-            parts_others.append(f"корабль игрока {enemy_label} уничтожен")
-            victims.append(enemy)
-            await _send_state(
-                context,
-                match,
-                enemy,
-                f"{coord_str} - ваш корабль уничтожен. {phrase_enemy}",
-            )
+            enemy_msgs[enemy] = f"ваш корабль уничтожен. {phrase_enemy}"
+            targets.append(enemy)
             if match.boards[enemy].alive_cells == 0:
                 await context.bot.send_message(
                     match.players[enemy].chat_id,
@@ -259,7 +251,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     others = [
         k
         for k in match.players
-        if k not in victims and k != player_key and match.boards[k].alive_cells > 0
+        if k not in targets and k != player_key and match.boards[k].alive_cells > 0
     ]
     if not hit_any:
         order = [
@@ -270,22 +262,33 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         idx = order.index(player_key)
         next_player = order[(idx + 1) % len(order)]
         match.turn = next_player
-        if match.players[next_player].user_id != 0:
-            await _send_state(context, match, next_player, 'Ваш ход.')
     else:
         match.turn = player_key
-    others = [k for k in others if k != next_player]
-    if others:
-        if parts_others:
-            msg_others = f"{coord_str} - {', '.join(parts_others)}"
-        else:
-            msg_others = f"{coord_str} - мимо"
-        for other in others:
-            if match.players[other].user_id != 0:
-                await _send_state(context, match, other, msg_others)
     next_obj = match.players.get(next_player)
     next_name = getattr(next_obj, 'name', '') or next_player
-    result_self = f"{coord_str} - {' '.join(parts_self)}" + (' Ваш ход.' if match.turn == player_key else f" Ход {next_name}.")
+    if enemy_msgs:
+        for enemy, msg_body_enemy in enemy_msgs.items():
+            next_phrase = ' Ваш ход.' if match.turn == enemy else f" Ход {next_name}."
+            await _send_state(
+                context,
+                match,
+                enemy,
+                f"Ход игрока {player_label}: {coord_str} - {msg_body_enemy}{next_phrase}",
+            )
+    if others:
+        msg_body = ' '.join(parts_self) if parts_self else 'мимо'
+        for other in others:
+            next_phrase = ' Ваш ход.' if match.turn == other else f" Ход {next_name}."
+            if match.players[other].user_id != 0:
+                await _send_state(
+                    context,
+                    match,
+                    other,
+                    f"Ход игрока {player_label}: {coord_str} - {msg_body}{next_phrase}",
+                )
+    result_self = f"Ваш ход: {coord_str} - {' '.join(parts_self)}" + (
+        ' Ваш ход.' if match.turn == player_key else f" Ход {next_name}."
+    )
     view_key = match.turn if single_user else player_key
     await _send_state(context, match, view_key, result_self)
 
