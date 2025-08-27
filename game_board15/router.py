@@ -109,16 +109,51 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
         state.message_id = board_id
     msgs["board"] = board_id
 
-    # always send a new text message and keep history
-    try:
-        msg_text = await context.bot.send_message(chat_id, message)
-    except Exception:
-        logger.exception("Failed to send text message for chat %s", chat_id)
+    # update or send text message only when it changes
+    last_text = msgs.get("text")
+    text_id = msgs.get("text_id")
+    history = msgs.setdefault("text_history", [])
+
+    if last_text == message and text_id:
+        # avoid sending duplicate text message
+        return
+
+    if text_id:
+        try:
+            await context.bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=text_id,
+                text=message,
+            )
+        except Exception:
+            logger.exception("Failed to update text message for chat %s", chat_id)
+            try:
+                await context.bot.delete_message(chat_id, text_id)
+            except Exception:
+                pass
+            try:
+                msg_text = await context.bot.send_message(chat_id, message)
+            except Exception:
+                logger.exception("Failed to send text message for chat %s", chat_id)
+                return
+            else:
+                text_id = msg_text.message_id
+                history.append(text_id)
+        else:
+            if not history:
+                history.append(text_id)
     else:
-        text_id = msg_text.message_id
-        history = msgs.setdefault("text_history", [])
-        history.append(text_id)
-        msgs["text"] = text_id
+        try:
+            msg_text = await context.bot.send_message(chat_id, message)
+        except Exception:
+            logger.exception("Failed to send text message for chat %s", chat_id)
+            return
+        else:
+            text_id = msg_text.message_id
+            history.append(text_id)
+
+    msgs["text"] = message
+    msgs["text_id"] = text_id
 
 
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
