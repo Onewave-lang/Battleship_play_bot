@@ -51,31 +51,31 @@ def apply_shot(board: Board15, coord: Tuple[int, int]) -> str:
 
 def update_history(
     history: List[List[int]],
-    boards: Dict[str, Board15],
+    board: Board15,
+    cell_owner: Dict[Tuple[int, int], str],
     coord: Tuple[int, int],
-    results: Dict[str, str],
+    result: str,
 ) -> None:
-    """Update global shot history grid based on results for the shot."""
+    """Update global shot history grid based on the result for the shot."""
 
     r, c = coord
-    if any(res == KILL for res in results.values()):
-        for key, res in results.items():
-            if res != KILL:
-                continue
-            board = boards[key]
-            for rr in range(15):
-                for cc in range(15):
-                    val = board.grid[rr][cc]
-                    if val == 4:
-                        history[rr][cc] = 4
-                    elif val == 5:
-                        # Mark contour cells as shot-through for everyone without
-                        # overwriting prior shot information.
-                        if history[rr][cc] == 0:
-                            history[rr][cc] = 5
+    if result == KILL:
+        # find the ship that was destroyed and mark its cells and contour
+        for ship in board.ships:
+            if coord in ship.cells:
+                for rr, cc in ship.cells:
+                    history[rr][cc] = 4
+                for rr, cc in ship.cells:
+                    for dr in (-1, 0, 1):
+                        for dc in (-1, 0, 1):
+                            nr, nc = rr + dr, cc + dc
+                            if 0 <= nr < 15 and 0 <= nc < 15:
+                                if board.grid[nr][nc] == 5 and history[nr][nc] == 0:
+                                    history[nr][nc] = 5
+                break
         history[r][c] = 4
-    elif any(res == HIT for res in results.values()):
+    elif result == HIT:
         history[r][c] = 3
-    elif all(res == MISS for res in results.values()):
+    elif result == MISS:
         if history[r][c] == 0:
             history[r][c] = 2

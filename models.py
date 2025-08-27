@@ -39,6 +39,8 @@ class Match:
     players: Dict[str, Player] = field(default_factory=dict)
     turn: str = "A"
     boards: Dict[str, Board] = field(default_factory=dict)
+    board: Board = field(default_factory=Board)
+    cell_owner: Dict[Coord, str] = field(default_factory=dict)
     shots: Dict[str, Dict[str, object]] = field(default_factory=lambda: {
         "A": {
             "history": [],

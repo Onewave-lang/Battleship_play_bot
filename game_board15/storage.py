@@ -14,6 +14,26 @@ _lock = Lock()
 logger = logging.getLogger(__name__)
 
 
+def _rebuild_shared(match: Match15) -> None:
+    """Recompute shared board and cell ownership from individual boards."""
+    size = 15
+    board = Board15()
+    cell_owner: Dict[tuple[int, int], str] = {}
+    board.grid = [[0] * size for _ in range(size)]
+    board.ships = []
+    for key, b in match.boards.items():
+        for ship in b.ships:
+            board.ships.append(Ship(cells=ship.cells.copy(), alive=ship.alive))
+        for r in range(size):
+            for c in range(size):
+                if b.grid[r][c] != 0:
+                    board.grid[r][c] = b.grid[r][c]
+                    if b.grid[r][c] == 1:
+                        cell_owner[(r, c)] = key
+    match.board = board
+    match.cell_owner = cell_owner
+
+
 def _load_all() -> Dict[str, dict]:
     if DATA_FILE.exists():
         try:
@@ -55,6 +75,13 @@ def get_match(match_id: str) -> Match15 | None:
     for key, b in m.get('boards', {}).items():
         ships = [Ship(cells=[tuple(cell) for cell in s.get('cells', [])], alive=s.get('alive', True)) for s in b.get('ships', [])]
         match.boards[key] = Board15(grid=b.get('grid', [[0]*15 for _ in range(15)]), ships=ships, alive_cells=b.get('alive_cells', 20))
+    if 'board' in m:
+        bdata = m['board']
+        bships = [Ship(cells=[tuple(cell) for cell in s.get('cells', [])], alive=s.get('alive', True)) for s in bdata.get('ships', [])]
+        match.board = Board15(grid=bdata.get('grid', [[0]*15 for _ in range(15)]), ships=bships, alive_cells=bdata.get('alive_cells', 0))
+    else:
+        _rebuild_shared(match)
+    match.cell_owner = {tuple(map(int, k.split(','))): v for k, v in m.get('cell_owner', {}).items()}
     match.history = m.get('history', [[0] * 15 for _ in range(15)])
     match.shots = m.get('shots', match.shots)
     match.messages = m.get('messages', {})
@@ -150,6 +177,8 @@ def save_board(match: Match15,
             current.status = 'playing'
             current.turn = 'A'
 
+        _rebuild_shared(current)
+
         # persist updated match
         data[current.match_id] = {
             'match_id': current.match_id,
@@ -165,6 +194,11 @@ def save_board(match: Match15,
                 }
                 for k, b in current.boards.items()
             },
+            'board': {
+                'grid': current.board.grid,
+                'ships': [{'cells': s.cells, 'alive': s.alive} for s in current.board.ships],
+            },
+            'cell_owner': {f"{r},{c}": owner for (r, c), owner in current.cell_owner.items()},
             'shots': current.shots,
             'messages': current.messages,
             'history': current.history,
@@ -179,11 +213,15 @@ def save_board(match: Match15,
     match.shots = current.shots
     match.history = current.history
     match.messages = current.messages
+    match.board = current.board
+    match.cell_owner = current.cell_owner
 
 
 def save_match(match: Match15) -> str | None:
     with _lock:
         data = _load_all()
+        if not getattr(match, 'board', None) or not getattr(match, 'cell_owner', None):
+            _rebuild_shared(match)
         data[match.match_id] = {
             'match_id': match.match_id,
             'status': match.status,
@@ -191,6 +229,8 @@ def save_match(match: Match15) -> str | None:
             'players': {k: vars(p) for k, p in match.players.items()},
             'turn': match.turn,
             'boards': {k: {'grid': b.grid, 'ships': [{'cells': s.cells, 'alive': s.alive} for s in b.ships], 'alive_cells': b.alive_cells} for k, b in match.boards.items()},
+            'board': {'grid': match.board.grid, 'ships': [{'cells': s.cells, 'alive': s.alive} for s in match.board.ships]},
+            'cell_owner': {f"{r},{c}": owner for (r, c), owner in match.cell_owner.items()},
             'shots': match.shots,
             'messages': match.messages,
             'history': match.history,
