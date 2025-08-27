@@ -132,6 +132,9 @@ async def _auto_play_bots(
     from . import router as router_module
 
     while True:
+        match = storage.get_match(match.match_id)
+        if not match:
+            break
         alive = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
         if len(alive) == 1:
             winner = alive[0]
