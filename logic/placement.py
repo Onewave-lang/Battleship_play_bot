@@ -52,3 +52,44 @@ def random_board() -> Board:
     for size in SHIP_SIZES:
         place_ship(board, size)
     return board
+
+
+def random_board_global(global_mask: List[List[int]]) -> Board:
+    """Generate a board avoiding cells marked in ``global_mask``.
+
+    ``global_mask`` uses ``1`` to denote cells that are occupied or touch ships
+    of previously placed fleets.  The mask is updated in-place with the newly
+    placed fleet so that subsequent calls will avoid those areas as well.
+    """
+
+    while True:
+        board = random_board()
+
+        # Build a mask of cells occupied or adjacent to this board's ships
+        mask = [[0] * 10 for _ in range(10)]
+        for ship in board.ships:
+            for r, c in ship.cells:
+                for dr in (-1, 0, 1):
+                    for dc in (-1, 0, 1):
+                        nr, nc = r + dr, c + dc
+                        if 0 <= nr < 10 and 0 <= nc < 10:
+                            mask[nr][nc] = 1
+
+        # Check for conflicts with the global mask
+        conflict = False
+        for r in range(10):
+            for c in range(10):
+                if mask[r][c] and global_mask[r][c]:
+                    conflict = True
+                    break
+            if conflict:
+                break
+        if conflict:
+            continue
+
+        # Update the global mask with the new fleet and return the board
+        for r in range(10):
+            for c in range(10):
+                if mask[r][c]:
+                    global_mask[r][c] = 1
+        return board

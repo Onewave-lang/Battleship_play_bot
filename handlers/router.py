@@ -8,9 +8,12 @@ import storage
 from logic.parser import parse_coord, format_coord
 from logic.placement import random_board
 from logic.battle import apply_shot, MISS, HIT, KILL, REPEAT
+from logic.battle_test import apply_shot_multi
 from logic.render import render_board_own, render_board_enemy
+from models import Board
 from handlers.commands import newgame
 from .move_keyboard import move_keyboard
+from .board_test import board_test
 from logic.phrases import (
     ENEMY_HIT,
     ENEMY_KILL,
@@ -75,6 +78,98 @@ async def _send_state(
     msgs["board"] = board_id
 
     # update text message with result
+    if text_id:
+        try:
+            await context.bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=text_id,
+                text=message,
+                parse_mode="HTML",
+            )
+        except Exception:
+            try:
+                await context.bot.delete_message(chat_id, text_id)
+            except Exception:
+                pass
+            text_msg = await context.bot.send_message(
+                chat_id,
+                message,
+                parse_mode="HTML",
+            )
+            text_id = text_msg.message_id
+    else:
+        text_msg = await context.bot.send_message(
+            chat_id,
+            message,
+            parse_mode="HTML",
+        )
+        text_id = text_msg.message_id
+    msgs["text"] = text_id
+
+    storage.save_match(match)
+
+
+async def _send_state_board_test(
+    context: ContextTypes.DEFAULT_TYPE,
+    match,
+    player_key: str,
+    message: str,
+) -> None:
+    """Send the shared board with global history to ``player_key``."""
+
+    chat_id = match.players[player_key].chat_id
+    msgs = match.messages.setdefault(player_key, {})
+
+    board_id = msgs.get("board")
+    text_id = msgs.get("text")
+
+    merged = [row[:] for row in match.history]
+    own_grid = match.boards[player_key].grid
+    for r in range(10):
+        for c in range(10):
+            if merged[r][c] == 0 and own_grid[r][c] == 1:
+                merged[r][c] = 1
+    board = Board(grid=merged, highlight=match.boards[player_key].highlight.copy())
+    shots = match.shots.get(player_key, {})
+    last = shots.get("last_coord")
+    if last is not None:
+        if isinstance(last, list):
+            last = tuple(last)
+        board.highlight.append(last)
+    board_text = f"Ваше поле:\n{render_board_own(board)}"
+    kb = move_keyboard()
+
+    if board_id:
+        try:
+            await context.bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=board_id,
+                text=board_text,
+                parse_mode="HTML",
+                reply_markup=kb,
+            )
+        except Exception:
+            try:
+                await context.bot.delete_message(chat_id, board_id)
+            except Exception:
+                pass
+            board_msg = await context.bot.send_message(
+                chat_id,
+                board_text,
+                parse_mode="HTML",
+                reply_markup=kb,
+            )
+            board_id = board_msg.message_id
+    else:
+        board_msg = await context.bot.send_message(
+            chat_id,
+            board_text,
+            parse_mode="HTML",
+            reply_markup=kb,
+        )
+        board_id = board_msg.message_id
+    msgs["board"] = board_id
+
     if text_id:
         try:
             await context.bot.edit_message_text(
@@ -263,3 +358,86 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         keyboard = ReplyKeyboardMarkup([["Начать новую игру"]], one_time_keyboard=True, resize_keyboard=True)
         await context.bot.send_message(match.players[player_key].chat_id, 'Игра завершена!', reply_markup=keyboard)
         await context.bot.send_message(match.players[enemy_key].chat_id, 'Игра завершена!', reply_markup=keyboard)
+
+
+async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle moves for the three-player test mode."""
+
+    user_id = update.effective_user.id
+    text = update.message.text.strip()
+    match = storage.find_match_by_user(user_id, update.effective_chat.id)
+    if not match:
+        await update.message.reply_text('Вы не участвуете в матче. Используйте /board_test.')
+        return
+
+    player_key = 'A'
+
+    if text.startswith('@'):
+        msg = text[1:].strip()
+        for key, player in match.players.items():
+            if key != player_key and player.user_id != 0:
+                await context.bot.send_message(player.chat_id, msg)
+        return
+
+    if match.status != 'playing':
+        await update.message.reply_text('Матч ещё не начался.')
+        return
+
+    if match.turn != player_key:
+        await _send_state_board_test(context, match, player_key, 'Сейчас ход соперника.')
+        return
+
+    coord = parse_coord(text)
+    if coord is None:
+        await _send_state_board_test(context, match, player_key, 'Не понял клетку. Пример: е5 или д10.')
+        return
+
+    enemies = [k for k in match.players.keys() if k != player_key and match.boards[k].alive_cells > 0]
+    boards = {k: match.boards[k] for k in enemies}
+    results = apply_shot_multi(coord, boards, match.history)
+    match.shots[player_key]['history'].append(text)
+    match.shots[player_key]['last_coord'] = coord
+    for k in match.shots:
+        shots = match.shots.setdefault(k, {})
+        shots.setdefault('move_count', 0)
+        shots.setdefault('joke_start', random.randint(1, 10))
+        shots['move_count'] += 1
+
+    coord_str = format_coord(coord)
+    hit_any = any(res in (HIT, KILL) for res in results.values())
+    alive = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
+    if not hit_any:
+        alive_order = [k for k in ('A', 'B', 'C') if k in alive]
+        idx_next = alive_order.index(player_key)
+        next_player = alive_order[(idx_next + 1) % len(alive_order)]
+    else:
+        next_player = player_key
+    match.turn = next_player
+
+    parts_self = []
+    for enemy, res in results.items():
+        if res == MISS:
+            phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
+            parts_self.append(f"{enemy}: мимо. {phrase_self}")
+        elif res == HIT:
+            phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
+            parts_self.append(f"{enemy}: ранил. {phrase_self}")
+        elif res == KILL:
+            phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
+            parts_self.append(f"{enemy}: уничтожен! {phrase_self}")
+
+    next_label = next_player
+    result_self = f"{coord_str} - {' '.join(parts_self)}" + (
+        ' Ваш ход.' if next_player == player_key else f" Ход {next_label}."
+    )
+    storage.save_match(match)
+    await _send_state_board_test(context, match, player_key, result_self)
+
+    alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
+    if len(alive_players) == 1:
+        winner = alive_players[0]
+        storage.finish(match, winner)
+        if winner == player_key:
+            await context.bot.send_message(match.players[player_key].chat_id, 'Вы победили!')
+        else:
+            await context.bot.send_message(match.players[player_key].chat_id, 'Игра окончена. Победил соперник.')
