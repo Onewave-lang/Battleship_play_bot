@@ -8,6 +8,7 @@ from logic.battle import KILL, MISS
 from logic.battle_test import apply_shot_multi
 from game_board15 import handlers, storage, router
 from game_board15.models import Match15, Board15, Ship as Ship15, Player
+from tests.utils import _new_grid, _state
 
 
 def mask_from_board(board):
@@ -26,9 +27,10 @@ def _place_single_ship(mask):
     cells = [(r, c) for r in range(10) for c in range(10) if mask[r][c] == 0]
     coord = random.choice(cells)
     board = Board()
+    board.grid = _new_grid()
     ship = Ship(cells=[coord])
     board.ships.append(ship)
-    board.grid[coord[0]][coord[1]] = 1
+    board.grid[coord[0]][coord[1]] = [1, None]
     board.alive_cells = 1
     bm = mask_from_board(board)
     for r in range(10):
@@ -57,41 +59,44 @@ def test_game_ends_after_two_fleets_destroyed():
     positions = {"A": (9, 9), "B": (0, 0), "C": (2, 2)}
     for key, coord in positions.items():
         board = Board()
+        board.grid = _new_grid()
         ship = Ship(cells=[coord])
         board.ships.append(ship)
-        board.grid[coord[0]][coord[1]] = 1
+        board.grid[coord[0]][coord[1]] = [1, key]
         board.alive_cells = 1
         match.boards[key] = board
-    history = [[0] * 10 for _ in range(10)]
+    history = _new_grid()
     res1 = apply_shot_multi((0, 0), {"B": match.boards["B"], "C": match.boards["C"]}, history)
     assert res1 == {"B": KILL, "C": MISS}
     res2 = apply_shot_multi((2, 2), {"B": match.boards["B"], "C": match.boards["C"]}, history)
     assert res2 == {"B": MISS, "C": KILL}
     alive = [k for k, b in match.boards.items() if b.alive_cells > 0]
     assert alive == ["A"]
-    assert history[0][0] == 4
-    assert history[2][2] == 4
+    assert _state(history[0][0]) == 4
+    assert _state(history[2][2]) == 4
 
 
 def test_apply_shot_multi_updates_history():
     board_b = Board()
+    board_b.grid = _new_grid()
     board_c = Board()
+    board_c.grid = _new_grid()
     ship_b = Ship(cells=[(1, 1)])
     board_b.ships.append(ship_b)
-    board_b.grid[1][1] = 1
+    board_b.grid[1][1] = [1, 'B']
     board_b.alive_cells = 1
     ship_c = Ship(cells=[(3, 3)])
     board_c.ships.append(ship_c)
-    board_c.grid[3][3] = 1
+    board_c.grid[3][3] = [1, 'C']
     board_c.alive_cells = 1
-    history = [[0] * 10 for _ in range(10)]
+    history = _new_grid()
     res1 = apply_shot_multi((1, 1), {"B": board_b, "C": board_c}, history)
     assert res1 == {"B": KILL, "C": MISS}
-    assert history[1][1] == 4
-    assert history[0][0] == 5
+    assert _state(history[1][1]) == 4
+    assert _state(history[0][0]) == 5
     res2 = apply_shot_multi((3, 3), {"B": board_b, "C": board_c}, history)
     assert res2 == {"B": MISS, "C": KILL}
-    assert history[3][3] == 4
+    assert _state(history[3][3]) == 4
 
 
 def test_auto_play_bots_sequence_and_history(monkeypatch):
@@ -128,8 +133,8 @@ def test_auto_play_bots_sequence_and_history(monkeypatch):
         monkeypatch.setattr(asyncio, "sleep", fast_sleep)
         await handlers._auto_play_bots(match, context, 0, human="A")
         assert recorded == [(0, 0), (0, 2)]
-        assert match.history[0][0] == 4
-        assert match.history[0][2] == 4
-        assert match.history[0][1] == 5
+        assert _state(match.history[0][0]) == 4
+        assert _state(match.history[0][2]) == 4
+        assert _state(match.history[0][1]) == 5
         assert winners == ["B"]
     asyncio.run(run())
