@@ -1,4 +1,4 @@
-from logic.render import render_board_own, render_board_enemy
+from logic.render import render_board_own, render_board_enemy, PLAYER_COLORS
 from logic.battle import apply_shot, KILL
 from models import Board, Ship
 
@@ -7,32 +7,33 @@ def test_render_last_move_symbols():
     b = Board()
 
     # miss highlight
-    b.grid[0][0] = 2
+    b.grid[0][0] = (2, 'A')
     b.highlight = [(0, 0)]
     own = render_board_own(b)
-    assert '❌' in own
+    assert "border:1px solid red" in own
     b.highlight = []
     own = render_board_own(b)
-    assert '❌' not in own and 'x' in own
+    assert "border:1px solid red" not in own and 'x' in own
 
     # hit highlight
-    b.grid[1][1] = 3
+    b.grid[1][1] = (3, 'B')
     b.highlight = [(1, 1)]
     enemy = render_board_enemy(b)
-    assert '🟥' in enemy
+    assert "border:1px solid red" in enemy and PLAYER_COLORS['B'] in enemy
     b.highlight = []
     enemy = render_board_enemy(b)
-    assert '🟥' not in enemy and '■' in enemy
+    assert "border:1px solid red" not in enemy and PLAYER_COLORS['B'] in enemy
 
     # kill highlight
-    b.grid[2][2] = 4
-    b.grid[2][3] = 4
-    b.highlight = [(2, 2), (2, 3)]
+    b.grid[2][2] = (4, 'B')
+    b.grid[2][3] = (5, 'B')
+    b.highlight = [(2, 3)]
     enemy = render_board_enemy(b)
-    assert enemy.count('💣') == 2
+    assert enemy.count(PLAYER_COLORS['B']) >= 2
+    assert enemy.count("border:1px solid red") == 1
     b.highlight = []
     enemy = render_board_enemy(b)
-    assert '💣' not in enemy and '▓' in enemy
+    assert enemy.count(PLAYER_COLORS['B']) >= 2 and "border:1px solid red" not in enemy
 
 
 def test_apply_shot_marks_contour():

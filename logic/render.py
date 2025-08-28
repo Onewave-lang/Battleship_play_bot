@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import List
+from typing import List, Tuple, Union
+import re
 
 from models import Board
 from logic.parser import LATIN
@@ -14,9 +15,22 @@ FIGURE_SPACE = "\u2007"
 # expanded slightly so that emoji icons do not stretch rows or columns
 CELL_WIDTH = 3
 
+# colours per player for ship cells
+PLAYER_COLORS = {
+    "A": "#add8e6",  # light blue
+    "B": "#90ee90",  # light green
+    "C": "#ffc88c",  # light orange
+}
+
 
 def format_cell(symbol: str) -> str:
-    pad = CELL_WIDTH - wcswidth(symbol)
+    """Pad cell contents so that the board remains aligned.
+
+    ``symbol`` may contain HTML tags.  To keep alignment we strip the tags
+    before measuring the visual width of the content.
+    """
+    visible = re.sub(r"<[^>]+>", "", symbol)
+    pad = CELL_WIDTH - wcswidth(visible)
     if pad < 0:
         pad = 0
     return symbol + FIGURE_SPACE * pad
@@ -35,25 +49,40 @@ def _render_line(cells: List[str]) -> str:
     return ''.join(cells)
 
 
+def _resolve_cell(v: Union[int, Tuple[int, str]]) -> Tuple[int, str | None]:
+    """Return ``(state, owner)`` from a cell value."""
+    if isinstance(v, (list, tuple)):
+        state = v[0]
+        owner = v[1] if len(v) > 1 else None
+    else:
+        state = v
+        owner = None
+    return state, owner
+
+
 def render_board_own(board: Board) -> str:
     lines = [FIGURE_SPACE * (CELL_WIDTH + 1) + COL_HEADER]
-    mapping = {0: '·', 1: '□', 2: 'x', 3: '■', 4: '▓', 5: 'x'}
     highlight = set(board.highlight)
     for r_idx, row in enumerate(board.grid):
         cells = []
         for c_idx, v in enumerate(row):
             coord = (r_idx, c_idx)
-            if coord in highlight:
-                if v == 2:
-                    sym = '❌'
-                elif v == 3:
-                    sym = '🟥'
-                elif v == 4:
-                    sym = '💣'
-                else:
-                    sym = mapping.get(v, '·')
+            cell_state, owner = _resolve_cell(v)
+            color = PLAYER_COLORS.get(owner, "#000")
+            if cell_state == 1:
+                sym = f'<span style="color:{color}">□</span>'
+            elif cell_state == 2:
+                sym = 'x'
+            elif cell_state == 3:
+                sym = f'<span style="color:{color}">■</span>'
+            elif cell_state == 4:
+                sym = f'<span style="color:{color}">■</span>'
+            elif cell_state == 5:
+                sym = f'<span style="color:{color}">x</span>'
             else:
-                sym = mapping.get(v, '·')
+                sym = '·'
+            if coord in highlight:
+                sym = f'<span style="border:1px solid red">{sym}</span>'
             cells.append(format_cell(sym))
         num = str(r_idx + 1)
         pad = FIGURE_SPACE * (CELL_WIDTH - wcswidth(num))
@@ -63,23 +92,27 @@ def render_board_own(board: Board) -> str:
 
 def render_board_enemy(board: Board) -> str:
     lines = [FIGURE_SPACE * (CELL_WIDTH + 1) + COL_HEADER]
-    mapping = {0: '·', 1: '·', 2: 'x', 3: '■', 4: '▓', 5: 'x'}
     highlight = set(board.highlight)
     for r_idx, row in enumerate(board.grid):
         cells = []
         for c_idx, v in enumerate(row):
             coord = (r_idx, c_idx)
-            if coord in highlight:
-                if v == 2:
-                    sym = '❌'
-                elif v == 3:
-                    sym = '🟥'
-                elif v == 4:
-                    sym = '💣'
-                else:
-                    sym = mapping.get(v, '·')
+            cell_state, owner = _resolve_cell(v)
+            color = PLAYER_COLORS.get(owner, "#000")
+            if cell_state == 1:
+                sym = '·'
+            elif cell_state == 2:
+                sym = 'x'
+            elif cell_state == 3:
+                sym = f'<span style="color:{color}">■</span>'
+            elif cell_state == 4:
+                sym = f'<span style="color:{color}">■</span>'
+            elif cell_state == 5:
+                sym = f'<span style="color:{color}">x</span>'
             else:
-                sym = mapping.get(v, '·')
+                sym = '·'
+            if coord in highlight:
+                sym = f'<span style="border:1px solid red">{sym}</span>'
             cells.append(format_cell(sym))
         num = str(r_idx + 1)
         pad = FIGURE_SPACE * (CELL_WIDTH - wcswidth(num))
