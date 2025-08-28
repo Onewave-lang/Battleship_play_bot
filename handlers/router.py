@@ -105,12 +105,12 @@ async def _send_state_board_test(
     board_id = msgs.get("board")
     text_id = msgs.get("text")
 
-    merged = [row[:] for row in match.history]
+    merged = [[cell[:] for cell in row] for row in match.history]
     own_grid = match.boards[player_key].grid
     for r in range(10):
         for c in range(10):
-            if merged[r][c] == 0 and own_grid[r][c] == 1:
-                merged[r][c] = 1
+            if merged[r][c][0] == 0 and own_grid[r][c][0] == 1:
+                merged[r][c] = [1, own_grid[r][c][1]]
     board = Board(grid=merged, highlight=match.boards[player_key].highlight.copy())
     shots = match.shots.get(player_key, {})
     last = shots.get("last_coord")

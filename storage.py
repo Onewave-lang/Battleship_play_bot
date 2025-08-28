@@ -64,12 +64,13 @@ def get_match(match_id: str) -> Match | None:
             for s in b.get('ships', [])
         ]
         match.boards[key] = Board(
-            grid=b.get('grid', [[0] * 10 for _ in range(10)]),
+            owner=key,
+            grid=b.get('grid', [[[0, None] for _ in range(10)] for _ in range(10)]),
             ships=ships,
             alive_cells=b.get('alive_cells', 20),
         )
     match.turn = m.get('turn', 'A')
-    match.history = m.get('history', [[0] * 10 for _ in range(10)])
+    match.history = m.get('history', [[[0, None] for _ in range(10)] for _ in range(10)])
     match.shots = m.get('shots', match.shots)
     match.messages = m.get('messages', {})
     return match
@@ -120,14 +121,14 @@ def save_board(match: Match, player_key: str, board: Board) -> None:
                     for s in b.get('ships', [])
                 ]
                 current.boards[key] = Board(
-                    grid=b.get('grid', [[0] * 10 for _ in range(10)]),
+                    grid=b.get('grid', [[[0, None] for _ in range(10)] for _ in range(10)]),
                     ships=ships,
                     alive_cells=b.get('alive_cells', 20),
                 )
             current.turn = m_dict.get('turn', 'A')
             current.shots = m_dict.get('shots', current.shots)
             current.messages = m_dict.get('messages', {})
-            current.history = m_dict.get('history', [[0] * 10 for _ in range(10)])
+            current.history = m_dict.get('history', [[[0, None] for _ in range(10)] for _ in range(10)])
         else:
             current = match
 

@@ -15,9 +15,16 @@ class Ship:
     alive: bool = True
 
 
+def _new_grid(size: int = 10) -> List[List[list]]:
+    """Return a ``size`` x ``size`` grid of ``[state, owner]`` cells."""
+
+    return [[[0, None] for _ in range(size)] for _ in range(size)]
+
+
 @dataclass
 class Board:
-    grid: List[List[int]] = field(default_factory=lambda: [[0]*10 for _ in range(10)])
+    owner: str = ""
+    grid: list = field(default_factory=_new_grid)
     ships: List[Ship] = field(default_factory=list)
     alive_cells: int = 20
     # cells to highlight (last shot or destroyed ship) for rendering
@@ -40,9 +47,7 @@ class Match:
     turn: str = "A"
     boards: Dict[str, Board] = field(default_factory=dict)
     # global shot history for rendering target board
-    history: List[List[int]] = field(
-        default_factory=lambda: [[0] * 10 for _ in range(10)]
-    )
+    history: list = field(default_factory=_new_grid)
     shots: Dict[str, Dict[str, object]] = field(
         default_factory=lambda: {
             k: {
@@ -65,6 +70,6 @@ class Match:
         match = Match(match_id=match_id)
         match.players["A"] = Player(user_id=a_user_id, chat_id=a_chat_id)
         for k in ("A", "B", "C"):
-            match.boards[k] = Board()
-        match.history = [[0] * 10 for _ in range(10)]
+            match.boards[k] = Board(owner=k)
+        match.history = _new_grid()
         return match

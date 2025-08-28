@@ -83,7 +83,10 @@ async def _auto_play_bots(
         coord = None
         for pt in coords:
             r, c = pt
-            if match.history[r][c] == 0 and match.boards[current].grid[r][c] != 1:
+            if (
+                match.history[r][c][0] == 0
+                and match.boards[current].grid[r][c][0] != 1
+            ):
                 coord = pt
                 break
         if coord is None:
