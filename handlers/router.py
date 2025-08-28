@@ -378,24 +378,57 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
         next_player = player_key
     match.turn = next_player
 
-    parts_self = []
+    self_msgs: dict[str, str] = {}
+    enemy_msgs: dict[str, str] = {}
     for enemy, res in results.items():
         if res == MISS:
             phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
-            parts_self.append(f"{enemy}: мимо. {phrase_self}")
+            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
+            self_msgs[enemy] = f"{enemy}: мимо. {phrase_self}"
+            enemy_msgs[enemy] = f"соперник промахнулся. {phrase_enemy}"
         elif res == HIT:
             phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
-            parts_self.append(f"{enemy}: ранил. {phrase_self}")
+            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
+            self_msgs[enemy] = f"{enemy}: ранил. {phrase_self}"
+            enemy_msgs[enemy] = f"ваш корабль ранен. {phrase_enemy}"
         elif res == KILL:
             phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
-            parts_self.append(f"{enemy}: уничтожен! {phrase_self}")
+            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
+            self_msgs[enemy] = f"{enemy}: уничтожен! {phrase_self}"
+            enemy_msgs[enemy] = f"ваш корабль уничтожен. {phrase_enemy}"
+            if (
+                match.boards[enemy].alive_cells == 0
+                and match.players[enemy].user_id != 0
+            ):
+                await context.bot.send_message(
+                    match.players[enemy].chat_id,
+                    f"⛔ Игрок {enemy} выбыл (флот уничтожен)",
+                )
+
+    storage.save_match(match)
 
     next_label = next_player
-    result_self = f"{coord_str} - {' '.join(parts_self)}" + (
-        ' Ваш ход.' if next_player == player_key else f" Ход {next_label}."
+    next_phrase_self = (
+        " Ваш ход." if next_player == player_key else f" Ход {next_label}."
     )
-    storage.save_match(match)
-    await _send_state_board_test(context, match, player_key, result_self)
+
+    await _send_state_board_test(context, match, player_key, "")
+    for body in self_msgs.values():
+        await context.bot.send_message(
+            match.players[player_key].chat_id,
+            f"Ход игрока {player_key}: {coord_str} - {body}{next_phrase_self}",
+        )
+
+    for enemy, body in enemy_msgs.items():
+        if match.players[enemy].user_id != 0:
+            await _send_state_board_test(context, match, enemy, "")
+            next_phrase = (
+                " Ваш ход." if next_player == enemy else f" Ход {next_label}."
+            )
+            await context.bot.send_message(
+                match.players[enemy].chat_id,
+                f"Ход игрока {player_key}: {coord_str} - {body}{next_phrase}",
+            )
 
     alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
     if len(alive_players) == 1:
