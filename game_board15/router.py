@@ -1,7 +1,6 @@
 from __future__ import annotations
 import logging
 import random
-import copy
 from telegram import Update, InputMediaPhoto
 from telegram.ext import ContextTypes
 
@@ -18,7 +17,7 @@ from logic.phrases import (
     SELF_KILL,
     SELF_MISS,
 )
-from .utils import _phrase_or_joke
+from .utils import _phrase_or_joke, _get_cell_state
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +34,7 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
         states[chat_id] = state
 
     # prepare board images
-    merged = copy.deepcopy(match.history)
+    merged = [[_get_cell_state(cell) for cell in row] for row in match.history]
     own_grid = match.boards[player_key].grid
     for r in range(15):
         for c in range(15):
@@ -240,11 +239,14 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.message.reply_text('Эта клетка уже открыта')
         return
     coord_str = parser.format_coord(coord)
-    before_history = [row[:] for row in match.history]
+    before_history = [[_get_cell_state(cell) for cell in row] for row in match.history]
     battle.update_history(match.history, match.boards, coord, results)
-    if match.history == before_history:
+    if [[_get_cell_state(cell) for cell in row] for row in match.history] == before_history:
         logger.warning("History unchanged after shot %s", coord_str)
-    if all(all(cell == 0 for cell in row) for row in match.history):
+    if all(
+        all(_get_cell_state(cell) == 0 for cell in row)
+        for row in match.history
+    ):
         logger.warning("History is empty after shot %s", coord_str)
     match.shots[player_key]["last_coord"] = coord
     for k in match.shots:

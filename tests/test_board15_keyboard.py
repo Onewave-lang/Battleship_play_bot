@@ -2,6 +2,7 @@ import asyncio
 from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, call
+from tests.utils import _new_grid
 
 from game_board15 import router
 from game_board15.models import Board15
@@ -12,7 +13,7 @@ def test_send_state_sends_board_without_keyboard(monkeypatch):
         match = SimpleNamespace(
             players={'A': SimpleNamespace(chat_id=1)},
             boards={'A': Board15()},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
             messages={'A': {'player': 20}},
         )
 
@@ -52,7 +53,7 @@ def test_send_state_edits_existing_messages(monkeypatch):
         match = SimpleNamespace(
             players={'A': SimpleNamespace(chat_id=1)},
             boards={'A': Board15()},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
             messages={'A': {'board': 10, 'player': 20, 'text': 'old', 'text_id': 30, 'text_history': [30]}},
         )
 
@@ -89,7 +90,7 @@ def test_send_state_recreates_messages_on_edit_failure(monkeypatch):
         match = SimpleNamespace(
             players={'A': SimpleNamespace(chat_id=1)},
             boards={'A': Board15()},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
             messages={'A': {'board': 10, 'player': 20, 'text': 'old', 'text_id': 30, 'text_history': [30]}},
         )
 
@@ -138,7 +139,7 @@ def test_send_state_recreates_player_board_on_edit_failure(monkeypatch):
         match = SimpleNamespace(
             players={'A': SimpleNamespace(chat_id=1)},
             boards={'A': Board15()},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
             messages={'A': {'board': 10, 'player': 20, 'text': 'old', 'text_id': 30, 'text_history': [30]}},
         )
 
@@ -187,7 +188,7 @@ def test_send_state_avoids_duplicate_text(monkeypatch):
         match = SimpleNamespace(
             players={'A': SimpleNamespace(chat_id=1)},
             boards={'A': Board15()},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
             messages={'A': {}},
         )
 

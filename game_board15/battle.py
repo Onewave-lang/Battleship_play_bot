@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Tuple, Dict, List
 
 from .models import Board15, Ship
+from .utils import _get_cell_state, _set_cell_state
 
 MISS, HIT, KILL, REPEAT = 'miss', 'hit', 'kill', 'repeat'
 
@@ -67,15 +68,15 @@ def update_history(
                 for cc in range(15):
                     val = board.grid[rr][cc]
                     if val == 4:
-                        history[rr][cc] = 4
+                        _set_cell_state(history, rr, cc, 4)
                     elif val == 5:
                         # Mark contour cells as shot-through for everyone without
                         # overwriting prior shot information.
-                        if history[rr][cc] == 0:
-                            history[rr][cc] = 5
-        history[r][c] = 4
+                        if _get_cell_state(history[rr][cc]) == 0:
+                            _set_cell_state(history, rr, cc, 5)
+        _set_cell_state(history, r, c, 4)
     elif any(res == HIT for res in results.values()):
-        history[r][c] = 3
+        _set_cell_state(history, r, c, 3)
     elif all(res == MISS for res in results.values()):
-        if history[r][c] == 0:
-            history[r][c] = 2
+        if _get_cell_state(history[r][c]) == 0:
+            _set_cell_state(history, r, c, 2)

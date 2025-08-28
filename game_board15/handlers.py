@@ -20,7 +20,7 @@ from logic.phrases import (
     SELF_KILL,
     SELF_MISS,
 )
-from .utils import _phrase_or_joke
+from .utils import _phrase_or_joke, _get_cell_state
 import random
 import asyncio
 import logging
@@ -61,7 +61,7 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         player.name = name
         storage.save_match(match)
     state = Board15State(chat_id=update.effective_chat.id)
-    merged = [row[:] for row in match.history]
+    merged = [[_get_cell_state(cell) for cell in row] for row in match.history]
     own_grid = match.boards[player_key].grid
     for r in range(15):
         for c in range(15):
@@ -165,7 +165,7 @@ async def _auto_play_bots(
         for pt in coords:
             r, c = pt
             if (
-                match.history[r][c] == 0
+                _get_cell_state(match.history[r][c]) == 0
                 and match.boards[current].grid[r][c] != 1
             ):
                 coord = pt
@@ -285,7 +285,7 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         match.boards[key] = board
     storage.save_match(match)
     state = Board15State(chat_id=update.effective_chat.id)
-    merged = [row[:] for row in match.history]
+    merged = [[_get_cell_state(cell) for cell in row] for row in match.history]
     own_grid = match.boards['A'].grid
     for r in range(15):
         for c in range(15):
