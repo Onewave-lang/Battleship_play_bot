@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 from handlers import router
 from logic import placement, parser
 import storage
+from tests.utils import _state
 
 
 class DummyBot:
@@ -31,7 +32,7 @@ def _find_empty_cells(board1, board2):
     cells = []
     for r in range(10):
         for c in range(10):
-            if board1.grid[r][c] == 0 and board2.grid[r][c] == 0:
+            if _state(board1.grid[r][c]) == 0 and _state(board2.grid[r][c]) == 0:
                 cells.append((r, c))
                 if len(cells) == 2:
                     return cells

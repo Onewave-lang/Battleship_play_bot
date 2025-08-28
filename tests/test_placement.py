@@ -1,6 +1,7 @@
 import random
 from models import Board
 from logic.placement import place_ship, random_board
+from tests.utils import _state
 
 
 def test_vertical_start_row_respects_ship_size(monkeypatch):
@@ -21,5 +22,5 @@ def test_vertical_start_row_respects_ship_size(monkeypatch):
 
 def test_random_board_ship_count():
     board = random_board()
-    total = sum(cell == 1 for row in board.grid for cell in row)
+    total = sum(_state(cell) == 1 for row in board.grid for cell in row)
     assert total == 20
