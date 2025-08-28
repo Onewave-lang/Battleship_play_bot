@@ -55,17 +55,17 @@ def test_send_state_edits_existing_messages(monkeypatch):
         monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
         bot = SimpleNamespace(
             edit_message_text=AsyncMock(),
-            send_message=AsyncMock(),
+            send_message=AsyncMock(return_value=SimpleNamespace(message_id=20)),
             delete_message=AsyncMock(),
         )
         context = SimpleNamespace(bot=bot)
 
         await router._send_state(context, match, 'A', 'msg')
 
-        assert bot.edit_message_text.await_count == 2
-        bot.send_message.assert_not_called()
-        bot.delete_message.assert_not_called()
-        assert match.messages['A']['board'] == 10
+        bot.edit_message_text.assert_awaited_once()
+        bot.send_message.assert_awaited_once()
+        assert bot.delete_message.await_args_list == [call(1, 10)]
+        assert match.messages['A']['board'] == 20
         assert match.messages['A']['text'] == 11
 
     asyncio.run(run_test())

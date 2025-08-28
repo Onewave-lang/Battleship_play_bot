@@ -44,38 +44,20 @@ async def _send_state(
     enemy = render_board_enemy(match.boards[enemy_key])
     kb = move_keyboard()
 
-    # update board message with keyboard
+    # send a fresh board message with keyboard and remove the old one
     board_text = f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}"
     if board_id:
         try:
-            await context.bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=board_id,
-                text=board_text,
-                parse_mode="HTML",
-                reply_markup=kb,
-            )
+            await context.bot.delete_message(chat_id, board_id)
         except Exception:
-            try:
-                await context.bot.delete_message(chat_id, board_id)
-            except Exception:
-                pass
-            board_msg = await context.bot.send_message(
-                chat_id,
-                board_text,
-                parse_mode="HTML",
-                reply_markup=kb,
-            )
-            board_id = board_msg.message_id
-    else:
-        board_msg = await context.bot.send_message(
-            chat_id,
-            board_text,
-            parse_mode="HTML",
-            reply_markup=kb,
-        )
-        board_id = board_msg.message_id
-    msgs["board"] = board_id
+            pass
+    board_msg = await context.bot.send_message(
+        chat_id,
+        board_text,
+        parse_mode="HTML",
+        reply_markup=kb,
+    )
+    msgs["board"] = board_msg.message_id
 
     # update text message with result
     if text_id:
@@ -141,34 +123,16 @@ async def _send_state_board_test(
 
     if board_id:
         try:
-            await context.bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=board_id,
-                text=board_text,
-                parse_mode="HTML",
-                reply_markup=kb,
-            )
+            await context.bot.delete_message(chat_id, board_id)
         except Exception:
-            try:
-                await context.bot.delete_message(chat_id, board_id)
-            except Exception:
-                pass
-            board_msg = await context.bot.send_message(
-                chat_id,
-                board_text,
-                parse_mode="HTML",
-                reply_markup=kb,
-            )
-            board_id = board_msg.message_id
-    else:
-        board_msg = await context.bot.send_message(
-            chat_id,
-            board_text,
-            parse_mode="HTML",
-            reply_markup=kb,
-        )
-        board_id = board_msg.message_id
-    msgs["board"] = board_id
+            pass
+    board_msg = await context.bot.send_message(
+        chat_id,
+        board_text,
+        parse_mode="HTML",
+        reply_markup=kb,
+    )
+    msgs["board"] = board_msg.message_id
 
     if text_id:
         try:
