@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 
 from game_board15 import router
 from game_board15.models import Board15
+from tests.utils import _new_grid
 
 
 def test_empty_buffer_skips_send(monkeypatch, caplog):
@@ -13,7 +14,7 @@ def test_empty_buffer_skips_send(monkeypatch, caplog):
         match = SimpleNamespace(
             players={"A": SimpleNamespace(chat_id=1)},
             boards={"A": Board15()},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
             messages={"A": {}},
         )
 

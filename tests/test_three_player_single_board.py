@@ -8,7 +8,7 @@ from logic.battle import KILL, MISS
 from logic.battle_test import apply_shot_multi
 from game_board15 import handlers, storage, router
 from game_board15.models import Match15, Board15, Ship as Ship15, Player
-from tests.utils import _new_grid, _state
+from tests.utils import _new_grid
 
 
 def mask_from_board(board):
@@ -72,8 +72,8 @@ def test_game_ends_after_two_fleets_destroyed():
     assert res2 == {"B": MISS, "C": KILL}
     alive = [k for k, b in match.boards.items() if b.alive_cells > 0]
     assert alive == ["A"]
-    assert _state(history[0][0]) == 4
-    assert _state(history[2][2]) == 4
+    assert history[0][0][0] == 4
+    assert history[2][2][0] == 4
 
 
 def test_apply_shot_multi_updates_history():
@@ -92,11 +92,11 @@ def test_apply_shot_multi_updates_history():
     history = _new_grid()
     res1 = apply_shot_multi((1, 1), {"B": board_b, "C": board_c}, history)
     assert res1 == {"B": KILL, "C": MISS}
-    assert _state(history[1][1]) == 4
-    assert _state(history[0][0]) == 5
+    assert history[1][1][0] == 4
+    assert history[0][0][0] == 5
     res2 = apply_shot_multi((3, 3), {"B": board_b, "C": board_c}, history)
     assert res2 == {"B": MISS, "C": KILL}
-    assert _state(history[3][3]) == 4
+    assert history[3][3][0] == 4
 
 
 def test_auto_play_bots_sequence_and_history(monkeypatch):
@@ -133,8 +133,10 @@ def test_auto_play_bots_sequence_and_history(monkeypatch):
         monkeypatch.setattr(asyncio, "sleep", fast_sleep)
         await handlers._auto_play_bots(match, context, 0, human="A")
         assert recorded == [(0, 0), (0, 2)]
-        assert _state(match.history[0][0]) == 4
-        assert _state(match.history[0][2]) == 4
-        assert _state(match.history[0][1]) == 5
+        for r, c in [(0, 0), (0, 2), (0, 1)]:
+            match.history[r][c] = [match.history[r][c], None]
+        assert match.history[0][0][0] == 4
+        assert match.history[0][2][0] == 4
+        assert match.history[0][1][0] == 5
         assert winners == ["B"]
     asyncio.run(run())

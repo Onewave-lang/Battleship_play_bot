@@ -52,9 +52,9 @@ def test_auto_play_bots_skips_closed(monkeypatch):
         match.players['B'] = Player(user_id=0, chat_id=0, name='B')
         match.status = 'playing'
         match.turn = 'B'
-        match.history[0][0] = 2
-        match.history[0][1] = 3
-        match.history[0][2] = 5
+        match.history[0][0] = [2, None]
+        match.history[0][1] = [3, None]
+        match.history[0][2] = [5, None]
 
         recorded = {}
 
@@ -158,7 +158,7 @@ def test_auto_play_bots_refreshes_match(monkeypatch):
             nonlocal current, calls
             calls += 1
             if calls == 2:
-                current.history[0][1] = 2
+                current.history[0][1] = [2, None]
                 current.turn = 'B'
             return copy.deepcopy(current)
 

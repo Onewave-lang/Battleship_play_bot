@@ -14,6 +14,7 @@ sys.modules.setdefault('PIL', pil)
 
 from game_board15 import router, storage
 from game_board15.models import Board15, Ship
+from tests.utils import _new_grid
 
 
 def test_router_auto_sends_boards(monkeypatch):
@@ -30,7 +31,7 @@ def test_router_auto_sends_boards(monkeypatch):
             },
             turn='A',
             messages={},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
         )
 
         def fake_save_board(m, key, board=None):
@@ -96,7 +97,7 @@ def test_router_notifies_other_players_on_hit(monkeypatch):
             turn='A',
             shots={'A': {'move_count': 0, 'joke_start': 10}, 'B': {}, 'C': {}},
             messages={'A': {}, 'B': {}, 'C': {}},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
         )
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
@@ -144,7 +145,7 @@ def test_router_notifies_next_player_on_miss(monkeypatch):
             turn='A',
             shots={'A': {'move_count': 0, 'joke_start': 10}, 'B': {}, 'C': {}},
             messages={'A': {}, 'B': {}, 'C': {}},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
         )
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
@@ -190,7 +191,7 @@ def test_router_move_sends_player_board(monkeypatch):
             turn='A',
             shots={'A': {}, 'B': {}},
             messages={'A': {'board': 1}, 'B': {'board': 3}},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
         )
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
@@ -250,7 +251,7 @@ def test_router_uses_player_names(monkeypatch):
             turn='A',
             shots={'A': {}, 'B': {}, 'C': {}},
             messages={'A': {}},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
         )
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
@@ -292,7 +293,7 @@ def test_router_repeat_shot(monkeypatch):
             shots={'A': {'move_count': 0, 'joke_start': 10},
                    'B': {'move_count': 0, 'joke_start': 10}},
             messages={},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
         )
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
@@ -334,7 +335,7 @@ def test_router_skips_eliminated_players(monkeypatch):
             turn='A',
             shots={'A': {}, 'B': {}, 'C': {}},
             messages={'A': {}},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
         )
         match.boards['B'].alive_cells = 0
 

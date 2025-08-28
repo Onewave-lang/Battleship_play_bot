@@ -6,10 +6,11 @@ from unittest.mock import AsyncMock
 from game_board15 import router
 from game_board15.battle import apply_shot, update_history, KILL
 from game_board15.models import Board15, Ship
+from tests.utils import _new_grid
 
 
 def test_update_history_records_kill_and_contour():
-    history = [[0] * 15 for _ in range(15)]
+    history = _new_grid(15)
     boards = {'B': Board15()}
     ship = Ship(cells=[(1, 1)])
     boards['B'].ships = [ship]
@@ -17,8 +18,8 @@ def test_update_history_records_kill_and_contour():
     res = apply_shot(boards['B'], (1, 1))
     assert res == KILL
     update_history(history, boards, (1, 1), {'B': res})
-    assert history[1][1] == 4
-    assert history[0][0] == 5
+    assert history[1][1][0] == 4
+    assert history[0][0][0] == 5
 
 
 def test_send_state_uses_history(monkeypatch):
@@ -26,11 +27,11 @@ def test_send_state_uses_history(monkeypatch):
         match = SimpleNamespace(
             players={'A': SimpleNamespace(chat_id=1)},
             boards={'A': Board15()},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
             messages={'A': {}},
         )
         match.boards['A'].grid[2][2] = 1
-        match.history[0][0] = 2
+        match.history[0][0] = [2, None]
 
         captured = {}
 
@@ -70,7 +71,7 @@ def test_kill_contour_visible_to_all_players(monkeypatch):
                 'C': SimpleNamespace(chat_id=3),
             },
             boards={'A': Board15(), 'B': Board15(), 'C': Board15()},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
             messages={'A': {}, 'B': {}, 'C': {}},
         )
         ship = Ship(cells=[(1, 1)])
@@ -120,7 +121,7 @@ def test_render_board_shows_cumulative_history(monkeypatch):
         match = SimpleNamespace(
             players={'A': SimpleNamespace(chat_id=1)},
             boards={'A': Board15()},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
             messages={'A': {}},
         )
         ship = Ship(cells=[(1, 1)])
