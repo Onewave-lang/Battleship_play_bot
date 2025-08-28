@@ -19,6 +19,7 @@ from handlers.commands import (
     start,
     newgame,
     board,
+    quit_game,
     send_invite_link,
     choose_mode,
     confirm_newgame,
@@ -69,6 +70,7 @@ bot_app = ApplicationBuilder().token(token).updater(None).build()
 bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(CommandHandler("newgame", newgame))
 bot_app.add_handler(CommandHandler("board", board))
+bot_app.add_handler(CommandHandler(["quit", "exit"], quit_game))
 bot_app.add_handler(CallbackQueryHandler(send_invite_link, pattern="^get_link$"))
 bot_app.add_handler(CallbackQueryHandler(choose_mode, pattern="^mode_"))
 bot_app.add_handler(CallbackQueryHandler(confirm_newgame, pattern="^ng_"))

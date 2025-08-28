@@ -260,6 +260,37 @@ async def board(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def quit_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Close the current match for the issuing user."""
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    match = storage.find_match_by_user(user_id, chat_id)
+    if not match and os.getenv("BOARD15_ENABLED") == "1":
+        from game_board15 import storage as storage15  # type: ignore
+        match15 = storage15.find_match_by_user(user_id, chat_id)
+        if match15:
+            quitter = next((k for k, p in match15.players.items() if p.user_id == user_id), None)
+            match15.status = 'finished'
+            storage15.save_match(match15)
+            for key, player in match15.players.items():
+                if player.user_id == 0:
+                    continue
+                if key == quitter:
+                    await update.message.reply_text('Матч завершен.')
+                else:
+                    await context.bot.send_message(player.chat_id, 'Соперник завершил матч.')
+            return
+    if not match:
+        await update.message.reply_text('Вы не участвуете в матче. Используйте /newgame.')
+        return
+    player_key = 'A' if match.players['A'].user_id == user_id else 'B'
+    enemy_key = 'B' if player_key == 'A' else 'A'
+    await update.message.reply_text('Матч завершен.')
+    if enemy_key in match.players:
+        await context.bot.send_message(match.players[enemy_key].chat_id, 'Соперник завершил матч.')
+    storage.close_match(match)
+
+
 async def choose_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle game mode selection from start menu."""
     query = update.callback_query
