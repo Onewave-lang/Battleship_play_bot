@@ -1,6 +1,7 @@
 from __future__ import annotations
 import random
 import os
+import asyncio
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 
@@ -24,6 +25,11 @@ from logic.phrases import (
     random_phrase,
     random_joke,
 )
+
+
+# Delay after sending the board and before sending/editing the result text.
+# Can be tuned with the ``STATE_DELAY`` environment variable.
+STATE_DELAY = float(os.getenv("STATE_DELAY", "0.2"))
 
 
 async def _send_state(
@@ -58,6 +64,8 @@ async def _send_state(
         reply_markup=kb,
     )
     msgs["board"] = board_msg.message_id
+
+    await asyncio.sleep(STATE_DELAY)
 
     # update text message with result
     if text_id:
@@ -133,6 +141,8 @@ async def _send_state_board_test(
         reply_markup=kb,
     )
     msgs["board"] = board_msg.message_id
+
+    await asyncio.sleep(STATE_DELAY)
 
     if text_id:
         try:
