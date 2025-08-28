@@ -15,6 +15,7 @@ sys.modules.setdefault('PIL', pil)
 from handlers.commands import start
 from game_board15 import handlers as h
 from game_board15 import storage as storage15
+from tests.utils import _new_grid
 
 
 def test_board15_invite_flow(monkeypatch):
@@ -24,7 +25,7 @@ def test_board15_invite_flow(monkeypatch):
             players={'A': SimpleNamespace(user_id=1, chat_id=1, name='Alice')},
             boards={'A': SimpleNamespace(grid=[[0] * 15 for _ in range(15)], highlight=[])},
             messages={},
-            history=[[0] * 15 for _ in range(15)],
+            history=_new_grid(15),
         )
         monkeypatch.setattr(storage15, 'create_match', lambda uid, cid, name=None: match)
         monkeypatch.setattr(storage15, 'save_match', lambda m: None)

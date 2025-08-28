@@ -6,6 +6,7 @@ import pytest
 
 from game_board15 import handlers, storage, router
 from game_board15.models import Board15, Match15, Player
+from tests.utils import _new_grid
 
 
 def test_board15_test_autoplay(monkeypatch):
@@ -52,9 +53,12 @@ def test_auto_play_bots_skips_closed(monkeypatch):
         match.players['B'] = Player(user_id=0, chat_id=0, name='B')
         match.status = 'playing'
         match.turn = 'B'
-        match.history[0][0] = 2
-        match.history[0][1] = 3
-        match.history[0][2] = 5
+        match.history = _new_grid(15)
+        match.history = _new_grid(15)
+        match.history = _new_grid(15)
+        match.history[0][0][0] = 2
+        match.history[0][1][0] = 3
+        match.history[0][2][0] = 5
 
         recorded = {}
 
@@ -148,6 +152,7 @@ def test_auto_play_bots_refreshes_match(monkeypatch):
         match.players['B'] = Player(user_id=0, chat_id=0, name='B')
         match.status = 'playing'
         match.turn = 'B'
+        match.history = _new_grid(15)
 
         recorded: list[tuple[int, int]] = []
         import copy
@@ -158,7 +163,7 @@ def test_auto_play_bots_refreshes_match(monkeypatch):
             nonlocal current, calls
             calls += 1
             if calls == 2:
-                current.history[0][1] = 2
+                current.history[0][1][0] = 2
                 current.turn = 'B'
             return copy.deepcopy(current)
 

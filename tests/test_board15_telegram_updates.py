@@ -13,6 +13,7 @@ pil.ImageFont = types.SimpleNamespace()
 sys.modules.setdefault("PIL", pil)
 
 from game_board15 import router, storage, battle
+from tests.utils import _new_grid
 
 
 def test_board_updates_accumulate(tmp_path, monkeypatch):
@@ -21,6 +22,7 @@ def test_board_updates_accumulate(tmp_path, monkeypatch):
     match = storage.create_match(1, 1, "A")
     match = storage.join_match(match.match_id, 2, 2, "B")
     match.status = "playing"
+    match.history = _new_grid(15)
     storage.save_match(match)
 
     boards = []
