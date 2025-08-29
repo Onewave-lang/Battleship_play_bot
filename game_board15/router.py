@@ -206,20 +206,17 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         enemy_obj = match.players.get(enemy)
         enemy_label = getattr(enemy_obj, "name", "") or enemy
         if res == battle.MISS:
-            phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-            parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
+            parts_self.append(f"{enemy_label}: мимо.")
             enemy_msgs[enemy] = f"соперник промахнулся. {phrase_enemy}"
         elif res == battle.HIT:
-            phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
-            parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
+            parts_self.append(f"{enemy_label}: ранил.")
             enemy_msgs[enemy] = f"ваш корабль ранен. {phrase_enemy}"
             targets.append(enemy)
         elif res == battle.KILL:
-            phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
-            parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
+            parts_self.append(f"{enemy_label}: уничтожен!")
             enemy_msgs[enemy] = f"ваш корабль уничтожен. {phrase_enemy}"
             targets.append(enemy)
             if (
@@ -230,6 +227,15 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     match.players[enemy].chat_id,
                     f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
                 )
+
+    if any(res == battle.KILL for res in results.values()):
+        phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
+    elif any(res == battle.HIT for res in results.values()):
+        phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
+    elif any(res == battle.REPEAT for res in results.values()):
+        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
+    else:
+        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
 
     others = [
         k
@@ -271,18 +277,18 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     other,
                     f"Ход игрока {player_label}: {coord_str} - {msg_body}{next_phrase}",
                 )
+    msg_body = ' '.join(parts_self) if parts_self else 'мимо'
     if same_chat:
-        msg_body = ' '.join(parts_self) if parts_self else 'мимо'
-        result_msg = (
-            f"Ход игрока {player_label}: {coord_str} - {msg_body} Ход {next_name}."
+        result_self = (
+            f"Ход игрока {player_label}: {coord_str} - {msg_body} {phrase_self} Ход {next_name}."
         )
         view_key = match.turn
     else:
-        result_msg = f"Ваш ход: {coord_str} - {' '.join(parts_self)}" + (
+        result_self = f"Ваш ход: {coord_str} - {msg_body} {phrase_self}" + (
             ' Ваш ход.' if match.turn == player_key else f" Ход {next_name}."
         )
         view_key = match.turn if single_user else player_key
-    await _send_state(context, match, view_key, result_msg)
+    await _send_state(context, match, view_key, result_self)
 
     storage.save_match(match)
 
