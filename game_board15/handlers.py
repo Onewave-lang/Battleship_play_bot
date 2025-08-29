@@ -224,29 +224,25 @@ async def _auto_play_bots(
                         match.players[enemy].chat_id,
                         f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
                     )
+        enemy_msgs[current] = ' '.join(parts_self)
 
         next_label = match.players.get(next_player)
         next_name = getattr(next_label, 'name', '') or next_player
-        if enemy_msgs:
-            for enemy, msg_body in enemy_msgs.items():
-                if match.players[enemy].user_id != 0:
-                    next_phrase = ' Ваш ход.' if next_player == enemy else f" Ход {next_name}."
-                    await _safe_send_state(
-                        enemy,
-                        f"Ход игрока {player_label}: {coord_str} - {msg_body}{next_phrase}",
-                    )
 
-        if current != human and human in match.players and match.players[human].user_id != 0:
-            msg_self = f"Ход игрока {player_label}: {coord_str} - {' '.join(parts_self)}"
-            msg_self += ' Ваш ход.' if next_player == human else f" Ход {next_name}."
-            await _safe_send_state(human, msg_self)
+        for player_key, msg_body in enemy_msgs.items():
+            if match.players[player_key].user_id != 0:
+                next_phrase = (
+                    ' Ваш ход.' if next_player == player_key else f" Ход {next_name}."
+                )
+                if player_key == current:
+                    msg_text = f"Ваш ход: {coord_str} - {msg_body}{next_phrase}"
+                else:
+                    msg_text = (
+                        f"Ход игрока {player_label}: {coord_str} - {msg_body}{next_phrase}"
+                    )
+                await _safe_send_state(player_key, msg_text)
 
         storage.save_match(match)
-        result_self = f"Ваш ход: {coord_str} - {' '.join(parts_self)}" + (
-            ' Ваш ход.' if next_player == current else f" Ход {next_name}."
-        )
-        if match.players[current].user_id != 0:
-            await _safe_send_state(current, result_self)
 
         alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
         if len(alive_players) == 1:
