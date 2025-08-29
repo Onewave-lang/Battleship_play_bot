@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 import random
-from telegram import Update, InputMediaPhoto
+from telegram import Update
 from telegram.ext import ContextTypes
 
 from . import storage
@@ -59,100 +59,38 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
         return
 
     msgs = match.messages.setdefault(player_key, {})
-    board_id = msgs.get("board")
-    player_id = msgs.get("player")
 
-    # update player's own board with ships
-    if player_id:
-        try:
-            await context.bot.edit_message_media(
-                chat_id=chat_id,
-                message_id=player_id,
-                media=InputMediaPhoto(player_buf),
-            )
-        except Exception:
-            logger.exception("Failed to update player's board for chat %s", chat_id)
-            try:
-                await context.bot.delete_message(chat_id, player_id)
-            except Exception:
-                pass
-            player_buf.seek(0)
-            msg = await context.bot.send_photo(chat_id, player_buf)
-            msgs["player"] = msg.message_id
-    else:
-        msg = await context.bot.send_photo(chat_id, player_buf)
-        msgs["player"] = msg.message_id
+    # always send player's own board with ships
+    try:
+        player_buf.seek(0)
+        msg_player = await context.bot.send_photo(chat_id, player_buf)
+        msgs["player"] = msg_player.message_id
+    except Exception:
+        logger.exception("Failed to send player's board for chat %s", chat_id)
 
-    # update main board image
-    if board_id:
-        try:
-            await context.bot.edit_message_media(
-                chat_id=chat_id,
-                message_id=board_id,
-                media=InputMediaPhoto(buf),
-            )
-            state.message_id = board_id
-        except Exception:
-            logger.exception("Failed to update board image for chat %s", chat_id)
-            try:
-                await context.bot.delete_message(chat_id, board_id)
-            except Exception:
-                pass
-            buf.seek(0)
-            msg = await context.bot.send_photo(chat_id, buf)
-            board_id = msg.message_id
-            state.message_id = board_id
-    else:
-        msg = await context.bot.send_photo(chat_id, buf)
-        board_id = msg.message_id
-        state.message_id = board_id
-    msgs["board"] = board_id
-
-    # update or send text message only when it changes
-    last_text = msgs.get("text")
-    text_id = msgs.get("text_id")
-    history = msgs.setdefault("text_history", [])
-
-    if last_text == message and text_id:
-        # avoid sending duplicate text message
+    # always send main board image
+    try:
+        buf.seek(0)
+        msg_board = await context.bot.send_photo(chat_id, buf)
+    except Exception:
+        logger.exception("Failed to send board image for chat %s", chat_id)
         return
+    state.message_id = msg_board.message_id
+    msgs["board"] = msg_board.message_id
+    board_hist = msgs.setdefault("board_history", [])
+    if msgs.get("history_active"):
+        board_hist.append(msg_board.message_id)
 
-    if text_id:
-        try:
-            await context.bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=text_id,
-                text=message,
-            )
-        except Exception:
-            logger.exception("Failed to update text message for chat %s", chat_id)
-            try:
-                await context.bot.delete_message(chat_id, text_id)
-            except Exception:
-                pass
-            try:
-                msg_text = await context.bot.send_message(chat_id, message)
-            except Exception:
-                logger.exception("Failed to send text message for chat %s", chat_id)
-                return
-            else:
-                text_id = msg_text.message_id
-                history.append(text_id)
-        else:
-            if not history:
-                history.append(text_id)
-    else:
-        try:
-            msg_text = await context.bot.send_message(chat_id, message)
-        except Exception:
-            logger.exception("Failed to send text message for chat %s", chat_id)
-            return
-        else:
-            text_id = msg_text.message_id
-            history.append(text_id)
-
-    msgs["text"] = message
-    msgs["text_id"] = text_id
+    # send result text message
+    try:
+        msg_text = await context.bot.send_message(chat_id, message)
+    except Exception:
+        logger.exception("Failed to send text message for chat %s", chat_id)
+        return
+    msgs["text"] = msg_text.message_id
+    text_hist = msgs.setdefault("text_history", [])
+    if msgs.get("history_active"):
+        text_hist.append(msg_text.message_id)
 
 
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -238,6 +176,11 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if repeat:
         await update.message.reply_text('Эта клетка уже открыта')
         return
+
+    if match.players[player_key].user_id != 0:
+        msgs = match.messages.setdefault(player_key, {})
+        if not msgs.get("history_active"):
+            msgs["history_active"] = True
     coord_str = parser.format_coord(coord)
     before_history = [[_get_cell_state(cell) for cell in row] for row in match.history]
     battle.update_history(match.history, match.boards, coord, results)

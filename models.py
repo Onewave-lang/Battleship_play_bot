@@ -55,8 +55,16 @@ class Match:
         }
     )
     # stores ids of service messages per player: e.g. last board or keyboard
-    messages: Dict[str, Dict[str, int]] = field(
-        default_factory=lambda: {"A": {}, "B": {}, "C": {}}
+    # also maintains chronological history of all board and text messages
+    messages: Dict[str, Dict[str, object]] = field(
+        default_factory=lambda: {
+            k: {
+                "board_history": [],
+                "text_history": [],
+                "history_active": False,
+            }
+            for k in ("A", "B", "C")
+        }
     )
 
     @staticmethod

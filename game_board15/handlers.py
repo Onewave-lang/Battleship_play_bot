@@ -77,6 +77,9 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     context.bot_data.setdefault(STATE_KEY, {})[update.effective_chat.id] = state
     match.messages[player_key] = {
         'board': msg.message_id,
+        'board_history': [],
+        'text_history': [],
+        'history_active': False,
     }
     storage.save_match(match)
 
@@ -310,6 +313,9 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     context.bot_data.setdefault(STATE_KEY, {})[update.effective_chat.id] = state
     match.messages['A'] = {
         'board': board_msg_id,
+        'board_history': [],
+        'text_history': [],
+        'history_active': False,
     }
     storage.save_match(match)
     asyncio.create_task(_auto_play_bots(match, context, update.effective_chat.id, human='A'))

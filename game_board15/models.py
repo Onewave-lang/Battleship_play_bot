@@ -53,7 +53,16 @@ class Match15:
             for k in ("A", "B", "C")
         }
     )
-    messages: Dict[str, Dict[str, int]] = field(default_factory=dict)
+    messages: Dict[str, Dict[str, object]] = field(
+        default_factory=lambda: {
+            k: {
+                "board_history": [],
+                "text_history": [],
+                "history_active": False,
+            }
+            for k in ("A", "B", "C")
+        }
+    )
 
     @staticmethod
     def new(a_user_id: int, a_chat_id: int, a_name: str) -> "Match15":
