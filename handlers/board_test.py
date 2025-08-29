@@ -157,7 +157,7 @@ async def _auto_play_bots(
                 if enemy == human:
                     continue
                 if match.players[enemy].user_id != 0:
-                    next_phrase = " Ваш ход." if next_player == enemy else f" Ход {next_name}."
+                    next_phrase = f" Следующим ходит {next_name}."
                     await _safe_send_state(
                         enemy,
                         f"Ход игрока {current}: {coord_str} - {msg_body}{next_phrase}",
@@ -168,7 +168,7 @@ async def _auto_play_bots(
             and human in enemy_msgs
             and match.players[human].user_id != 0
         ):
-            next_phrase = " Ваш ход." if next_player == human else f" Ход {next_name}."
+            next_phrase = f" Следующим ходит {next_name}."
             await _safe_send_state(
                 human,
                 f"Ход игрока {current}: {coord_str} - {enemy_msgs[human]}{next_phrase}",
@@ -181,9 +181,7 @@ async def _auto_play_bots(
             if parts_text
             else f"Ваш ход: {coord_str} - {phrase_self}"
         ).rstrip()
-        result_self = base_self + (
-            " Ваш ход." if next_player == current else f" Ход {next_name}."
-        )
+        result_self = base_self + f" Следующим ходит {next_name}."
         if match.players[current].user_id != 0:
             await _safe_send_state(current, result_self)
 

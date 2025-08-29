@@ -261,7 +261,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if enemy_msgs and not same_chat:
         for enemy, (res_enemy, msg_body_enemy) in enemy_msgs.items():
             if match.players[enemy].user_id != 0:
-                next_phrase = ' Ваш ход.' if match.turn == enemy else f" Ход {next_name}."
+                next_phrase = f" Следующим ходит {next_name}."
                 await _send_state(
                     context,
                     match,
@@ -271,24 +271,22 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if others and not same_chat:
         msg_body = ' '.join(parts_self) if parts_self else 'мимо'
         for other in others:
-            next_phrase = ' Ваш ход.' if match.turn == other else f" Ход {next_name}."
+            next_phrase = f" Следующим ходит {next_name}."
             if match.players[other].user_id != 0:
                 await _send_state(
                     context,
                     match,
                     other,
-                    f"Ход игрока {player_label}: {coord_str} - {msg_body}{next_phrase}",
+                    f"Ход игрока {player_label}: {coord_str} - {msg_body} {phrase_self}{next_phrase}",
                 )
     msg_body = ' '.join(parts_self) if parts_self else 'мимо'
     if same_chat:
         result_self = (
-            f"Ход игрока {player_label}: {coord_str} - {msg_body} {phrase_self} Ход {next_name}."
+            f"Ход игрока {player_label}: {coord_str} - {msg_body} {phrase_self} Следующим ходит {next_name}."
         )
         view_key = match.turn
     else:
-        result_self = f"Ваш ход: {coord_str} - {msg_body} {phrase_self}" + (
-            ' Ваш ход.' if match.turn == player_key else f" Ход {next_name}."
-        )
+        result_self = f"Ваш ход: {coord_str} - {msg_body} {phrase_self} Следующим ходит {next_name}."
         view_key = match.turn if single_user else player_key
     await _send_state(context, match, view_key, result_self)
 
