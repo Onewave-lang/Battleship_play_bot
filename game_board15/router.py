@@ -209,16 +209,15 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         enemy_label = getattr(enemy_obj, "name", "") or enemy
         if res == battle.MISS:
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-            parts_self.append(f"{enemy_label}: мимо.")
             enemy_msgs[enemy] = (res, f"соперник промахнулся. {phrase_enemy}")
         elif res == battle.HIT:
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
-            parts_self.append(f"{enemy_label}: ранил.")
+            parts_self.append(f"ранен корабль игрока {enemy_label}.")
             enemy_msgs[enemy] = (res, f"ваш корабль ранен. {phrase_enemy}")
             targets.append(enemy)
         elif res == battle.KILL:
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
-            parts_self.append(f"{enemy_label}: уничтожен!")
+            parts_self.append(f"уничтожен корабль игрока {enemy_label}!")
             enemy_msgs[enemy] = (res, f"ваш корабль уничтожен. {phrase_enemy}")
             targets.append(enemy)
             if (

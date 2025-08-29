@@ -49,6 +49,9 @@ def test_router_notifies_on_bot_elimination(monkeypatch):
 
         assert context.bot.send_message.call_count == 0
         calls = [(c.args[2], c.args[3]) for c in send_state.call_args_list]
-        assert any(player == 'A' and 'B: уничтожен!' in msg for player, msg in calls)
+        assert any(
+            player == 'A' and 'уничтожен корабль игрока B!' in msg
+            for player, msg in calls
+        )
 
     asyncio.run(run())
