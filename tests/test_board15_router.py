@@ -129,6 +129,62 @@ def test_router_notifies_other_players_on_hit(monkeypatch):
     asyncio.run(run_test())
 
 
+def test_router_notifies_target_on_kill_shared_chat(monkeypatch):
+    async def run_test():
+        board_self = Board15()
+        board_b = Board15()
+        ship = Ship(cells=[(0, 0)])
+        board_b.ships = [ship]
+        board_b.grid[0][0] = 1
+        board_b.alive_cells = 1
+        match = SimpleNamespace(
+            status='playing',
+            players={
+                'A': SimpleNamespace(user_id=1, chat_id=10, name='A'),
+                'B': SimpleNamespace(user_id=2, chat_id=10, name='B'),
+            },
+            boards={'A': board_self, 'B': board_b},
+            turn='A',
+            shots={'A': {'move_count': 0, 'joke_start': 10}, 'B': {}},
+            messages={'A': {}, 'B': {}},
+            history=_new_grid(15),
+        )
+
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(router.parser, 'parse_coord', lambda text: (0, 0))
+        monkeypatch.setattr(router.parser, 'format_coord', lambda coord: 'a1')
+        monkeypatch.setattr(router, '_phrase_or_joke', lambda m, pk, ph: '')
+
+        def fake_apply_shot(board, coord):
+            if board is board_b:
+                board.alive_cells = 0
+                board.highlight = [(0, 0)]
+                return router.battle.KILL
+            return router.battle.MISS
+
+        monkeypatch.setattr(router.battle, 'apply_shot', fake_apply_shot)
+
+        send_state = AsyncMock()
+        monkeypatch.setattr(router, '_send_state', send_state)
+
+        update = SimpleNamespace(
+            message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), chat_data={}, bot_data={})
+
+        await router.router_text(update, context)
+
+        calls = [c for c in send_state.call_args_list if c.args[2] == 'B']
+        assert calls
+        msg = calls[-1].args[3]
+        assert 'ваш корабль уничтожен' in msg
+
+    asyncio.run(run_test())
+
+
 def test_router_notifies_next_player_on_miss(monkeypatch):
     async def run_test():
         match = SimpleNamespace(

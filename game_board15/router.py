@@ -256,7 +256,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     next_obj = match.players.get(next_player)
     next_name = getattr(next_obj, 'name', '') or next_player
     same_chat = len({p.chat_id for p in match.players.values()}) == 1
-    if enemy_msgs and not same_chat:
+    if enemy_msgs:
         for enemy, msg_body_enemy in enemy_msgs.items():
             if match.players[enemy].user_id != 0:
                 next_phrase = ' Ваш ход.' if match.turn == enemy else f" Ход {next_name}."
