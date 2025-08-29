@@ -268,6 +268,56 @@ def test_router_uses_player_names(monkeypatch):
     asyncio.run(run_test())
 
 
+def test_router_miss_single_phrase(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            status='playing',
+            players={
+                'A': SimpleNamespace(user_id=1, chat_id=10, name='Alice'),
+                'B': SimpleNamespace(user_id=2, chat_id=20, name='Bob'),
+                'C': SimpleNamespace(user_id=3, chat_id=30, name='Carl'),
+            },
+            boards={
+                'A': Board15(),
+                'B': Board15(),
+                'C': Board15(),
+            },
+            turn='A',
+            shots={'A': {}, 'B': {}, 'C': {}},
+            messages={'A': {}},
+            history=_new_grid(15),
+        )
+
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(router.parser, 'parse_coord', lambda text: (0, 0))
+        monkeypatch.setattr(router.parser, 'format_coord', lambda coord: 'a1')
+        monkeypatch.setattr(router.battle, 'apply_shot', lambda board, coord: router.battle.MISS)
+
+        def phrase_mock(match, pk, phrases):
+            return {'A': 'SELF_JOKE', 'B': 'B_JOKE', 'C': 'C_JOKE'}[pk]
+
+        monkeypatch.setattr(router, '_phrase_or_joke', Mock(side_effect=phrase_mock))
+        send_state = AsyncMock()
+        monkeypatch.setattr(router, '_send_state', send_state)
+
+        update = SimpleNamespace(
+            message=SimpleNamespace(text='a1'),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
+        context = SimpleNamespace(chat_data={}, bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
+
+        await router.router_text(update, context)
+
+        msg = send_state.call_args[0][3]
+        assert msg.count('SELF_JOKE') == 1
+        assert 'B_JOKE' not in msg and 'C_JOKE' not in msg
+        assert 'C:' not in msg
+
+    asyncio.run(run_test())
+
+
 def test_router_repeat_shot(monkeypatch):
     async def run_test():
         board_enemy = Board15()
