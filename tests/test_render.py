@@ -4,6 +4,20 @@ from models import Board, Ship
 from tests.utils import _new_grid, _state
 
 
+def test_render_board_own_uses_board_owner_color():
+    b = Board(owner='A')
+    b.grid[0][0] = 1
+    own = render_board_own(b)
+    assert PLAYER_COLORS['A'] in own
+
+
+def test_render_board_enemy_uses_board_owner_color():
+    b = Board(owner='B')
+    b.grid[0][0] = 3
+    enemy = render_board_enemy(b)
+    assert PLAYER_COLORS['B'] in enemy
+
+
 def test_render_last_move_symbols():
     b = Board()
     b.grid = _new_grid()

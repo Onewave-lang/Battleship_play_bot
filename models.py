@@ -22,6 +22,8 @@ class Board:
     alive_cells: int = 20
     # cells to highlight (last shot or destroyed ship) for rendering
     highlight: List[Coord] = field(default_factory=list)
+    # owner key ("A", "B" or "C") used for colouring
+    owner: Optional[str] = None
 
 
 @dataclass
@@ -73,6 +75,6 @@ class Match:
         match = Match(match_id=match_id)
         match.players["A"] = Player(user_id=a_user_id, chat_id=a_chat_id)
         for k in ("A", "B", "C"):
-            match.boards[k] = Board()
+            match.boards[k] = Board(owner=k)
         match.history = [[0] * 10 for _ in range(10)]
         return match
