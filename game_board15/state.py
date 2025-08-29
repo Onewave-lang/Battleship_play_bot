@@ -19,6 +19,9 @@ class Board15State:
     board: List[List[int]] = field(
         default_factory=lambda: [[0] * 15 for _ in range(15)]
     )
+    owners: List[List[Optional[str]]] = field(
+        default_factory=lambda: [[None] * 15 for _ in range(15)]
+    )
     chat_id: Optional[int] = None
     message_id: Optional[int] = None
     player_key: Optional[str] = None

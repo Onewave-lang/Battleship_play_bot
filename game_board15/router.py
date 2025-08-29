@@ -17,7 +17,7 @@ from logic.phrases import (
     SELF_KILL,
     SELF_MISS,
 )
-from .utils import _phrase_or_joke, _get_cell_state
+from .utils import _phrase_or_joke, _get_cell_state, _get_cell_owner
 
 
 logger = logging.getLogger(__name__)
@@ -34,21 +34,18 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
         states[chat_id] = state
 
     # prepare board images
-    merged = [[_get_cell_state(cell) for cell in row] for row in match.history]
+    merged_states = [[_get_cell_state(cell) for cell in row] for row in match.history]
+    owners = [[_get_cell_owner(cell) for cell in row] for row in match.history]
     own_grid = match.boards[player_key].grid
     for r in range(15):
         for c in range(15):
-            if merged[r][c] == 0 and own_grid[r][c] == 1:
-                merged[r][c] = 1
-    state.board = merged
+            if merged_states[r][c] == 0 and own_grid[r][c] == 1:
+                merged_states[r][c] = 1
+                owners[r][c] = player_key
+    state.board = merged_states
+    state.owners = owners
     state.player_key = player_key
-    state.highlight = match.boards[player_key].highlight.copy()
-    shots = getattr(match, "shots", {})
-    last = shots.get(player_key, {}).get("last_coord")
-    if last is not None:
-        if isinstance(last, list):
-            last = tuple(last)
-        state.highlight.append(last)
+    state.highlight = getattr(match, "last_highlight", []).copy()
     buf = render_board(state, player_key)
     if buf.getbuffer().nbytes == 0:
         logger.warning("render_board returned empty buffer for chat %s", chat_id)
@@ -180,6 +177,19 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     ):
         logger.warning("History is empty after shot %s", coord_str)
     match.shots[player_key]["last_coord"] = coord
+    if any(res == battle.KILL for res in results.values()):
+        cells: list[tuple[int, int]] = []
+        for enemy, res in results.items():
+            if res == battle.KILL:
+                cells.extend(match.boards[enemy].highlight)
+        match.last_highlight = cells
+        match.shots[player_key]["last_result"] = "kill"
+    elif any(res == battle.HIT for res in results.values()):
+        match.last_highlight = [coord]
+        match.shots[player_key]["last_result"] = "hit"
+    else:
+        match.last_highlight = [coord]
+        match.shots[player_key]["last_result"] = "miss"
     for k in match.shots:
         shots = match.shots[k]
         shots.setdefault('move_count', 0)
