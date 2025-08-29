@@ -292,8 +292,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         next_label = getattr(match.players[next_player], 'name', '') or next_player
         phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
         phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_MISS)
-        next_phrase_self = f"Ход {next_label}."
-        next_phrase_enemy = 'Ваш ход.'
+        next_phrase_self = f" Следующим ходит {next_label}."
+        next_phrase_enemy = f" Следующим ходит {next_label}."
         result_self = f"Ваш ход: {coord_str} — Мимо. {phrase_self}{next_phrase_self}"
         result_enemy = (
             f"Ход игрока {player_label}: {coord_str} — Соперник промахнулся. {phrase_enemy}{next_phrase_enemy}"
@@ -304,8 +304,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         next_label = getattr(match.players[next_player], 'name', '') or next_player
         phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
         phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_HIT)
-        next_phrase_self = 'Ваш ход.'
-        next_phrase_enemy = f"Ход {next_label}."
+        next_phrase_self = f" Следующим ходит {next_label}."
+        next_phrase_enemy = f" Следующим ходит {next_label}."
         result_self = f"Ваш ход: {coord_str} — Ранил. {phrase_self}{next_phrase_self}"
         result_enemy = (
             f"Ход игрока {player_label}: {coord_str} — Соперник ранил ваш корабль. {phrase_enemy}{next_phrase_enemy}"
@@ -316,8 +316,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         next_label = getattr(match.players[next_player], 'name', '') or next_player
         phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
         phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_MISS)
-        next_phrase_self = 'Ваш ход.'
-        next_phrase_enemy = f"Ход {next_label}."
+        next_phrase_self = f" Следующим ходит {next_label}."
+        next_phrase_enemy = f" Следующим ходит {next_label}."
         result_self = (
             f"Ваш ход: {coord_str} — Клетка уже обстреляна. {phrase_self}{next_phrase_self}"
         )
@@ -339,8 +339,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         else:
             next_player = player_key
             next_label = getattr(match.players[next_player], 'name', '') or next_player
-            next_phrase_self = 'Ваш ход.'
-            next_phrase_enemy = f"Ход {next_label}."
+            next_phrase_self = f" Следующим ходит {next_label}."
+            next_phrase_enemy = f" Следующим ходит {next_label}."
             result_self = (
                 f"Ваш ход: {coord_str} — Корабль соперника уничтожен! {phrase_self}{next_phrase_self}"
             )
@@ -351,10 +351,10 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     else:
         next_player = enemy_key
         next_label = getattr(match.players[next_player], 'name', '') or next_player
-        next_phrase_self = f"Ход {next_label}."
-        next_phrase_enemy = 'Ваш ход.'
-        result_self = f"Ваш ход: {coord_str} — Ошибка. {next_phrase_self}"
-        result_enemy = f"Ход игрока {player_label}: {coord_str} — Техническая ошибка. {next_phrase_enemy}"
+        next_phrase_self = f" Следующим ходит {next_label}."
+        next_phrase_enemy = f" Следующим ходит {next_label}."
+        result_self = f"Ваш ход: {coord_str} — Ошибка.{next_phrase_self}"
+        result_enemy = f"Ход игрока {player_label}: {coord_str} — Техническая ошибка.{next_phrase_enemy}"
 
     if error:
         msg = 'Произошла техническая ошибка. Ход прерван.'
@@ -371,11 +371,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     await context.bot.delete_message(chat_id, msg_id)
                 except Exception:
                     pass
-        if next_player == player_key:
-            next_label = getattr(match.players[next_player], 'name', '') or next_player
-            result_self = result_self.replace('Ваш ход.', f'Ход {next_label}.')
         result_shared = result_self.replace('Ваш ход:', f'Ход игрока {player_label}:')
-        result_shared = result_shared.replace('Ваш ход.', f'Ход {player_label}.')
         result_shared = result_shared.replace('Вы победили.', f'Игрок {player_label} победил.')
         await _send_state(context, match, player_key, result_shared)
         match.messages[enemy_key] = match.messages[player_key].copy()
@@ -483,9 +479,7 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
     storage.save_match(match)
 
     next_label = getattr(match.players[next_player], 'name', '') or next_player
-    next_phrase_self = (
-        'Ваш ход.' if next_player == player_key else f"Ход {next_label}."
-    )
+    next_phrase_self = f"Следующим ходит {next_label}."
     summary = random.choice(list(self_msgs.values())) if self_msgs else ''
     if summary:
         self_lines = [f"Ваш ход: {coord_str} — {summary}"]
@@ -501,9 +495,7 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
 
     for enemy, body in enemy_msgs.items():
         if match.players[enemy].user_id != 0:
-            next_phrase = (
-                'Ваш ход.' if next_player == enemy else f"Ход {next_label}."
-            )
+            next_phrase = f"Следующим ходит {next_label}."
             await _send_state_board_test(
                 context,
                 match,

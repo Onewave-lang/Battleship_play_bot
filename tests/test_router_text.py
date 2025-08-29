@@ -208,10 +208,10 @@ def test_router_kill_message(monkeypatch):
         msg_enemy = calls[3].args[1]
         assert 'Ваш ход: a1 — Корабль соперника уничтожен!' in msg_self
         assert any(p in msg_self for p in phrases.SELF_KILL)
-        assert msg_self.strip().endswith('Ваш ход.')
+        assert msg_self.strip().endswith('Следующим ходит A.')
         assert 'Ход игрока A: a1 — Соперник уничтожил ваш корабль.' in msg_enemy
         assert any(p in msg_enemy for p in phrases.ENEMY_KILL)
-        assert msg_enemy.strip().endswith('Ход A.')
+        assert msg_enemy.strip().endswith('Следующим ходит A.')
     asyncio.run(run_test())
 
 
@@ -274,7 +274,7 @@ def test_router_joke_format(monkeypatch):
         )
         await router.router_text(update, context)
         msg_self = send_message.call_args_list[1].args[1]
-        assert 'Слушай анекдот по этому поводу:\nJOKE\n\nХод B.' in msg_self
+        assert 'Слушай анекдот по этому поводу:\nJOKE\n\n Следующим ходит B.' in msg_self
 
     asyncio.run(run_test())
 

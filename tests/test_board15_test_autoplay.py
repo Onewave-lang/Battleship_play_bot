@@ -141,7 +141,7 @@ def test_auto_play_bots_notifies_human(monkeypatch):
         with pytest.raises(asyncio.TimeoutError):
             await asyncio.wait_for(handlers._auto_play_bots(match, context, 1), timeout=0.01)
 
-        assert any(player == 'A' and msg.endswith('Ваш ход.') for player, msg in calls)
+        assert any(player == 'A' and msg.endswith('Следующим ходит A.') for player, msg in calls)
 
     asyncio.run(run())
 

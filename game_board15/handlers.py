@@ -240,14 +240,12 @@ async def _auto_play_bots(
 
         for player_key, msg_body in enemy_msgs.items():
             if match.players[player_key].user_id != 0:
-                next_phrase = (
-                    ' Ваш ход.' if next_player == player_key else f" Ход {next_name}."
-                )
+                next_phrase = f" Следующим ходит {next_name}."
                 if player_key == current:
                     msg_text = f"Ваш ход: {coord_str} - {msg_body} {phrase_self}{next_phrase}"
                 else:
                     msg_text = (
-                        f"Ход игрока {player_label}: {coord_str} - {msg_body}{next_phrase}"
+                        f"Ход игрока {player_label}: {coord_str} - {msg_body} {phrase_self}{next_phrase}"
                     )
                 await _safe_send_state(player_key, msg_text)
 
