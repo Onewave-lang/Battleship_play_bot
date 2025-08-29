@@ -50,10 +50,20 @@ def test_board15_test_manual(monkeypatch):
             return t
         monkeypatch.setattr(asyncio, "create_task", fake_create_task)
 
+        calls: list[tuple[str, str]] = []
+
+        async def reply_text(msg):
+            calls.append(("text", msg))
+            return SimpleNamespace()
+
+        async def reply_photo(buf, caption=None):
+            calls.append(("photo", caption))
+            return SimpleNamespace(message_id=1)
+
         update = SimpleNamespace(
             message=SimpleNamespace(
-                reply_text=AsyncMock(),
-                reply_photo=AsyncMock(return_value=SimpleNamespace(message_id=1)),
+                reply_text=reply_text,
+                reply_photo=reply_photo,
                 text="",
             ),
             effective_user=SimpleNamespace(id=1, first_name="Tester"),
@@ -69,8 +79,15 @@ def test_board15_test_manual(monkeypatch):
 
         await handlers.board15_test(update, context)
 
+        # ensure start text sent before board image
+        assert calls[0][0] == "text"
+        assert calls[1][0] == "photo"
+
+        state = context.bot_data[handlers.STATE_KEY][update.effective_chat.id]
+        assert state.owners[14][14] == "A"
+
         # first human move: miss at c3
-        update.message.reply_text.reset_mock()
+        update.message.reply_text = AsyncMock()
         update.message.text = "c3"
         await router.router_text(update, context)
         assert match.turn == "B"

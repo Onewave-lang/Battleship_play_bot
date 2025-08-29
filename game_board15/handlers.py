@@ -20,7 +20,7 @@ from logic.phrases import (
     SELF_KILL,
     SELF_MISS,
 )
-from .utils import _phrase_or_joke, _get_cell_state
+from .utils import _phrase_or_joke, _get_cell_state, _get_cell_owner
 import random
 import asyncio
 import logging
@@ -289,22 +289,33 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     storage.save_match(match)
     state = Board15State(chat_id=update.effective_chat.id)
     merged = [[_get_cell_state(cell) for cell in row] for row in match.history]
+    owners = [[_get_cell_owner(cell) for cell in row] for row in match.history]
     own_grid = match.boards['A'].grid
     for r in range(15):
         for c in range(15):
             if merged[r][c] == 0 and own_grid[r][c] == 1:
                 merged[r][c] = 1
+                owners[r][c] = 'A'
     state.board = merged
+    state.owners = owners
     state.player_key = 'A'
+
+    await update.message.reply_text(
+        'Тестовый матч начат. Вы — игрок A; два бота ходят автоматически.'
+    )
+
     try:
         buf = render_board(state, 'A')
     except Exception:
         from io import BytesIO
         buf = BytesIO()
+
     reply_photo = getattr(update.message, "reply_photo", None)
     board_msg_id = None
     if reply_photo is not None:
-        msg = await reply_photo(buf, caption='Выберите клетку или введите ход текстом.')
+        msg = await reply_photo(
+            buf, caption='Выберите клетку или введите ход текстом.'
+        )
         board_msg_id = msg.message_id
     else:
         msg = await context.bot.send_photo(
@@ -322,8 +333,9 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         'history_active': False,
     }
     storage.save_match(match)
-    asyncio.create_task(_auto_play_bots(match, context, update.effective_chat.id, human='A'))
-    await update.message.reply_text('Тестовый матч начат. Вы — игрок A; два бота ходят автоматически.')
+    asyncio.create_task(
+        _auto_play_bots(match, context, update.effective_chat.id, human='A')
+    )
 
 
 async def send_board15_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
