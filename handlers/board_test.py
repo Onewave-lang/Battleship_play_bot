@@ -192,6 +192,7 @@ async def board_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     mask = [[0] * 10 for _ in range(10)]
     for key in ("A", "B", "C"):
         board = placement.random_board_global(mask)
+        board.owner = key
         match.players[key].ready = True
         match.boards[key] = board
     storage.save_match(match)

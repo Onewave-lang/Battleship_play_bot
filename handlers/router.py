@@ -218,6 +218,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if match.status == 'placing':
         if text == 'авто':
             board = random_board()
+            board.owner = player_key
             storage.save_board(match, player_key, board)
             if match.status == 'playing':
                 await _send_state(

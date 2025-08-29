@@ -67,6 +67,7 @@ def get_match(match_id: str) -> Match | None:
             grid=b.get('grid', [[0] * 10 for _ in range(10)]),
             ships=ships,
             alive_cells=b.get('alive_cells', 20),
+            owner=b.get('owner', key),
         )
     match.turn = m.get('turn', 'A')
     match.history = m.get('history', [[0] * 10 for _ in range(10)])
@@ -123,6 +124,7 @@ def save_board(match: Match, player_key: str, board: Board) -> None:
                     grid=b.get('grid', [[0] * 10 for _ in range(10)]),
                     ships=ships,
                     alive_cells=b.get('alive_cells', 20),
+                    owner=b.get('owner', key),
                 )
             current.turn = m_dict.get('turn', 'A')
             current.shots = m_dict.get('shots', current.shots)
@@ -132,6 +134,7 @@ def save_board(match: Match, player_key: str, board: Board) -> None:
             current = match
 
         # apply board and readiness
+        board.owner = player_key
         current.boards[player_key] = board
         current.players[player_key].ready = True
         if all(p.ready for p in current.players.values()) and current.status != 'playing':
@@ -147,7 +150,8 @@ def save_board(match: Match, player_key: str, board: Board) -> None:
             'turn': current.turn,
             'boards': {k: {'grid': b.grid,
                            'ships': [{'cells': s.cells, 'alive': s.alive} for s in b.ships],
-                           'alive_cells': b.alive_cells}
+                           'alive_cells': b.alive_cells,
+                           'owner': b.owner}
                        for k, b in current.boards.items()},
             'shots': current.shots,
             'messages': current.messages,
@@ -191,6 +195,7 @@ def save_match(match: Match) -> str | None:
                     "grid": b.grid,
                     "ships": [{"cells": s.cells, "alive": s.alive} for s in b.ships],
                     "alive_cells": b.alive_cells,
+                    "owner": b.owner,
                 }
                 for k, b in match.boards.items()
             },

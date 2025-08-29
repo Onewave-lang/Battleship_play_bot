@@ -68,7 +68,7 @@ def render_board_own(board: Board) -> str:
         for c_idx, v in enumerate(row):
             coord = (r_idx, c_idx)
             cell_state, owner = _resolve_cell(v)
-            color = PLAYER_COLORS.get(owner, "#000")
+            color = PLAYER_COLORS.get(owner or getattr(board, "owner", None), "#000")
             if cell_state == 1:
                 sym = f'<span style="color:{color}">□</span>'
             elif cell_state == 2:
@@ -98,7 +98,7 @@ def render_board_enemy(board: Board) -> str:
         for c_idx, v in enumerate(row):
             coord = (r_idx, c_idx)
             cell_state, owner = _resolve_cell(v)
-            color = PLAYER_COLORS.get(owner, "#000")
+            color = PLAYER_COLORS.get(owner or getattr(board, "owner", None), "#000")
             if cell_state == 1:
                 sym = '·'
             elif cell_state == 2:
