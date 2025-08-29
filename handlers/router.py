@@ -363,10 +363,23 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     if match.players['A'].chat_id == match.players['B'].chat_id:
+        chat_id = match.players[player_key].chat_id
+        enemy_msgs = match.messages.get(enemy_key, {})
+        for msg_id in (enemy_msgs.get('board'), enemy_msgs.get('text')):
+            if msg_id:
+                try:
+                    await context.bot.delete_message(chat_id, msg_id)
+                except Exception:
+                    pass
         if next_player == player_key:
             next_label = getattr(match.players[next_player], 'name', '') or next_player
             result_self = result_self.replace('Ваш ход.', f'Ход {next_label}.')
-        await _send_state(context, match, player_key, result_self)
+        result_shared = result_self.replace('Ваш ход:', f'Ход игрока {player_label}:')
+        result_shared = result_shared.replace('Ваш ход.', f'Ход {player_label}.')
+        result_shared = result_shared.replace('Вы победили.', f'Игрок {player_label} победил.')
+        await _send_state(context, match, player_key, result_shared)
+        match.messages[enemy_key] = match.messages[player_key].copy()
+        storage.save_match(match)
     else:
         await _send_state(context, match, player_key, result_self)
         await _send_state(context, match, enemy_key, result_enemy)
