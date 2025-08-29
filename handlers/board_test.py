@@ -136,6 +136,8 @@ async def _auto_play_bots(
         next_name = next_player
         if enemy_msgs:
             for enemy, msg_body in enemy_msgs.items():
+                if enemy == human:
+                    continue
                 if match.players[enemy].user_id != 0:
                     next_phrase = " Ваш ход." if next_player == enemy else f" Ход {next_name}."
                     await _safe_send_state(
@@ -143,10 +145,16 @@ async def _auto_play_bots(
                         f"Ход игрока {current}: {coord_str} - {msg_body}{next_phrase}",
                     )
 
-        if current != human and human in match.players and match.players[human].user_id != 0:
-            msg_self = f"Ход игрока {current}: {coord_str} - {' '.join(parts_self)}"
-            msg_self += " Ваш ход." if next_player == human else f" Ход {next_name}."
-            await _safe_send_state(human, msg_self)
+        if (
+            current != human
+            and human in enemy_msgs
+            and match.players[human].user_id != 0
+        ):
+            next_phrase = " Ваш ход." if next_player == human else f" Ход {next_name}."
+            await _safe_send_state(
+                human,
+                f"Ход игрока {current}: {coord_str} - {enemy_msgs[human]}{next_phrase}",
+            )
 
         storage.save_match(match)
         result_self = f"Ваш ход: {coord_str} - {' '.join(parts_self)}" + (
