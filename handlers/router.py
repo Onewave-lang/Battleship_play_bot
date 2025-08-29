@@ -458,23 +458,29 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
     next_phrase_self = (
         'Ваш ход.' if next_player == player_key else f"Ход {next_label}."
     )
-
-    await _send_state_board_test(context, match, player_key, "")
-    for body in self_msgs.values():
-        await context.bot.send_message(
-            match.players[player_key].chat_id,
-            f"Ваш ход: {coord_str} — {body}{next_phrase_self}",
-        )
+    self_lines = [
+        f"Ваш ход: {coord_str} — {body}" for body in self_msgs.values()
+    ]
+    if not self_lines:
+        self_lines = [f"Ваш ход: {coord_str}"]
+    self_lines.append(next_phrase_self)
+    await _send_state_board_test(
+        context,
+        match,
+        player_key,
+        "\n".join(self_lines),
+    )
 
     for enemy, body in enemy_msgs.items():
         if match.players[enemy].user_id != 0:
-            await _send_state_board_test(context, match, enemy, "")
             next_phrase = (
                 'Ваш ход.' if next_player == enemy else f"Ход {next_label}."
             )
-            await context.bot.send_message(
-                match.players[enemy].chat_id,
-                f"Ход игрока {player_label}: {coord_str} — {body}{next_phrase}",
+            await _send_state_board_test(
+                context,
+                match,
+                enemy,
+                f"Ход игрока {player_label}: {coord_str} — {body}\n{next_phrase}",
             )
 
     alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
