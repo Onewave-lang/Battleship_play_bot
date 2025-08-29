@@ -221,13 +221,16 @@ async def board_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
     from . import router as router_module
 
+    await update.message.reply_text(
+        "Тестовый матч начат. Вы — игрок A; два бота ходят автоматически."
+    )
+
     await router_module._send_state_board_test(
         context,
         match,
         "A",
         "Выберите клетку или введите ход текстом.",
     )
-    asyncio.create_task(_auto_play_bots(match, context, update.effective_chat.id, human="A"))
-    await update.message.reply_text(
-        "Тестовый матч начат. Вы — игрок A; два бота ходят автоматически."
+    asyncio.create_task(
+        _auto_play_bots(match, context, update.effective_chat.id, human="A")
     )
