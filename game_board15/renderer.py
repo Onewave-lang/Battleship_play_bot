@@ -63,6 +63,19 @@ PLAYER_SHIP_COLORS_DARK = {
     },
 }
 
+PLAYER_SHIP_COLORS_LIGHT = {
+    "light": {
+        "A": (224, 255, 255, 255),  # very light blue
+        "B": (204, 255, 204, 255),  # very light green
+        "C": (255, 235, 204, 255),  # very light orange
+    },
+    "dark": {
+        "A": (224, 255, 255, 255),
+        "B": (204, 255, 204, 255),
+        "C": (255, 235, 204, 255),
+    },
+}
+
 
 CELL_STYLE = {
     1: ("square", "ship"),
@@ -109,7 +122,7 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
                     color = COLORS[THEME]["mark"]
                     shape = "cross"
                 elif val == 4:
-                    color = PLAYER_SHIP_COLORS.get(THEME, {}).get(owner, COLORS[THEME]["ship"])
+                    color = PLAYER_SHIP_COLORS_LIGHT.get(THEME, {}).get(owner, COLORS[THEME]["ship"])
                     shape = "bomb"
                 else:
                     color = COLORS[THEME]["mark"]
@@ -209,7 +222,7 @@ def render_player_board(board: Board15, player_key: str | None = None) -> BytesI
                     color = COLORS[THEME]["mark"]
                     shape = "cross"
                 elif val == 4 and player_key:
-                    color = PLAYER_SHIP_COLORS.get(THEME, {}).get(player_key, COLORS[THEME]["ship"])
+                    color = PLAYER_SHIP_COLORS_LIGHT.get(THEME, {}).get(player_key, COLORS[THEME]["ship"])
                     shape = "bomb"
                 else:
                     color = COLORS[THEME]["mark"]
