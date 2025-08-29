@@ -283,6 +283,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     coord_str = format_coord(coord)
     player_label = getattr(match.players[player_key], 'name', '') or player_key
     enemy_label = getattr(match.players[enemy_key], 'name', '') or enemy_key
+    next_player = None
 
     if result == MISS:
         match.turn = enemy_key
@@ -360,8 +361,14 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await context.bot.send_message(match.players[enemy_key].chat_id, msg)
         return
 
-    await _send_state(context, match, player_key, result_self)
-    await _send_state(context, match, enemy_key, result_enemy)
+    if match.players['A'].chat_id == match.players['B'].chat_id:
+        if next_player == player_key:
+            next_label = getattr(match.players[next_player], 'name', '') or next_player
+            result_self = result_self.replace('Ваш ход.', f'Ход {next_label}.')
+        await _send_state(context, match, player_key, result_self)
+    else:
+        await _send_state(context, match, player_key, result_self)
+        await _send_state(context, match, enemy_key, result_enemy)
 
     if match.status == 'finished':
         keyboard = ReplyKeyboardMarkup([["Начать новую игру"]], one_time_keyboard=True, resize_keyboard=True)
