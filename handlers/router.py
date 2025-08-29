@@ -421,7 +421,7 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
         shots['move_count'] += 1
 
     coord_str = format_coord(coord)
-    hit_any = any(res in (HIT, KILL) for res in results.values())
+    hit_any = any(res in (HIT, KILL, REPEAT) for res in results.values())
     alive = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
     if not hit_any:
         alive_order = [k for k in ('A', 'B', 'C') if k in alive]
@@ -459,6 +459,13 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
                     match.players[enemy].chat_id,
                     f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
                 )
+        elif res == REPEAT:
+            phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
+            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
+            self_msgs[enemy] = f"{enemy_label}: клетка уже обстреляна. {phrase_self}"
+            enemy_msgs[enemy] = (
+                f"соперник стрелял по уже обстрелянной клетке. {phrase_enemy}"
+            )
 
     storage.save_match(match)
 
