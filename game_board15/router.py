@@ -239,7 +239,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         match.turn = player_key
     next_obj = match.players.get(next_player)
     next_name = getattr(next_obj, 'name', '') or next_player
-    if enemy_msgs:
+    same_chat = len({p.chat_id for p in match.players.values()}) == 1
+    if enemy_msgs and not same_chat:
         for enemy, msg_body_enemy in enemy_msgs.items():
             if match.players[enemy].user_id != 0:
                 next_phrase = ' Ваш ход.' if match.turn == enemy else f" Ход {next_name}."
@@ -249,7 +250,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     enemy,
                     f"Ход игрока {player_label}: {coord_str} - {msg_body_enemy}{next_phrase}",
                 )
-    if others:
+    if others and not same_chat:
         msg_body = ' '.join(parts_self) if parts_self else 'мимо'
         for other in others:
             next_phrase = ' Ваш ход.' if match.turn == other else f" Ход {next_name}."
@@ -260,11 +261,18 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     other,
                     f"Ход игрока {player_label}: {coord_str} - {msg_body}{next_phrase}",
                 )
-    result_self = f"Ваш ход: {coord_str} - {' '.join(parts_self)}" + (
-        ' Ваш ход.' if match.turn == player_key else f" Ход {next_name}."
-    )
-    view_key = match.turn if single_user else player_key
-    await _send_state(context, match, view_key, result_self)
+    if same_chat:
+        msg_body = ' '.join(parts_self) if parts_self else 'мимо'
+        result_msg = (
+            f"Ход игрока {player_label}: {coord_str} - {msg_body} Ход {next_name}."
+        )
+        view_key = match.turn
+    else:
+        result_msg = f"Ваш ход: {coord_str} - {' '.join(parts_self)}" + (
+            ' Ваш ход.' if match.turn == player_key else f" Ход {next_name}."
+        )
+        view_key = match.turn if single_user else player_key
+    await _send_state(context, match, view_key, result_msg)
 
     storage.save_match(match)
 

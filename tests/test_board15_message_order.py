@@ -98,3 +98,48 @@ def test_board15_message_order(tmp_path, monkeypatch):
     assert bot.logs[1] == expected
     assert bot.logs[2] == expected
     assert bot.logs[3] == extra
+
+
+def test_board15_message_order_single_chat(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, 'DATA_FILE', tmp_path / 'data15.json')
+    random.seed(0)
+
+    match = storage.create_match(1, 1, 'A')
+    storage.join_match(match.match_id, 2, 1, 'B')
+    storage.join_match(match.match_id, 3, 1, 'C')
+
+    board_a = placement.random_board()
+    board_b = placement.random_board()
+    board_c = placement.random_board()
+    storage.save_board(match, 'A', board_a)
+    storage.save_board(match, 'B', board_b)
+    storage.save_board(match, 'C', board_c)
+
+    (r1, c1), (r2, c2) = _find_empty_cells([board_a, board_b, board_c], 2)
+    coord1 = parser.format_coord((r1, c1))
+    coord2 = parser.format_coord((r2, c2))
+
+    monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'board'))
+
+    bot = DummyBot()
+    context = SimpleNamespace(bot=bot, bot_data={})
+
+    async def play_moves():
+        upd1 = SimpleNamespace(
+            message=SimpleNamespace(text=coord1, reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=1),
+        )
+        await router.router_text(upd1, context)
+
+        upd2 = SimpleNamespace(
+            message=SimpleNamespace(text=coord2, reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=2),
+            effective_chat=SimpleNamespace(id=1),
+        )
+        await router.router_text(upd2, context)
+
+    asyncio.run(play_moves())
+
+    expected = ['photo', 'text_send', 'photo', 'text_send']
+    assert bot.logs[1] == expected
