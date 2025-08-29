@@ -19,7 +19,6 @@ def test_empty_buffer_skips_send(monkeypatch, caplog):
         )
 
         monkeypatch.setattr(router, "render_board", lambda state, player_key=None: BytesIO())
-        monkeypatch.setattr(router, "render_player_board", lambda board, player_key=None: BytesIO(b"own"))
         monkeypatch.setattr(router.storage, "save_match", lambda m: None)
 
         bot = SimpleNamespace(

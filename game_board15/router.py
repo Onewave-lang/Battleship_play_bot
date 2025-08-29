@@ -7,7 +7,7 @@ from telegram.ext import ContextTypes
 from . import storage
 from . import battle, parser
 from .handlers import STATE_KEY
-from .renderer import render_board, render_player_board
+from .renderer import render_board
 from .state import Board15State
 from logic.phrases import (
     ENEMY_HIT,
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str, message: str) -> None:
-    """Render player's board and send board image followed by text message."""
+    """Render and send main board image followed by text message."""
 
     chat_id = match.players[player_key].chat_id
     states = context.bot_data.setdefault(STATE_KEY, {})
@@ -53,20 +53,8 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
     if buf.getbuffer().nbytes == 0:
         logger.warning("render_board returned empty buffer for chat %s", chat_id)
         return
-    player_buf = render_player_board(match.boards[player_key], player_key)
-    if player_buf.getbuffer().nbytes == 0:
-        logger.warning("render_player_board returned empty buffer for chat %s", chat_id)
-        return
 
     msgs = match.messages.setdefault(player_key, {})
-
-    # always send player's own board with ships
-    try:
-        player_buf.seek(0)
-        msg_player = await context.bot.send_photo(chat_id, player_buf)
-        msgs["player"] = msg_player.message_id
-    except Exception:
-        logger.exception("Failed to send player's board for chat %s", chat_id)
 
     # always send main board image
     try:

@@ -52,7 +52,6 @@ def test_render_failure(monkeypatch):
 
         monkeypatch.setattr(handlers, "render_board", fail_render)
         monkeypatch.setattr(router, "render_board", fail_render)
-        monkeypatch.setattr(router, "render_player_board", lambda *a, **k: BytesIO())
 
         safe_send_state = _get_safe_send_state(context, match, "A")
         await safe_send_state("B", "msg")

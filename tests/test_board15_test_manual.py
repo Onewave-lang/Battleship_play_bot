@@ -40,7 +40,6 @@ def test_board15_test_manual(monkeypatch):
         # renderers
         monkeypatch.setattr(handlers, "render_board", lambda *a, **k: BytesIO())
         monkeypatch.setattr(router, "render_board", lambda *a, **k: BytesIO())
-        monkeypatch.setattr(router, "render_player_board", lambda *a, **k: BytesIO())
 
         # capture background tasks
         tasks = []

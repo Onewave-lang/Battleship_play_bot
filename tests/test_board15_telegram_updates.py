@@ -32,7 +32,6 @@ def test_board_updates_accumulate(tmp_path, monkeypatch):
         return BytesIO(b"board")
 
     monkeypatch.setattr(router, "render_board", fake_render_board)
-    monkeypatch.setattr(router, "render_player_board", lambda board, player_key=None: BytesIO(b"own"))
 
     class DummyBot:
         def __init__(self):
