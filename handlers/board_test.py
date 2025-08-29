@@ -114,34 +114,42 @@ async def _auto_play_bots(
 
         parts_self = []
         enemy_msgs: dict[str, str] = {}
+        priority = {battle.MISS: 0, battle.REPEAT: 1, battle.HIT: 2, battle.KILL: 3}
+        overall_res = battle.MISS
         for enemy, res in results.items():
+            if priority[res] > priority[overall_res]:
+                overall_res = res
             if res == battle.MISS:
-                phrase_self = _phrase_or_joke(match, current, SELF_MISS)
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-                parts_self.append(f"{enemy}: мимо. {phrase_self}")
-                enemy_msgs[enemy] = f"соперник промахнулся. {phrase_enemy}"
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS).rstrip()
+                parts_self.append(f"{enemy}: мимо.")
+                enemy_msgs[enemy] = f"соперник промахнулся. {phrase_enemy}".rstrip()
             elif res == battle.HIT:
-                phrase_self = _phrase_or_joke(match, current, SELF_HIT)
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
-                parts_self.append(f"{enemy}: ранил. {phrase_self}")
-                enemy_msgs[enemy] = f"ваш корабль ранен. {phrase_enemy}"
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT).rstrip()
+                parts_self.append(f"{enemy}: ранил.")
+                enemy_msgs[enemy] = f"ваш корабль ранен. {phrase_enemy}".rstrip()
             elif res == battle.KILL:
-                phrase_self = _phrase_or_joke(match, current, SELF_KILL)
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
-                parts_self.append(f"{enemy}: уничтожен! {phrase_self}")
-                enemy_msgs[enemy] = f"ваш корабль уничтожен. {phrase_enemy}"
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL).rstrip()
+                parts_self.append(f"{enemy}: уничтожен!")
+                enemy_msgs[enemy] = f"ваш корабль уничтожен. {phrase_enemy}".rstrip()
                 if match.boards[enemy].alive_cells == 0 and match.players[enemy].user_id != 0:
                     await _safe_send_message(
                         match.players[enemy].chat_id,
                         f"⛔ Игрок {enemy} выбыл (флот уничтожен)",
                     )
             elif res == battle.REPEAT:
-                phrase_self = _phrase_or_joke(match, current, SELF_MISS)
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-                parts_self.append(f"{enemy}: клетка уже обстреляна. {phrase_self}")
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS).rstrip()
+                parts_self.append(f"{enemy}: клетка уже обстреляна.")
                 enemy_msgs[enemy] = (
                     f"соперник стрелял по уже обстрелянной клетке. {phrase_enemy}"
-                )
+                ).rstrip()
+
+        phrase_map = {
+            battle.KILL: SELF_KILL,
+            battle.HIT: SELF_HIT,
+            battle.REPEAT: SELF_MISS,
+            battle.MISS: SELF_MISS,
+        }
+        phrase_self = _phrase_or_joke(match, current, phrase_map[overall_res]).rstrip()
 
         next_name = next_player
         if enemy_msgs:
@@ -167,7 +175,13 @@ async def _auto_play_bots(
             )
 
         storage.save_match(match)
-        result_self = f"Ваш ход: {coord_str} - {' '.join(parts_self)}" + (
+        parts_text = ' '.join(parts_self)
+        base_self = (
+            f"Ваш ход: {coord_str} - {parts_text} {phrase_self}"
+            if parts_text
+            else f"Ваш ход: {coord_str} - {phrase_self}"
+        ).rstrip()
+        result_self = base_self + (
             " Ваш ход." if next_player == current else f" Ход {next_name}."
         )
         if match.players[current].user_id != 0:
