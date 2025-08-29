@@ -200,26 +200,23 @@ async def _auto_play_bots(
             next_player = current
         match.turn = next_player
 
-        parts_self = []
+        parts_self: list[str] = []
         enemy_msgs: dict[str, str] = {}
         player_label = getattr(match.players.get(current), 'name', '') or current
         for enemy, res in results.items():
             enemy_name = match.players.get(enemy)
             enemy_label = getattr(enemy_name, 'name', '') or enemy
             if res == battle.MISS:
-                phrase_self = _phrase_or_joke(match, current, SELF_MISS)
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-                parts_self.append(f"{enemy_label}: мимо. {phrase_self}")
+                parts_self.append(f"{enemy_label}: мимо.")
                 enemy_msgs[enemy] = f"соперник промахнулся. {phrase_enemy}"
             elif res == battle.HIT:
-                phrase_self = _phrase_or_joke(match, current, SELF_HIT)
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
-                parts_self.append(f"{enemy_label}: ранил. {phrase_self}")
+                parts_self.append(f"{enemy_label}: ранил.")
                 enemy_msgs[enemy] = f"ваш корабль ранен. {phrase_enemy}"
             elif res == battle.KILL:
-                phrase_self = _phrase_or_joke(match, current, SELF_KILL)
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
-                parts_self.append(f"{enemy_label}: уничтожен! {phrase_self}")
+                parts_self.append(f"{enemy_label}: уничтожен!")
                 enemy_msgs[enemy] = f"ваш корабль уничтожен. {phrase_enemy}"
                 if match.boards[enemy].alive_cells == 0 and match.players[enemy].user_id != 0:
                     enemy_label = getattr(match.players.get(enemy), 'name', '') or enemy
@@ -228,6 +225,15 @@ async def _auto_play_bots(
                         f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
                     )
         enemy_msgs[current] = ' '.join(parts_self)
+
+        if any(res == battle.KILL for res in results.values()):
+            phrase_self = _phrase_or_joke(match, current, SELF_KILL)
+        elif any(res == battle.HIT for res in results.values()):
+            phrase_self = _phrase_or_joke(match, current, SELF_HIT)
+        elif any(res == battle.REPEAT for res in results.values()):
+            phrase_self = _phrase_or_joke(match, current, SELF_MISS)
+        else:
+            phrase_self = _phrase_or_joke(match, current, SELF_MISS)
 
         next_label = match.players.get(next_player)
         next_name = getattr(next_label, 'name', '') or next_player
@@ -238,7 +244,7 @@ async def _auto_play_bots(
                     ' Ваш ход.' if next_player == player_key else f" Ход {next_name}."
                 )
                 if player_key == current:
-                    msg_text = f"Ваш ход: {coord_str} - {msg_body}{next_phrase}"
+                    msg_text = f"Ваш ход: {coord_str} - {msg_body} {phrase_self}{next_phrase}"
                 else:
                     msg_text = (
                         f"Ход игрока {player_label}: {coord_str} - {msg_body}{next_phrase}"
