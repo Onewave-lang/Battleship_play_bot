@@ -99,7 +99,10 @@ async def _auto_play_bots(
             shots.setdefault("joke_start", random.randint(1, 10))
             shots["move_count"] += 1
         coord_str = parser.format_coord(coord)
-        hit_any = any(res in (battle.HIT, battle.KILL) for res in results.values())
+        hit_any = any(
+            res in (battle.HIT, battle.KILL, battle.REPEAT)
+            for res in results.values()
+        )
 
         if not hit_any:
             alive_order = [k for k in order if k in alive]
@@ -132,6 +135,13 @@ async def _auto_play_bots(
                         match.players[enemy].chat_id,
                         f"⛔ Игрок {enemy} выбыл (флот уничтожен)",
                     )
+            elif res == battle.REPEAT:
+                phrase_self = _phrase_or_joke(match, current, SELF_MISS)
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
+                parts_self.append(f"{enemy}: клетка уже обстреляна. {phrase_self}")
+                enemy_msgs[enemy] = (
+                    f"соперник стрелял по уже обстрелянной клетке. {phrase_enemy}"
+                )
 
         next_name = next_player
         if enemy_msgs:
