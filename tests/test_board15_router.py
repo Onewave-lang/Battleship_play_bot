@@ -4,6 +4,8 @@ import types
 from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, call, ANY
+
+import pytest
 from tests.utils import _new_grid
 
 # Provide minimal Pillow stub to satisfy imports in game_board15.renderer
@@ -125,6 +127,69 @@ def test_router_notifies_other_players_on_hit(monkeypatch):
         msg = calls[-1].args[3]
         assert msg.startswith('Ход игрока A: a1 - B: ранил')
         assert msg.strip().endswith('Ход A.')
+
+    asyncio.run(run_test())
+
+
+@pytest.mark.parametrize(
+    "result, expected",
+    [
+        (router.battle.HIT, "ваш корабль ранен"),
+        (router.battle.KILL, "ваш корабль уничтожен"),
+    ],
+)
+def test_router_notifies_attacked_player(monkeypatch, result, expected):
+    async def run_test():
+        board_self = Board15()
+        board_b = Board15()
+        board_c = Board15()
+        ship = Ship(cells=[(0, 0)])
+        board_b.ships = [ship]
+        board_b.grid[0][0] = 1
+        board_b.alive_cells = 1
+        board_c.alive_cells = 1
+        match = SimpleNamespace(
+            status="playing",
+            players={
+                "A": SimpleNamespace(user_id=1, chat_id=10, name="A"),
+                "B": SimpleNamespace(user_id=2, chat_id=20, name="B"),
+                "C": SimpleNamespace(user_id=3, chat_id=30, name="C"),
+            },
+            boards={"A": board_self, "B": board_b, "C": board_c},
+            turn="A",
+            shots={"A": {"move_count": 0, "joke_start": 10}, "B": {}, "C": {}},
+            messages={"A": {}, "B": {}, "C": {}},
+            history=_new_grid(15),
+        )
+
+        monkeypatch.setattr(storage, "find_match_by_user", lambda uid, chat_id=None: match)
+        monkeypatch.setattr(storage, "save_match", lambda m: None)
+        monkeypatch.setattr(router.parser, "parse_coord", lambda text: (0, 0))
+        monkeypatch.setattr(router.parser, "format_coord", lambda coord: "a1")
+        monkeypatch.setattr(router, "_phrase_or_joke", lambda m, pk, ph: "")
+
+        def fake_apply_shot(board, coord):
+            return result if board is board_b else router.battle.MISS
+
+        monkeypatch.setattr(router.battle, "apply_shot", fake_apply_shot)
+
+        send_state = AsyncMock()
+        monkeypatch.setattr(router, "_send_state", send_state)
+
+        update = SimpleNamespace(
+            message=SimpleNamespace(text="a1", reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), chat_data={}, bot_data={})
+
+        await router.router_text(update, context)
+
+        calls = [c for c in send_state.call_args_list if c.args[2] == "B"]
+        assert calls, "Attacked player must receive a message"
+        msg = calls[-1].args[3]
+        assert expected in msg
+        assert "соперник промахнулся" not in msg
 
     asyncio.run(run_test())
 

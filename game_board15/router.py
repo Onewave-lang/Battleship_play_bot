@@ -197,7 +197,9 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         shots['move_count'] += 1
 
     parts_self: list[str] = []
-    enemy_msgs: dict[str, str] = {}
+    # keep both the original result value and the message body for each enemy
+    # so that the result (miss/hit/kill) is not lost for later processing
+    enemy_msgs: dict[str, tuple[str, str]] = {}
     targets: list[str] = []
     next_player = player_key
     player_obj = match.players.get(player_key)
@@ -208,16 +210,16 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if res == battle.MISS:
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
             parts_self.append(f"{enemy_label}: мимо.")
-            enemy_msgs[enemy] = f"соперник промахнулся. {phrase_enemy}"
+            enemy_msgs[enemy] = (res, f"соперник промахнулся. {phrase_enemy}")
         elif res == battle.HIT:
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
             parts_self.append(f"{enemy_label}: ранил.")
-            enemy_msgs[enemy] = f"ваш корабль ранен. {phrase_enemy}"
+            enemy_msgs[enemy] = (res, f"ваш корабль ранен. {phrase_enemy}")
             targets.append(enemy)
         elif res == battle.KILL:
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
             parts_self.append(f"{enemy_label}: уничтожен!")
-            enemy_msgs[enemy] = f"ваш корабль уничтожен. {phrase_enemy}"
+            enemy_msgs[enemy] = (res, f"ваш корабль уничтожен. {phrase_enemy}")
             targets.append(enemy)
             if (
                 match.boards[enemy].alive_cells == 0
@@ -257,7 +259,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     next_name = getattr(next_obj, 'name', '') or next_player
     same_chat = len({p.chat_id for p in match.players.values()}) == 1
     if enemy_msgs and not same_chat:
-        for enemy, msg_body_enemy in enemy_msgs.items():
+        for enemy, (res_enemy, msg_body_enemy) in enemy_msgs.items():
             if match.players[enemy].user_id != 0:
                 next_phrase = ' Ваш ход.' if match.turn == enemy else f" Ход {next_name}."
                 await _send_state(
