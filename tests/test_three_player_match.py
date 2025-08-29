@@ -58,16 +58,10 @@ def test_three_player_match(monkeypatch):
             assert buf.getbuffer().nbytes > 0
             return SimpleNamespace(message_id=3)
 
-        async def assert_edit_media(*args, **kwargs):
-            media = kwargs.get("media") or (len(args) > 2 and args[2])
-            buf = media.media
-            assert buf.getbuffer().nbytes > 0
-            return SimpleNamespace()
-
         bot = SimpleNamespace(
             send_message=AsyncMock(return_value=SimpleNamespace(message_id=2)),
             send_photo=AsyncMock(side_effect=assert_send_photo),
-            edit_message_media=AsyncMock(side_effect=assert_edit_media),
+            edit_message_media=AsyncMock(),
             edit_message_text=AsyncMock(return_value=None),
             delete_message=AsyncMock(return_value=None),
         )
@@ -103,6 +97,6 @@ def test_three_player_match(monkeypatch):
 
         # ensure board images were produced for each turn
         assert update.message.reply_photo.call_count == 1
-        assert bot.edit_message_media.call_count >= 3
+        assert bot.send_photo.call_count >= 3
 
     asyncio.run(run())

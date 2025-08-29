@@ -73,4 +73,4 @@ def test_board_updates_accumulate(tmp_path, monkeypatch):
     assert boards[2][1][1] == 2
 
     assert bot.send_photo.await_count > 0
-    assert bot.edit_message_media.await_count > 0
+    assert bot.edit_message_media.await_count == 0
