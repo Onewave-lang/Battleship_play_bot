@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import random
-from typing import List, Union, Tuple
+from typing import List, Union, Tuple, Optional
 
 from logic.phrases import random_phrase, random_joke
 
@@ -22,13 +22,37 @@ def _get_cell_state(cell: Union[int, List[int], Tuple[int, str]]) -> int:
     return cell[0] if isinstance(cell, (list, tuple)) else cell
 
 
-def _set_cell_state(grid: List[List[Union[int, List[int]]]], r: int, c: int, value: int) -> None:
-    """Set numeric state on history cell preserving list structure."""
+def _get_cell_owner(cell: Union[int, List[int], Tuple[int, str]]) -> Optional[str]:
+    """Return owner from history cell if present."""
+    return cell[1] if isinstance(cell, (list, tuple)) and len(cell) > 1 else None
+
+
+def _set_cell_state(
+    grid: List[List[Union[int, List[Union[int, Optional[str]]]]]],
+    r: int,
+    c: int,
+    value: int,
+    owner: Optional[str] = None,
+) -> None:
+    """Set state and optionally owner on history cell preserving list structure."""
     cell = grid[r][c]
     if isinstance(cell, list):
-        cell[0] = value
+        if not cell:
+            cell.extend([value, owner])
+        else:
+            cell[0] = value
+            if owner is not None:
+                if len(cell) > 1:
+                    cell[1] = owner
+                else:
+                    cell.append(owner)
     else:
-        grid[r][c] = value
+        grid[r][c] = [value, owner] if owner is not None else value
 
 
-__all__ = ["_phrase_or_joke", "_get_cell_state", "_set_cell_state"]
+__all__ = [
+    "_phrase_or_joke",
+    "_get_cell_state",
+    "_get_cell_owner",
+    "_set_cell_state",
+]

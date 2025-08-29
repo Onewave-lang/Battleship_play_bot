@@ -40,7 +40,10 @@ class Match15:
     turn: str = "A"
     boards: Dict[str, Board15] = field(default_factory=dict)
     # global shot history for rendering target board
-    history: List[List[int]] = field(default_factory=lambda: [[0] * 15 for _ in range(15)])
+    history: List[List[List[object]]] = field(
+        default_factory=lambda: [[[0, None] for _ in range(15)] for _ in range(15)]
+    )
+    last_highlight: List[Coord] = field(default_factory=list)
     shots: Dict[str, Dict[str, object]] = field(
         default_factory=lambda: {
             k: {

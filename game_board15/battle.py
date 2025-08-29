@@ -51,7 +51,7 @@ def apply_shot(board: Board15, coord: Tuple[int, int]) -> str:
 
 
 def update_history(
-    history: List[List[int]],
+    history: List[List[List[object]]],
     boards: Dict[str, Board15],
     coord: Tuple[int, int],
     results: Dict[str, str],
@@ -60,23 +60,27 @@ def update_history(
 
     r, c = coord
     if any(res == KILL for res in results.values()):
+        kill_key = None
         for key, res in results.items():
             if res != KILL:
                 continue
+            kill_key = key if kill_key is None else kill_key
             board = boards[key]
             for rr in range(15):
                 for cc in range(15):
                     val = board.grid[rr][cc]
                     if val == 4:
-                        _set_cell_state(history, rr, cc, 4)
+                        _set_cell_state(history, rr, cc, 4, key)
                     elif val == 5:
                         # Mark contour cells as shot-through for everyone without
                         # overwriting prior shot information.
                         if _get_cell_state(history[rr][cc]) == 0:
                             _set_cell_state(history, rr, cc, 5)
-        _set_cell_state(history, r, c, 4)
+        if kill_key is not None:
+            _set_cell_state(history, r, c, 4, kill_key)
     elif any(res == HIT for res in results.values()):
-        _set_cell_state(history, r, c, 3)
+        hit_key = next((k for k, res in results.items() if res == HIT), None)
+        _set_cell_state(history, r, c, 3, hit_key)
     elif all(res == MISS for res in results.values()):
         if _get_cell_state(history[r][c]) == 0:
             _set_cell_state(history, r, c, 2)

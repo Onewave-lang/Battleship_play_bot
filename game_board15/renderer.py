@@ -50,6 +50,19 @@ PLAYER_SHIP_COLORS = {
     },
 }
 
+PLAYER_SHIP_COLORS_DARK = {
+    "light": {
+        "A": (0, 0, 139, 255),  # dark blue
+        "B": (34, 139, 34, 255),  # dark green
+        "C": (255, 140, 0, 255),  # dark orange
+    },
+    "dark": {
+        "A": (0, 0, 139, 255),
+        "B": (34, 139, 34, 255),
+        "C": (255, 140, 0, 255),
+    },
+}
+
 
 CELL_STYLE = {
     1: ("square", "ship"),
@@ -89,13 +102,23 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
             x0 = margin + c * TILE_PX
             y0 = margin + r * TILE_PX
             coord = (r, c)
+            owner = state.owners[r][c] if state.owners else None
             shape, color_key = CELL_STYLE.get(val, ("square", "ship"))
             if coord in highlight:
-                color = COLORS[THEME]["mark"]
-                shape = "cross" if val in (2, 5) else "square"
+                if val in (2, 5):
+                    color = COLORS[THEME]["mark"]
+                    shape = "cross"
+                elif val == 4:
+                    color = PLAYER_SHIP_COLORS.get(THEME, {}).get(owner, COLORS[THEME]["ship"])
+                    shape = "bomb"
+                else:
+                    color = COLORS[THEME]["mark"]
+                    shape = "square"
             else:
-                if val == 1 and player_key:
-                    color = PLAYER_SHIP_COLORS.get(THEME, {}).get(player_key, COLORS[THEME]["ship"])
+                if val == 1 and owner:
+                    color = PLAYER_SHIP_COLORS.get(THEME, {}).get(owner, COLORS[THEME]["ship"])
+                elif val in (3, 4) and owner:
+                    color = PLAYER_SHIP_COLORS_DARK.get(THEME, {}).get(owner, COLORS[THEME][color_key])
                 else:
                     color = COLORS[THEME][color_key]
             if shape == "square":
@@ -114,6 +137,15 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
                     fill=color,
                     width=3,
                 )
+            elif shape == "bomb":
+                draw.rectangle(
+                    (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
+                    fill=color,
+                )
+                cx = x0 + TILE_PX // 2
+                cy = y0 + TILE_PX // 2
+                r = max(2, TILE_PX // 6)
+                draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(0, 0, 0, 255))
             elif shape == "dot":
                 cx = x0 + TILE_PX // 2
                 cy = y0 + TILE_PX // 2
@@ -173,11 +205,20 @@ def render_player_board(board: Board15, player_key: str | None = None) -> BytesI
             coord = (r, c)
             shape, color_key = CELL_STYLE.get(val, ("square", "ship"))
             if coord in highlight:
-                color = COLORS[THEME]["mark"]
-                shape = "cross" if val in (2, 5) else "square"
+                if val in (2, 5):
+                    color = COLORS[THEME]["mark"]
+                    shape = "cross"
+                elif val == 4 and player_key:
+                    color = PLAYER_SHIP_COLORS.get(THEME, {}).get(player_key, COLORS[THEME]["ship"])
+                    shape = "bomb"
+                else:
+                    color = COLORS[THEME]["mark"]
+                    shape = "square"
             else:
                 if val == 1 and player_key:
                     color = PLAYER_SHIP_COLORS.get(THEME, {}).get(player_key, COLORS[THEME]["ship"])
+                elif val in (3, 4) and player_key:
+                    color = PLAYER_SHIP_COLORS_DARK.get(THEME, {}).get(player_key, COLORS[THEME][color_key])
                 else:
                     color = COLORS[THEME][color_key]
             if shape == "square":
@@ -196,6 +237,15 @@ def render_player_board(board: Board15, player_key: str | None = None) -> BytesI
                     fill=color,
                     width=3,
                 )
+            elif shape == "bomb":
+                draw.rectangle(
+                    (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
+                    fill=color,
+                )
+                cx = x0 + TILE_PX // 2
+                cy = y0 + TILE_PX // 2
+                r = max(2, TILE_PX // 6)
+                draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(0, 0, 0, 255))
             elif shape == "dot":
                 cx = x0 + TILE_PX // 2
                 cy = y0 + TILE_PX // 2
