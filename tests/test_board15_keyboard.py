@@ -17,18 +17,14 @@ def test_send_state_records_history(monkeypatch):
             messages={"A": {"history_active": True, "board_history": [], "text_history": []}},
         )
         monkeypatch.setattr(router, "render_board", lambda state, player_key=None: BytesIO(b"img"))
-        monkeypatch.setattr(router, "render_player_board", lambda board, player_key=None: BytesIO(b"own"))
         monkeypatch.setattr(router.storage, "save_match", lambda m: None)
         bot = SimpleNamespace(
-            send_photo=AsyncMock(side_effect=[
-                SimpleNamespace(message_id=50),
-                SimpleNamespace(message_id=51),
-            ]),
+            send_photo=AsyncMock(side_effect=[SimpleNamespace(message_id=51)]),
             send_message=AsyncMock(return_value=SimpleNamespace(message_id=60)),
         )
         context = SimpleNamespace(bot=bot, bot_data={}, chat_data={})
         await router._send_state(context, match, "A", "msg")
-        assert bot.send_photo.await_count == 2
+        assert bot.send_photo.await_count == 1
         assert bot.send_message.await_count == 1
         assert match.messages["A"]["board"] == 51
         assert match.messages["A"]["text"] == 60
@@ -46,13 +42,10 @@ def test_send_state_appends_history(monkeypatch):
             messages={"A": {"history_active": True, "board_history": [], "text_history": []}},
         )
         monkeypatch.setattr(router, "render_board", lambda state, player_key=None: BytesIO(b"img"))
-        monkeypatch.setattr(router, "render_player_board", lambda board, player_key=None: BytesIO(b"own"))
         monkeypatch.setattr(router.storage, "save_match", lambda m: None)
         bot = SimpleNamespace(
             send_photo=AsyncMock(side_effect=[
-                SimpleNamespace(message_id=10),
                 SimpleNamespace(message_id=11),
-                SimpleNamespace(message_id=12),
                 SimpleNamespace(message_id=13),
             ]),
             send_message=AsyncMock(side_effect=[
@@ -63,7 +56,7 @@ def test_send_state_appends_history(monkeypatch):
         context = SimpleNamespace(bot=bot, bot_data={}, chat_data={})
         await router._send_state(context, match, "A", "first")
         await router._send_state(context, match, "A", "second")
-        assert bot.send_photo.await_count == 4
+        assert bot.send_photo.await_count == 2
         assert bot.send_message.await_count == 2
         assert match.messages["A"]["board"] == 13
         assert match.messages["A"]["text"] == 21
@@ -81,13 +74,9 @@ def test_history_not_recorded_when_inactive(monkeypatch):
             messages={"A": {"history_active": False, "board_history": [], "text_history": []}},
         )
         monkeypatch.setattr(router, "render_board", lambda state, player_key=None: BytesIO(b"img"))
-        monkeypatch.setattr(router, "render_player_board", lambda board, player_key=None: BytesIO(b"own"))
         monkeypatch.setattr(router.storage, "save_match", lambda m: None)
         bot = SimpleNamespace(
-            send_photo=AsyncMock(side_effect=[
-                SimpleNamespace(message_id=1),
-                SimpleNamespace(message_id=2),
-            ]),
+            send_photo=AsyncMock(side_effect=[SimpleNamespace(message_id=1)]),
             send_message=AsyncMock(return_value=SimpleNamespace(message_id=3)),
         )
         context = SimpleNamespace(bot=bot, bot_data={}, chat_data={})

@@ -37,7 +37,6 @@ def test_three_player_match(monkeypatch):
         # non-empty renders
         monkeypatch.setattr(handlers, "render_board", lambda *a, **k: BytesIO(b"img"))
         monkeypatch.setattr(router, "render_board", lambda *a, **k: BytesIO(b"img"))
-        monkeypatch.setattr(router, "render_player_board", lambda *a, **k: BytesIO(b"img"))
 
         async def assert_reply_photo(photo, *args, **kwargs):
             assert photo.getbuffer().nbytes > 0

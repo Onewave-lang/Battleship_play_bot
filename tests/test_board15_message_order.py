@@ -72,7 +72,6 @@ def test_board15_message_order(tmp_path, monkeypatch):
     coord2 = parser.format_coord((r2, c2))
 
     monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'board'))
-    monkeypatch.setattr(router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own'))
 
     bot = DummyBot()
     context = SimpleNamespace(bot=bot, bot_data={})
@@ -94,8 +93,8 @@ def test_board15_message_order(tmp_path, monkeypatch):
 
     asyncio.run(play_moves())
 
-    expected = ['photo', 'photo', 'text_send', 'photo', 'photo', 'text_send', 'photo', 'photo', 'text_send']
-    extra = ['photo', 'photo', 'text_send', 'photo', 'photo', 'text_send', 'photo', 'photo', 'text_send', 'photo', 'photo', 'text_send']
+    expected = ['photo', 'text_send', 'photo', 'text_send', 'photo', 'text_send']
+    extra = ['photo', 'text_send', 'photo', 'text_send', 'photo', 'text_send', 'photo', 'text_send']
     assert bot.logs[1] == expected
     assert bot.logs[2] == expected
     assert bot.logs[3] == extra

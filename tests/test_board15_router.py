@@ -45,7 +45,6 @@ def test_router_auto_sends_boards(monkeypatch):
         monkeypatch.setattr(storage, 'save_board', fake_save_board)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
         monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'target'))
-        monkeypatch.setattr(router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own'))
 
         send_photo = AsyncMock()
         send_message = AsyncMock()
@@ -64,8 +63,6 @@ def test_router_auto_sends_boards(monkeypatch):
 
         assert send_photo.call_args_list == [
             call(10, ANY),
-            call(10, ANY),
-            call(20, ANY),
             call(20, ANY),
         ]
         assert send_message.call_args_list == [
@@ -155,7 +152,6 @@ def test_router_notifies_next_player_on_miss(monkeypatch):
         monkeypatch.setattr(router.battle, 'apply_shot', lambda board, coord: router.battle.MISS)
         monkeypatch.setattr(router, '_phrase_or_joke', lambda m, pk, ph: '')
         monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'target'))
-        monkeypatch.setattr(router, 'render_player_board', lambda board, player_key=None: BytesIO(b'own'))
 
         send_photo = AsyncMock()
         send_message = AsyncMock()
@@ -179,7 +175,7 @@ def test_router_notifies_next_player_on_miss(monkeypatch):
     asyncio.run(run_test())
 
 
-def test_router_move_sends_player_board(monkeypatch):
+def test_router_move_sends_board(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
             status='playing',
@@ -201,19 +197,11 @@ def test_router_move_sends_player_board(monkeypatch):
         monkeypatch.setattr(router.battle, 'apply_shot', lambda board, coord: router.battle.MISS)
         monkeypatch.setattr(router, '_phrase_or_joke', lambda m, pk, ph: '')
         monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'target'))
-        called = []
 
-        def fake_render_player_board(board, player_key=None):
-            called.append(board)
-            return BytesIO(b'own')
-
-        monkeypatch.setattr(router, 'render_player_board', fake_render_player_board)
-
-        edit_media = AsyncMock()
         send_photo = AsyncMock()
         context = SimpleNamespace(
             bot=SimpleNamespace(
-                edit_message_media=edit_media,
+                edit_message_media=AsyncMock(),
                 edit_message_text=AsyncMock(),
                 send_photo=send_photo,
                 send_message=AsyncMock(),
@@ -229,7 +217,7 @@ def test_router_move_sends_player_board(monkeypatch):
 
         await router.router_text(update, context)
 
-        assert called  # render_player_board was used
+        assert {c.args[0] for c in send_photo.call_args_list} == {10, 20}
 
     asyncio.run(run_test())
 
