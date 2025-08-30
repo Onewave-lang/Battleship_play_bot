@@ -77,6 +77,8 @@ def test_board15_test_manual(monkeypatch):
             bot_data={},
         )
 
+        monkeypatch.setattr(handlers.random, 'choice', lambda seq: seq[0])
+
         await handlers.board15_test(update, context)
 
         # ensure start text sent before board image

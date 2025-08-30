@@ -30,6 +30,20 @@ WELCOME_TEXT = 'Выберите способ приглашения сопер�
 STATE_KEY = "board15_states"
 
 
+def _adjacent_cells(grid: list[list[int]]) -> set[tuple[int, int]]:
+    """Return all cells that are occupied by ``grid``'s ships or touch them."""
+    blocked: set[tuple[int, int]] = set()
+    for r in range(15):
+        for c in range(15):
+            if grid[r][c] == 1:
+                for dr in (-1, 0, 1):
+                    for dc in (-1, 0, 1):
+                        nr, nc = r + dr, c + dc
+                        if 0 <= nr < 15 and 0 <= nc < 15:
+                            blocked.add((nr, nc))
+    return blocked
+
+
 async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     args = getattr(context, 'args', None)
     name = getattr(update.effective_user, 'first_name', '') or ''
@@ -134,7 +148,6 @@ async def _auto_play_bots(
                     logger.exception(
                         "Failed to notify human about message send failure"
                     )
-    coords = [(r, c) for r in range(15) for c in range(15)]
     order = ['A', 'B', 'C']
     from . import router as router_module
 
@@ -163,18 +176,19 @@ async def _auto_play_bots(
             continue
 
         current = match.turn
-        # find first untouched cell scanning from the start each time
-        coord = None
-        for pt in coords:
-            r, c = pt
-            if (
-                _get_cell_state(match.history[r][c]) == 0
-                and match.boards[current].grid[r][c] != 1
-            ):
-                coord = pt
-                break
-        if coord is None:
+        grid = match.boards[current].grid
+        blocked = _adjacent_cells(grid)
+        candidates = [
+            (r, c)
+            for r in range(15)
+            for c in range(15)
+            if _get_cell_state(match.history[r][c]) == 0
+            and grid[r][c] != 1
+            and (r, c) not in blocked
+        ]
+        if not candidates:
             break
+        coord = random.choice(candidates)
         enemies = [k for k in alive if k != current]
         results = {}
         hit_any = False
