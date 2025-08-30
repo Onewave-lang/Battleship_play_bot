@@ -13,7 +13,7 @@ def _phrase_or_joke(match, player_key: str, phrases: list[str]) -> str:
         start = shots["joke_start"] = random.randint(1, 10)
     count = shots.get("move_count", 0)
     if count >= start and (count - start) % 10 == 0:
-        return f"Слушай анекдот:\n{random_joke()}\n\n"
+        return f"Слушай анекдот по этому поводу:\n{random_joke()}\n\n"
     return f"{random_phrase(phrases)} "
 
 
