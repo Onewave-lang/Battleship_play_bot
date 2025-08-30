@@ -148,6 +148,9 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.message.reply_text('Здесь ваш корабль')
         return
 
+    for b in match.boards.values():
+        b.highlight = []
+
     results = {}
     hit_any = False
     repeat = False
@@ -193,6 +196,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     else:
         match.last_highlight = [coord]
         match.shots[player_key]["last_result"] = "miss"
+    storage.save_match(match)
     for k in match.shots:
         shots = match.shots[k]
         shots.setdefault('move_count', 0)
