@@ -156,6 +156,11 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     for b in match.boards.values():
         b.highlight = []
 
+    state = _get_cell_state(match.history[r][c])
+    if state in {2, 3, 4, 5}:
+        await update.message.reply_text('Эта клетка уже обстреляна')
+        return
+
     results = {}
     hit_any = False
     repeat = False
@@ -167,7 +172,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         elif res in (battle.HIT, battle.KILL):
             hit_any = True
     if repeat:
-        await update.message.reply_text('Эта клетка уже открыта')
+        await update.message.reply_text('Эта клетка уже обстреляна')
         return
 
     if match.players[player_key].user_id != 0:

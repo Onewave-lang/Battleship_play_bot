@@ -588,7 +588,7 @@ def test_router_repeat_shot(monkeypatch):
 
         await router.router_text(update, context)
 
-        update.message.reply_text.assert_called_once_with('Эта клетка уже открыта')
+        update.message.reply_text.assert_called_once_with('Эта клетка уже обстреляна')
         assert not send_state.called
         assert match.turn == 'A'
         assert match.shots['A']['move_count'] == 0
