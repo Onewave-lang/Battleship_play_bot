@@ -22,6 +22,13 @@ PLAYER_COLORS = {
     "C": "#ffc88c",  # light orange
 }
 
+# darker colours for hit cells per player
+PLAYER_COLORS_DARK = {
+    "A": "#00008b",  # dark blue
+    "B": "#228b22",  # dark green
+    "C": "#ff8c00",  # dark orange
+}
+
 
 def format_cell(symbol: str) -> str:
     """Pad cell contents so that the board remains aligned.
@@ -77,7 +84,12 @@ def render_board_own(board: Board) -> str:
                 else:
                     sym = '<span style="color:black">x</span>'
             elif cell_state == 3:
-                hit_color = "#ff8c00" if owner == "C" else "#8b0000"
+                if coord in highlight:
+                    hit_color = "#8b0000"
+                else:
+                    hit_color = PLAYER_COLORS_DARK.get(
+                        owner or getattr(board, "owner", None), "#8b0000"
+                    )
                 sym = f'<span style="color:{hit_color}">■</span>'
             elif cell_state == 4:
                 if coord in highlight:
@@ -113,7 +125,12 @@ def render_board_enemy(board: Board) -> str:
                 else:
                     sym = '<span style="color:black">x</span>'
             elif cell_state == 3:
-                hit_color = "#ff8c00" if owner == "C" else "#8b0000"
+                if coord in highlight:
+                    hit_color = "#8b0000"
+                else:
+                    hit_color = PLAYER_COLORS_DARK.get(
+                        owner or getattr(board, "owner", None), "#8b0000"
+                    )
                 sym = f'<span style="color:{hit_color}">■</span>'
             elif cell_state == 4:
                 if coord in highlight:

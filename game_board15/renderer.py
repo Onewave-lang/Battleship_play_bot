@@ -137,8 +137,10 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
                 if val == 1 and owner:
                     color = PLAYER_SHIP_COLORS.get(THEME, {}).get(owner, COLORS[THEME]["ship"])
                 elif val == 3:
-                    if owner == "C":
-                        color = PLAYER_SHIP_COLORS_DARK.get(THEME, {}).get("C", COLORS[THEME]["hit"])
+                    if owner:
+                        color = PLAYER_SHIP_COLORS_DARK.get(THEME, {}).get(
+                            owner, COLORS[THEME]["hit"]
+                        )
                     else:
                         color = COLORS[THEME]["hit"]
                 elif val == 4:
