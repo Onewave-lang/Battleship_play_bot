@@ -9,9 +9,12 @@ from .state import Board15State
 from .models import Board15
 
 TILE_PX = int(os.getenv("BOARD15_TILE_PX", "44"))
-FONT_PATH = os.getenv(
-    "BOARD15_FONT_PATH", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+DEFAULT_FONT = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__), "..", "assets", "fonts", "NotoColorEmoji-Regular.ttf"
+    )
 )
+FONT_PATH = os.getenv("BOARD15_FONT_PATH", DEFAULT_FONT)
 THEME = os.getenv("BOARD15_THEME", "light")
 
 COLORS = {
@@ -157,8 +160,12 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
                 )
                 cx = x0 + TILE_PX // 2
                 cy = y0 + TILE_PX // 2
-                r = max(2, TILE_PX // 6)
-                draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(0, 0, 0, 255))
+                try:
+                    bomb_font = ImageFont.truetype(FONT_PATH, int(TILE_PX * 0.8))
+                except OSError:
+                    bomb_font = ImageFont.load_default()
+                draw.text((cx, cy), "💣", fill=(0, 0, 0, 255), anchor="mm", font=bomb_font)
+                draw.point((cx, cy), fill=(0, 0, 0, 255))
             elif shape == "dot":
                 cx = x0 + TILE_PX // 2
                 cy = y0 + TILE_PX // 2
