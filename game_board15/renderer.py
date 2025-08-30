@@ -24,7 +24,6 @@ COLORS = {
         "mark": (220, 0, 0, 255),
         "ship": (0, 0, 0, 255),
         "miss": (220, 0, 0, 255),
-        "miss_bg": (255, 165, 0, 255),
         "hit": (139, 0, 0, 255),
         "destroyed": (139, 0, 0, 255),
         "contour": (120, 120, 120, 255),
@@ -35,7 +34,6 @@ COLORS = {
         "mark": (255, 0, 0, 255),
         "ship": (220, 220, 220, 255),
         "miss": (255, 0, 0, 255),
-        "miss_bg": (255, 140, 0, 255),
         "hit": (139, 0, 0, 255),
         "destroyed": (255, 100, 100, 255),
         "contour": (160, 160, 160, 255),
@@ -146,10 +144,6 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
                     fill=color,
                 )
             elif shape == "cross":
-                draw.rectangle(
-                    (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
-                    fill=COLORS[THEME]["miss_bg"],
-                )
                 draw.line(
                     (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
                     fill=color,
@@ -255,10 +249,6 @@ def render_player_board(board: Board15, player_key: str | None = None) -> BytesI
                     fill=color,
                 )
             elif shape == "cross":
-                draw.rectangle(
-                    (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
-                    fill=COLORS[THEME]["miss_bg"],
-                )
                 draw.line(
                     (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
                     fill=color,
