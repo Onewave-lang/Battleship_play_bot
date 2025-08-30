@@ -79,6 +79,8 @@ async def _auto_play_bots(
             await asyncio.sleep(0.5)
             continue
 
+        await asyncio.sleep(6)
+
         current = match.turn
         coord = None
         for pt in coords:
@@ -198,8 +200,6 @@ async def _auto_play_bots(
                         "Игра окончена. Победил соперник.",
                     )
             break
-
-        await asyncio.sleep(1)
 
 
 async def board_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

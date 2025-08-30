@@ -173,6 +173,8 @@ async def _auto_play_bots(
             await asyncio.sleep(0.5)
             continue
 
+        await asyncio.sleep(6)
+
         current = match.turn
         board = match.boards[current]
         adj = _adjacent_mask(board.grid)
@@ -288,8 +290,6 @@ async def _auto_play_bots(
                         'Игра окончена. Победил соперник.',
                     )
             break
-
-        await asyncio.sleep(1)
 
 
 async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
