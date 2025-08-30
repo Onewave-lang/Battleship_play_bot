@@ -141,7 +141,10 @@ def test_auto_play_bots_notifies_human(monkeypatch):
         context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
 
         with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(handlers._auto_play_bots(match, context, 1), timeout=0.01)
+            await asyncio.wait_for(
+                handlers._auto_play_bots(match, context, 1, delay=1),
+                timeout=0.01,
+            )
 
         assert any(player == 'A' and msg.endswith('Следующим ходит A.') for player, msg in calls)
 
@@ -173,8 +176,9 @@ def test_auto_play_bots_reports_hits(monkeypatch):
 
         async def fake_send_state(context, match_, player_key, message):
             calls.append((player_key, message))
-            # Yield control to the event loop so wait_for's timeout can trigger
+
             await asyncio.sleep(0)
+
 
         monkeypatch.setattr(router, '_send_state', fake_send_state)
 
@@ -189,7 +193,10 @@ def test_auto_play_bots_reports_hits(monkeypatch):
         context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
 
         with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(handlers._auto_play_bots(match, context, 1), timeout=0.01)
+            await asyncio.wait_for(
+                handlers._auto_play_bots(match, context, 1, delay=1),
+                timeout=0.01,
+            )
 
         msg = next(m for k, m in calls if k == 'A')
         assert 'игрок B поразил корабль игрока C' in msg
