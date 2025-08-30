@@ -71,6 +71,7 @@ def get_match(match_id: str) -> Match | None:
         )
     match.turn = m.get('turn', 'A')
     match.history = m.get('history', [[0] * 10 for _ in range(10)])
+    match.last_highlight = [tuple(cell) for cell in m.get('last_highlight', [])]
     match.shots = m.get('shots', match.shots)
     match.messages = m.get('messages', {})
     return match
@@ -130,6 +131,7 @@ def save_board(match: Match, player_key: str, board: Board) -> None:
             current.shots = m_dict.get('shots', current.shots)
             current.messages = m_dict.get('messages', {})
             current.history = m_dict.get('history', [[0] * 10 for _ in range(10)])
+            current.last_highlight = [tuple(cell) for cell in m_dict.get('last_highlight', [])]
         else:
             current = match
 
@@ -156,6 +158,7 @@ def save_board(match: Match, player_key: str, board: Board) -> None:
             'shots': current.shots,
             'messages': current.messages,
             'history': current.history,
+            'last_highlight': current.last_highlight,
         }
         _save_all(data)
 
@@ -167,6 +170,7 @@ def save_board(match: Match, player_key: str, board: Board) -> None:
     match.shots = current.shots
     match.history = current.history
     match.messages = current.messages
+    match.last_highlight = current.last_highlight
 
 
 def finish(match: Match, winner: str) -> str | None:
@@ -202,6 +206,7 @@ def save_match(match: Match) -> str | None:
             "shots": match.shots,
             "messages": match.messages,
             "history": match.history,
+            "last_highlight": match.last_highlight,
         }
         return _save_all(data)
 

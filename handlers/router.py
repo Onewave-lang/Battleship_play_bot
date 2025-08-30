@@ -119,13 +119,7 @@ async def _send_state_board_test(
         for c in range(10):
             if merged[r][c] == 0 and own_grid[r][c] == 1:
                 merged[r][c] = 1
-    board = Board(grid=merged, highlight=match.boards[player_key].highlight.copy())
-    shots = match.shots.get(player_key, {})
-    last = shots.get("last_coord")
-    if last is not None:
-        if isinstance(last, list):
-            last = tuple(last)
-        board.highlight.append(last)
+    board = Board(grid=merged, highlight=getattr(match, "last_highlight", []).copy())
     board_text = f"Ваше поле:\n{render_board_own(board)}"
     kb = move_keyboard()
 
@@ -423,6 +417,19 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
     results = apply_shot_multi(coord, boards, match.history)
     match.shots[player_key]['history'].append(text)
     match.shots[player_key]['last_coord'] = coord
+    if any(res == KILL for res in results.values()):
+        cells: list[tuple[int, int]] = []
+        for enemy, res in results.items():
+            if res == KILL:
+                cells.extend(match.boards[enemy].highlight)
+        match.last_highlight = cells.copy()
+        match.shots[player_key]['last_result'] = 'kill'
+    elif any(res == HIT for res in results.values()):
+        match.last_highlight = [coord]
+        match.shots[player_key]['last_result'] = 'hit'
+    else:
+        match.last_highlight = [coord]
+        match.shots[player_key]['last_result'] = 'miss'
     for k in match.shots:
         shots = match.shots.setdefault(k, {})
         shots.setdefault('move_count', 0)

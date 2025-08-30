@@ -45,6 +45,7 @@ class Match:
     history: List[List[int]] = field(
         default_factory=lambda: [[0] * 10 for _ in range(10)]
     )
+    last_highlight: List[Coord] = field(default_factory=list)
     shots: Dict[str, Dict[str, object]] = field(
         default_factory=lambda: {
             k: {
