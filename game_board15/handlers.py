@@ -213,8 +213,6 @@ async def _auto_play_bots(
                 if res == battle.KILL:
                     cells.extend(match.boards[enemy].highlight)
             match.last_highlight = cells.copy()
-        elif any(res == battle.HIT for res in results.values()):
-            match.last_highlight = [coord]
         else:
             match.last_highlight = [coord]
         for k in match.shots:
@@ -231,6 +229,8 @@ async def _auto_play_bots(
         else:
             next_player = current
         match.turn = next_player
+
+        storage.save_match(match)
 
         parts_self: list[str] = []
         watch_parts: list[str] = []
