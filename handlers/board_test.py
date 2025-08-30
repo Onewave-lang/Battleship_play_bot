@@ -49,12 +49,16 @@ async def _auto_play_bots(
 
         try:
             await router_module._send_state_board_test(context, match, player_key, message)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             logger.exception("Failed to send state to %s", player_key)
 
     async def _safe_send_message(chat_id_: int, text: str) -> None:
         try:
             await context.bot.send_message(chat_id_, text)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             logger.exception("Failed to send message to chat %s", chat_id_)
 
