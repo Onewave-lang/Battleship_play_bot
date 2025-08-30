@@ -173,11 +173,16 @@ def test_auto_play_bots_reports_hits(monkeypatch):
 
         async def fake_send_state(context, match_, player_key, message):
             calls.append((player_key, message))
+            # Yield control to the event loop so wait_for's timeout can trigger
+            await asyncio.sleep(0)
 
         monkeypatch.setattr(router, '_send_state', fake_send_state)
 
+        orig_sleep = asyncio.sleep
+
         async def fast_sleep(t):
-            pass
+            # Allow the event loop to run other tasks without real delay
+            await orig_sleep(0)
 
         monkeypatch.setattr(asyncio, 'sleep', fast_sleep)
 
