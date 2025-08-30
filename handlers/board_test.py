@@ -38,6 +38,7 @@ async def _auto_play_bots(
     context: ContextTypes.DEFAULT_TYPE,
     chat_id: int,
     human: str = "A",
+    delay: float = 0.0,
 ) -> None:
     """Automatically let bot players make moves until the game ends."""
 
@@ -79,7 +80,8 @@ async def _auto_play_bots(
             await asyncio.sleep(0.5)
             continue
 
-        await asyncio.sleep(6)
+        if delay:
+            await asyncio.sleep(delay)
 
         current = match.turn
         coord = None
@@ -232,5 +234,7 @@ async def board_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         "Выберите клетку или введите ход текстом.",
     )
     asyncio.create_task(
-        _auto_play_bots(match, context, update.effective_chat.id, human="A")
+        _auto_play_bots(
+            match, context, update.effective_chat.id, human="A", delay=6
+        )
     )
