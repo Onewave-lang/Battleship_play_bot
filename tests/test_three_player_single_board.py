@@ -131,6 +131,7 @@ def test_auto_play_bots_sequence_and_history(monkeypatch):
         async def fast_sleep(t):
             pass
         monkeypatch.setattr(asyncio, "sleep", fast_sleep)
+        monkeypatch.setattr(handlers.random, 'choice', lambda seq: seq[0])
         await handlers._auto_play_bots(match, context, 0, human="A")
         assert recorded == [(0, 0), (0, 2)]
         assert _state(match.history[0][0]) == 4
