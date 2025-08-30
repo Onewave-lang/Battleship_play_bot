@@ -97,6 +97,19 @@ async def _auto_play_bots(
         enemy_boards = {k: match.boards[k] for k in enemies}
         results = battle.apply_shot_multi(coord, enemy_boards, match.history)
         match.shots[current]["last_coord"] = coord
+        if any(res == battle.KILL for res in results.values()):
+            cells: list[tuple[int, int]] = []
+            for enemy, res in results.items():
+                if res == battle.KILL:
+                    cells.extend(match.boards[enemy].highlight)
+            match.last_highlight = cells.copy()
+            match.shots[current]["last_result"] = "kill"
+        elif any(res == battle.HIT for res in results.values()):
+            match.last_highlight = [coord]
+            match.shots[current]["last_result"] = "hit"
+        else:
+            match.last_highlight = [coord]
+            match.shots[current]["last_result"] = "miss"
         for k in match.shots:
             shots = match.shots[k]
             shots.setdefault("move_count", 0)
