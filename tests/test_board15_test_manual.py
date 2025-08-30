@@ -77,6 +77,13 @@ def test_board15_test_manual(monkeypatch):
             bot_data={},
         )
 
+        sent_to: list[str] = []
+
+        async def fake_send_state(context, match_obj, player_key, message):
+            sent_to.append(player_key)
+
+        monkeypatch.setattr(router, "_send_state", fake_send_state)
+
         await handlers.board15_test(update, context)
 
         # ensure start text sent before board image
@@ -109,5 +116,6 @@ def test_board15_test_manual(monkeypatch):
         assert finished.get("winner") == "A"
         messages = [c.args[1] for c in context.bot.send_message.call_args_list]
         assert any("Вы победили" in m for m in messages)
+        assert set(sent_to) == {"A"}
 
     asyncio.run(run())

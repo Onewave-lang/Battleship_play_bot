@@ -283,7 +283,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         result_self = (
             f"Ход игрока {player_label}: {coord_str} - {msg_body} {phrase_self} Следующим ходит {next_name}."
         )
-        view_key = match.turn
+        view_key = player_key
     else:
         result_self = f"Ваш ход: {coord_str} - {msg_body} {phrase_self} Следующим ходит {next_name}."
         view_key = match.turn if single_user else player_key
