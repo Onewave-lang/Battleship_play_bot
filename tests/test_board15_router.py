@@ -17,6 +17,7 @@ sys.modules.setdefault('PIL', pil)
 
 from game_board15 import router, storage
 from game_board15.models import Board15, Ship
+from game_board15.utils import _get_cell_state
 
 
 def test_router_auto_sends_boards(monkeypatch):
@@ -117,6 +118,52 @@ def test_last_highlight_persists_after_kill(monkeypatch):
         assert match.last_highlight == [(0, 0)]
         board_enemy.highlight.clear()
         assert match.last_highlight == [(0, 0)]
+
+    asyncio.run(run_test())
+
+
+def test_kill_marks_all_cells_and_contour(monkeypatch):
+    async def run_test():
+        board_self = Board15()
+        board_enemy = Board15()
+        ship = Ship(cells=[(0, 0), (0, 1)])
+        board_enemy.ships = [ship]
+        board_enemy.grid[0][0] = 3
+        board_enemy.grid[0][1] = 1
+        board_enemy.alive_cells = 1
+        match = SimpleNamespace(
+            status="playing",
+            players={
+                "A": SimpleNamespace(user_id=1, chat_id=10, name="A"),
+                "B": SimpleNamespace(user_id=2, chat_id=20, name="B"),
+            },
+            boards={"A": board_self, "B": board_enemy},
+            turn="A",
+            shots={"A": {"move_count": 0, "joke_start": 10}, "B": {}},
+            messages={"A": {}, "B": {}},
+            history=_new_grid(15),
+        )
+
+        monkeypatch.setattr(storage, "find_match_by_user", lambda uid, chat_id=None: match)
+        monkeypatch.setattr(storage, "save_match", lambda m: None)
+        monkeypatch.setattr(router.parser, "parse_coord", lambda text: (0, 1))
+        monkeypatch.setattr(router.parser, "format_coord", lambda coord: "b1")
+        monkeypatch.setattr(router, "_phrase_or_joke", lambda m, pk, ph: "")
+
+        send_state = AsyncMock()
+        monkeypatch.setattr(router, "_send_state", send_state)
+
+        update = SimpleNamespace(
+            message=SimpleNamespace(text="b1", reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), chat_data={}, bot_data={})
+
+        await router.router_text(update, context)
+
+        assert set(match.last_highlight) == {(0, 0), (0, 1)}
+        assert _get_cell_state(match.history[0][2]) == 5
 
     asyncio.run(run_test())
 
