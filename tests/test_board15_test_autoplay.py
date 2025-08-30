@@ -176,7 +176,9 @@ def test_auto_play_bots_reports_hits(monkeypatch):
 
         async def fake_send_state(context, match_, player_key, message):
             calls.append((player_key, message))
-            # Do not await here so cancellation occurs outside _safe_send_state
+
+            await asyncio.sleep(0)
+
 
         monkeypatch.setattr(router, '_send_state', fake_send_state)
 

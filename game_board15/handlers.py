@@ -192,6 +192,8 @@ async def _auto_play_bots(
             break
         coord = random.choice(candidates)
         enemies = [k for k in alive if k != current]
+        for b in match.boards.values():
+            b.highlight = []
         results = {}
         hit_any = False
         for enemy in enemies:
@@ -205,6 +207,14 @@ async def _auto_play_bots(
             shot_hist.append({"coord": coord, "enemy": enemy, "result": res})
         battle.update_history(match.history, match.boards, coord, results)
         match.shots[current]["last_coord"] = coord
+        if any(res == battle.KILL for res in results.values()):
+            cells: list[tuple[int, int]] = []
+            for enemy, res in results.items():
+                if res == battle.KILL:
+                    cells.extend(match.boards[enemy].highlight)
+            match.last_highlight = cells.copy()
+        else:
+            match.last_highlight = [coord]
         for k in match.shots:
             shots = match.shots[k]
             shots.setdefault('move_count', 0)
@@ -219,6 +229,8 @@ async def _auto_play_bots(
         else:
             next_player = current
         match.turn = next_player
+
+        storage.save_match(match)
 
         parts_self: list[str] = []
         watch_parts: list[str] = []
