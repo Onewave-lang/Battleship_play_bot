@@ -408,7 +408,7 @@ def test_router_notifies_next_player_on_miss(monkeypatch):
 
         b_msgs = [c for c in send_message.call_args_list if c.args[0] == 20]
         assert b_msgs and b_msgs[0].args[1].endswith('Следующим ходит B.')
-        assert 'a1 - мимо' not in b_msgs[0].args[1]
+        assert 'a1 - мимо' in b_msgs[0].args[1]
 
     asyncio.run(run_test())
 

@@ -268,7 +268,7 @@ async def _auto_play_bots(
                         f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
                     )
         enemy_msgs[current] = ' '.join(parts_self) if parts_self else 'мимо'
-        watch_msg = ' '.join(watch_parts)
+        watch_msg = ' '.join(watch_parts).strip() or 'мимо'
         for pk in match.players:
             enemy_msgs.setdefault(pk, watch_msg)
 
