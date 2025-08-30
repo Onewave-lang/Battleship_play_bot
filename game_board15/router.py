@@ -254,7 +254,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     else:
         phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
 
-    msg_watch = ' '.join(watch_parts)
+    msg_watch = ' '.join(watch_parts).strip() or 'мимо'
     others = [
         k
         for k in match.players
