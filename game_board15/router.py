@@ -222,6 +222,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     next_player = player_key
     player_obj = match.players.get(player_key)
     player_label = getattr(player_obj, "name", "") or player_key
+    eliminated: list[str] = []
     for enemy, res in results.items():
         enemy_obj = match.players.get(enemy)
         enemy_label = getattr(enemy_obj, "name", "") or enemy
@@ -241,14 +242,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             )
             enemy_msgs[enemy] = (res, f"ваш корабль уничтожен. {phrase_enemy}")
             targets.append(enemy)
-            if (
-                match.boards[enemy].alive_cells == 0
-                and match.players[enemy].user_id != 0
-            ):
-                await context.bot.send_message(
-                    match.players[enemy].chat_id,
-                    f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
-                )
+            if match.boards[enemy].alive_cells == 0:
+                eliminated.append(enemy)
 
     if any(res == battle.KILL for res in results.values()):
         phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
@@ -265,17 +260,14 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         for k in match.players
         if k not in enemy_msgs and k != player_key and match.boards[k].alive_cells > 0
     ]
-    if not hit_any:
-        order = [
-            k
-            for k in ('A', 'B', 'C')
-            if k in match.players and match.boards[k].alive_cells > 0
-        ]
-        idx = order.index(player_key)
-        next_player = order[(idx + 1) % len(order)]
-        match.turn = next_player
-    else:
-        match.turn = player_key
+    order = [
+        k
+        for k in ('A', 'B', 'C')
+        if k in match.players and match.boards[k].alive_cells > 0
+    ]
+    idx = order.index(player_key)
+    next_player = order[(idx + 1) % len(order)]
+    match.turn = next_player
     next_obj = match.players.get(next_player)
     next_name = getattr(next_obj, 'name', '') or next_player
     same_chat = len({p.chat_id for p in match.players.values()}) == 1
@@ -318,17 +310,28 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     storage.save_match(match)
 
-    alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0]
-    if len(alive_players) == 1:
-        winner = alive_players[0]
-        storage.finish(match, winner)
-        if match.players[winner].user_id != 0:
-            await context.bot.send_message(
-                match.players[winner].chat_id, 'Вы победили!'
-            )
-        for k in match.players:
-            if k != winner and match.players[k].user_id != 0:
-                await context.bot.send_message(
-                    match.players[k].chat_id,
-                    'Игра окончена. Победил соперник.',
-                )
+    for enemy in eliminated:
+        enemy_label = getattr(match.players[enemy], "name", "") or enemy
+        alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0]
+        if len(alive_players) == 1:
+            winner = alive_players[0]
+            winner_label = getattr(match.players[winner], "name", "") or winner
+            storage.finish(match, winner)
+            for k, p in match.players.items():
+                if p.user_id != 0:
+                    if k == winner:
+                        msg = (
+                            f"Флот игрока {enemy_label} потоплен! {enemy_label} занял 2 место. Вы победили!🏆"
+                        )
+                    else:
+                        msg = (
+                            f"Флот игрока {enemy_label} потоплен! {enemy_label} занял 2 место. Игрок {winner_label} победил!"
+                        )
+                    await context.bot.send_message(p.chat_id, msg)
+        else:
+            for k, p in match.players.items():
+                if p.user_id != 0:
+                    await context.bot.send_message(
+                        p.chat_id,
+                        f"Флот игрока {enemy_label} потоплен! {enemy_label} выбывает.",
+                    )

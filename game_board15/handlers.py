@@ -165,22 +165,16 @@ async def _auto_play_bots(
         alive = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
         if len(alive) == 1:
             winner = alive[0]
+            winner_label = getattr(match.players[winner], 'name', '') or winner
             storage.finish(match, winner)
-            if match.players[winner].user_id != 0:
-                await _safe_send_message(
-                    match.players[winner].chat_id, 'Вы победили!'
-                )
-            for k in match.players:
-                if k != winner and match.players[k].user_id != 0:
-                    await _safe_send_message(
-                        match.players[k].chat_id,
-                        'Игра окончена. Победил соперник.',
-                    )
+            for k, p in match.players.items():
+                if p.user_id != 0:
+                    if k == winner:
+                        msg = 'Вы победили!🏆'
+                    else:
+                        msg = f'Игрок {winner_label} победил!'
+                    await _safe_send_message(p.chat_id, msg)
             break
-
-        if match.turn == human:
-            await asyncio.sleep(0.5)
-            continue
 
         if delay:
             await asyncio.sleep(delay)
@@ -188,6 +182,7 @@ async def _auto_play_bots(
         current = match.turn
         board = match.boards[current]
         adj = _adjacent_mask(board.grid)
+        enemies = [k for k in alive if k != current]
         candidates = [
             (r, c)
             for r in range(15)
@@ -198,17 +193,32 @@ async def _auto_play_bots(
         ]
         if not candidates:
             break
-        coord = random.choice(candidates)
-        enemies = [k for k in alive if k != current]
+        if len(enemies) == 1:
+            enemy_board = match.boards[enemies[0]]
+            target = next(
+                (
+                    (r, c)
+                    for r in range(15)
+                    for c in range(15)
+                    if enemy_board.grid[r][c] == 1
+                ),
+                None,
+            )
+            coord = target if target else random.choice(candidates)
+        else:
+            coord = random.choice(candidates)
         for b in match.boards.values():
             b.highlight = []
         results = {}
         hit_any = False
+        eliminated: list[str] = []
         for enemy in enemies:
             res = battle.apply_shot(match.boards[enemy], coord)
             results[enemy] = res
             if res in (battle.HIT, battle.KILL):
                 hit_any = True
+            if res == battle.KILL and match.boards[enemy].alive_cells == 0:
+                eliminated.append(enemy)
         # record detailed shot history including attacked players
         shot_hist = match.shots[current].setdefault("history", [])
         for enemy, res in results.items():
@@ -261,12 +271,6 @@ async def _auto_play_bots(
                     f"игрок {player_label} поразил корабль игрока {enemy_label}."
                 )
                 enemy_msgs[enemy] = f"ваш корабль уничтожен. {phrase_enemy}"
-                if match.boards[enemy].alive_cells == 0 and match.players[enemy].user_id != 0:
-                    enemy_label = getattr(match.players.get(enemy), 'name', '') or enemy
-                    await _safe_send_message(
-                        match.players[enemy].chat_id,
-                        f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
-                    )
         enemy_msgs[current] = ' '.join(parts_self) if parts_self else 'мимо'
         watch_msg = ' '.join(watch_parts).strip() or 'мимо'
         for pk in match.players:
@@ -300,20 +304,36 @@ async def _auto_play_bots(
 
         storage.save_match(match)
 
-        alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
-        if len(alive_players) == 1:
-            winner = alive_players[0]
-            storage.finish(match, winner)
-            if match.players[winner].user_id != 0:
-                await _safe_send_message(
-                    match.players[winner].chat_id, 'Вы победили!'
-                )
-            for k in match.players:
-                if k != winner and match.players[k].user_id != 0:
-                    await _safe_send_message(
-                        match.players[k].chat_id,
-                        'Игра окончена. Победил соперник.',
-                    )
+        finished = False
+        for enemy in eliminated:
+            enemy_label = getattr(match.players[enemy], 'name', '') or enemy
+            alive_players = [
+                k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players
+            ]
+            if len(alive_players) == 1:
+                winner = alive_players[0]
+                winner_label = getattr(match.players[winner], 'name', '') or winner
+                storage.finish(match, winner)
+                for k, p in match.players.items():
+                    if p.user_id != 0:
+                        if k == winner:
+                            msg = (
+                                f"Флот игрока {enemy_label} потоплен! {enemy_label} занял 2 место. Вы победили!🏆"
+                            )
+                        else:
+                            msg = (
+                                f"Флот игрока {enemy_label} потоплен! {enemy_label} занял 2 место. Игрок {winner_label} победил!"
+                            )
+                        await _safe_send_message(p.chat_id, msg)
+                finished = True
+            else:
+                for k, p in match.players.items():
+                    if p.user_id != 0:
+                        await _safe_send_message(
+                            p.chat_id,
+                            f"Флот игрока {enemy_label} потоплен! {enemy_label} выбывает.",
+                        )
+        if finished:
             break
 
 

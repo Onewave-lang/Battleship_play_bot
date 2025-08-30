@@ -115,7 +115,9 @@ def test_board15_test_manual(monkeypatch):
 
         assert finished.get("winner") == "A"
         messages = [c.args[1] for c in context.bot.send_message.call_args_list]
-        assert any("Вы победили" in m for m in messages)
+        assert any("B выбывает" in m for m in messages)
+        assert any("C занял 2 место" in m for m in messages)
+        assert any("Вы победили!🏆" in m for m in messages)
         assert set(sent_to) == {"A"}
 
     asyncio.run(run())

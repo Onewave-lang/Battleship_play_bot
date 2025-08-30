@@ -43,7 +43,7 @@ def test_board15_test_autoplay(monkeypatch):
         await handlers.board15_test(update, context)
         await asyncio.gather(*tasks)
         messages = [c.args[1] for c in context.bot.send_message.call_args_list]
-        assert any('Вы победили' in m for m in messages)
+        assert any('Вы победили!🏆' in m for m in messages)
     asyncio.run(run())
 
 

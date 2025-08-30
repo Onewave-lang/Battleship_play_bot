@@ -295,6 +295,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     enemy_label = getattr(match.players[enemy_key], 'name', '') or enemy_key
     next_player = None
 
+    eliminated: list[str] = []
     if result == MISS:
         match.turn = enemy_key
         next_player = enemy_key
@@ -338,13 +339,14 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
         phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_KILL)
         if match.boards[enemy_key].alive_cells == 0:
-            error = storage.finish(match, player_key)
+            eliminated.append(enemy_key)
             result_self = (
-                f"Ваш ход: {coord_str} — Корабль соперника уничтожен! {phrase_self}Вы победили. 🏆🎉"
+                f"Ваш ход: {coord_str} — Корабль соперника уничтожен! {phrase_self}Вы победили!🏆"
             )
             result_enemy = (
-                f"Ход игрока {player_label}: {coord_str} — Соперник уничтожил ваш корабль. {phrase_enemy}Все ваши корабли уничтожены. Соперник победил. Не сдавайтесь, капитан! ⚓"
+                f"Ход игрока {player_label}: {coord_str} — Соперник уничтожил ваш корабль. {phrase_enemy}Все ваши корабли уничтожены. Игрок {player_label} победил!"
             )
+            error = storage.save_match(match)
         else:
             next_player = player_key
             next_label = getattr(match.players[next_player], 'name', '') or next_player
@@ -383,13 +385,40 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 except Exception:
                     pass
         result_shared = result_self.replace('Ваш ход:', f'Ход игрока {player_label}:')
-        result_shared = result_shared.replace('Вы победили.', f'Игрок {player_label} победил.')
+        result_shared = result_shared.replace('Вы победили!🏆', f'Игрок {player_label} победил!')
+        result_shared = result_shared.replace('Вы победили.', f'Игрок {player_label} победил!')
         await _send_state(context, match, player_key, result_shared)
         match.messages[enemy_key] = match.messages[player_key].copy()
         storage.save_match(match)
     else:
         await _send_state(context, match, player_key, result_self)
         await _send_state(context, match, enemy_key, result_enemy)
+
+    for enemy in eliminated:
+        enemy_label = getattr(match.players[enemy], 'name', '') or enemy
+        alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
+        if len(alive_players) == 1:
+            winner = alive_players[0]
+            winner_label = getattr(match.players[winner], 'name', '') or winner
+            storage.finish(match, winner)
+            for k, p in match.players.items():
+                if p.user_id != 0:
+                    if k == winner:
+                        msg = (
+                            f"Флот игрока {enemy_label} потоплен! {enemy_label} занял 2 место. Вы победили!🏆"
+                        )
+                    else:
+                        msg = (
+                            f"Флот игрока {enemy_label} потоплен! {enemy_label} занял 2 место. Игрок {winner_label} победил!"
+                        )
+                    await context.bot.send_message(p.chat_id, msg)
+        else:
+            for k, p in match.players.items():
+                if p.user_id != 0:
+                    await context.bot.send_message(
+                        p.chat_id,
+                        f"Флот игрока {enemy_label} потоплен! {enemy_label} выбывает.",
+                    )
 
     if match.status == 'finished':
         keyboard = ReplyKeyboardMarkup([["Начать новую игру"]], one_time_keyboard=True, resize_keyboard=True)

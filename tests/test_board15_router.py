@@ -299,7 +299,7 @@ def test_router_notifies_other_players_on_hit(monkeypatch):
         assert len(calls) >= 1
         msg = calls[-1].args[3]
         assert msg.startswith('Ход игрока A: a1 - игрок A поразил корабль игрока B')
-        assert msg.strip().endswith('Следующим ходит A.')
+        assert msg.strip().endswith('Следующим ходит B.')
 
     asyncio.run(run_test())
 
