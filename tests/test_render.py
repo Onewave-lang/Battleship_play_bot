@@ -26,10 +26,13 @@ def test_render_last_move_symbols():
     b.grid[0][0] = [2, 'A']
     b.highlight = [(0, 0)]
     own = render_board_own(b)
-    assert "border:1px solid red" in own
+    assert "color:red" in own and "border:1px solid red" in own
     b.highlight = []
     own = render_board_own(b)
-    assert "border:1px solid red" not in own and 'background-color:orange' in own
+    assert (
+        "border:1px solid red" not in own
+        and 'color:#000;background-color:orange' in own
+    )
 
     # hit highlight
     b.grid[1][1] = [3, 'B']
