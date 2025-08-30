@@ -89,6 +89,7 @@ async def _auto_play_bots(
     context: ContextTypes.DEFAULT_TYPE,
     chat_id: int,
     human: str = 'A',
+    delay: float = 0.0,
 ) -> None:
     """Automatically let bot players make moves until the game ends."""
     logger = logging.getLogger(__name__)
@@ -172,6 +173,9 @@ async def _auto_play_bots(
         if match.turn == human:
             await asyncio.sleep(0.5)
             continue
+
+        if delay:
+            await asyncio.sleep(delay)
 
         current = match.turn
         board = match.boards[current]
@@ -289,8 +293,6 @@ async def _auto_play_bots(
                     )
             break
 
-        await asyncio.sleep(1)
-
 
 async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Start a three-player test match with two dummy opponents."""
@@ -356,7 +358,9 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     }
     storage.save_match(match)
     asyncio.create_task(
-        _auto_play_bots(match, context, update.effective_chat.id, human='A')
+        _auto_play_bots(
+            match, context, update.effective_chat.id, human='A', delay=6
+        )
     )
 
 
