@@ -79,7 +79,10 @@ def render_board_own(board: Board) -> str:
             elif cell_state == 3:
                 sym = '<span style="color:#8b0000">■</span>'
             elif cell_state == 4:
-                sym = '💣'
+                if coord in highlight:
+                    sym = '💣'
+                else:
+                    sym = '<span style="color:#8b0000">■</span>'
             else:
                 sym = '·'
             if coord in highlight:
@@ -110,7 +113,10 @@ def render_board_enemy(board: Board) -> str:
             elif cell_state == 3:
                 sym = '<span style="color:#8b0000">■</span>'
             elif cell_state == 4:
-                sym = '💣'
+                if coord in highlight:
+                    sym = '💣'
+                else:
+                    sym = '<span style="color:#8b0000">■</span>'
             else:
                 sym = '·'
             if coord in highlight:

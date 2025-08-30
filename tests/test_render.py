@@ -46,14 +46,25 @@ def test_render_last_move_symbols():
     # kill highlight
     b.grid[2][2] = [4, 'B']
     b.grid[2][3] = [5, 'B']
+
+    # highlight the kill cell
+    b.highlight = [(2, 2)]
+    enemy = render_board_enemy(b)
+    assert enemy.count('💣') == 1
+    assert enemy.count("border:1px solid red") == 1
+
+    # highlight the contour cell
     b.highlight = [(2, 3)]
     enemy = render_board_enemy(b)
-    assert enemy.count('💣') >= 1
+    assert '💣' not in enemy
     assert enemy.count('background-color:orange') >= 1
     assert enemy.count("border:1px solid red") == 1
+
+    # no highlight
     b.highlight = []
     enemy = render_board_enemy(b)
-    assert enemy.count('💣') >= 1 and "border:1px solid red" not in enemy
+    assert '💣' not in enemy and "border:1px solid red" not in enemy
+    assert '<span style="color:#8b0000">■</span>' in enemy
     assert '<span style="color:black">x</span>' in enemy
 
 

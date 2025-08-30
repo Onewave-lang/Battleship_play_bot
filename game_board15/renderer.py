@@ -84,7 +84,7 @@ CELL_STYLE = {
     1: ("square", "ship"),
     2: ("cross", "miss"),
     3: ("square", "hit"),
-    4: ("bomb", "destroyed"),
+    4: ("square", "destroyed"),
     # Cells adjacent to a destroyed ship are marked as a cross so they look
     # the same as already shot cells on the board.
     5: ("cross", "miss"),
@@ -123,11 +123,14 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
             if coord in highlight:
                 if val in (2, 5):
                     color = COLORS[THEME]["mark"]
-                elif val == 4 and owner:
+                elif val == 4:
                     shape = "bomb"
-                    color = PLAYER_SHIP_COLORS_LIGHT.get(
-                        THEME, {}
-                    ).get(owner, COLORS[THEME]["destroyed"])
+                    if owner:
+                        color = PLAYER_SHIP_COLORS_LIGHT.get(
+                            THEME, {}
+                        ).get(owner, COLORS[THEME]["destroyed"])
+                    else:
+                        color = COLORS[THEME]["destroyed"]
                 else:
                     color = COLORS[THEME]["mark"]
             else:
@@ -135,11 +138,14 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
                     color = PLAYER_SHIP_COLORS.get(THEME, {}).get(owner, COLORS[THEME]["ship"])
                 elif val == 3:
                     color = COLORS[THEME]["hit"]
-                elif val == 4 and owner:
+                elif val == 4:
                     shape = "square"
-                    color = PLAYER_SHIP_COLORS_DARK.get(
-                        THEME, {}
-                    ).get(owner, COLORS[THEME]["destroyed"])
+                    if owner:
+                        color = PLAYER_SHIP_COLORS_DARK.get(
+                            THEME, {}
+                        ).get(owner, COLORS[THEME]["destroyed"])
+                    else:
+                        color = COLORS[THEME]["destroyed"]
                 elif val in (2, 5):
                     color = COLORS[THEME]["miss"]
                 else:
@@ -234,11 +240,14 @@ def render_player_board(board: Board15, player_key: str | None = None) -> BytesI
             if coord in highlight:
                 if val in (2, 5):
                     color = COLORS[THEME]["mark"]
-                elif val == 4 and player_key:
+                elif val == 4:
                     shape = "bomb"
-                    color = PLAYER_SHIP_COLORS_LIGHT.get(
-                        THEME, {}
-                    ).get(player_key, COLORS[THEME]["destroyed"])
+                    if player_key:
+                        color = PLAYER_SHIP_COLORS_LIGHT.get(
+                            THEME, {}
+                        ).get(player_key, COLORS[THEME]["destroyed"])
+                    else:
+                        color = COLORS[THEME]["destroyed"]
                 else:
                     color = COLORS[THEME]["mark"]
             else:
@@ -246,11 +255,14 @@ def render_player_board(board: Board15, player_key: str | None = None) -> BytesI
                     color = PLAYER_SHIP_COLORS.get(THEME, {}).get(player_key, COLORS[THEME]["ship"])
                 elif val == 3:
                     color = COLORS[THEME]["hit"]
-                elif val == 4 and player_key:
+                elif val == 4:
                     shape = "square"
-                    color = PLAYER_SHIP_COLORS_DARK.get(
-                        THEME, {}
-                    ).get(player_key, COLORS[THEME]["destroyed"])
+                    if player_key:
+                        color = PLAYER_SHIP_COLORS_DARK.get(
+                            THEME, {}
+                        ).get(player_key, COLORS[THEME]["destroyed"])
+                    else:
+                        color = COLORS[THEME]["destroyed"]
                 elif val in (2, 5):
                     color = COLORS[THEME]["miss"]
                 else:
