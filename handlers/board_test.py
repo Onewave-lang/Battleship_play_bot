@@ -94,6 +94,8 @@ async def _auto_play_bots(
             break
 
         enemies = [k for k in alive if k != current]
+        for b in match.boards.values():
+            b.highlight = []
         enemy_boards = {k: match.boards[k] for k in enemies}
         results = battle.apply_shot_multi(coord, enemy_boards, match.history)
         match.shots[current]["last_coord"] = coord
