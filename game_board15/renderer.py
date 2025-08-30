@@ -123,8 +123,11 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
             if coord in highlight:
                 if val in (2, 5):
                     color = COLORS[THEME]["mark"]
-                elif val == 4:
-                    color = PLAYER_SHIP_COLORS_LIGHT.get(THEME, {}).get(owner, COLORS[THEME]["destroyed"])
+                elif val == 4 and owner:
+                    shape = "bomb"
+                    color = PLAYER_SHIP_COLORS_LIGHT.get(
+                        THEME, {}
+                    ).get(owner, COLORS[THEME]["destroyed"])
                 else:
                     color = COLORS[THEME]["mark"]
             else:
@@ -133,7 +136,10 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
                 elif val == 3:
                     color = COLORS[THEME]["hit"]
                 elif val == 4 and owner:
-                    color = PLAYER_SHIP_COLORS_LIGHT.get(THEME, {}).get(owner, COLORS[THEME]["destroyed"])
+                    shape = "square"
+                    color = PLAYER_SHIP_COLORS_DARK.get(
+                        THEME, {}
+                    ).get(owner, COLORS[THEME]["destroyed"])
                 elif val in (2, 5):
                     color = COLORS[THEME]["miss"]
                 else:
@@ -229,7 +235,10 @@ def render_player_board(board: Board15, player_key: str | None = None) -> BytesI
                 if val in (2, 5):
                     color = COLORS[THEME]["mark"]
                 elif val == 4 and player_key:
-                    color = PLAYER_SHIP_COLORS_LIGHT.get(THEME, {}).get(player_key, COLORS[THEME]["destroyed"])
+                    shape = "bomb"
+                    color = PLAYER_SHIP_COLORS_LIGHT.get(
+                        THEME, {}
+                    ).get(player_key, COLORS[THEME]["destroyed"])
                 else:
                     color = COLORS[THEME]["mark"]
             else:
@@ -238,7 +247,10 @@ def render_player_board(board: Board15, player_key: str | None = None) -> BytesI
                 elif val == 3:
                     color = COLORS[THEME]["hit"]
                 elif val == 4 and player_key:
-                    color = PLAYER_SHIP_COLORS_LIGHT.get(THEME, {}).get(player_key, COLORS[THEME]["destroyed"])
+                    shape = "square"
+                    color = PLAYER_SHIP_COLORS_DARK.get(
+                        THEME, {}
+                    ).get(player_key, COLORS[THEME]["destroyed"])
                 elif val in (2, 5):
                     color = COLORS[THEME]["miss"]
                 else:
