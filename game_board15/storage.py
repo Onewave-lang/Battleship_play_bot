@@ -58,6 +58,7 @@ def get_match(match_id: str) -> Match15 | None:
     match.history = m.get('history', [[0] * 15 for _ in range(15)])
     match.shots = m.get('shots', match.shots)
     match.messages = m.get('messages', {})
+    match.last_highlight = [tuple(cell) for cell in m.get('last_highlight', [])]
     return match
 
 
@@ -120,6 +121,7 @@ def save_board(match: Match15,
             current.shots = m_dict.get('shots', current.shots)
             current.messages = m_dict.get('messages', {})
             current.history = m_dict.get('history', [[0] * 15 for _ in range(15)])
+            current.last_highlight = [tuple(cell) for cell in m_dict.get('last_highlight', [])]
         else:
             current = match
 
@@ -168,6 +170,7 @@ def save_board(match: Match15,
             'shots': current.shots,
             'messages': current.messages,
             'history': current.history,
+            'last_highlight': current.last_highlight,
         }
         _save_all(data)
 
@@ -179,6 +182,7 @@ def save_board(match: Match15,
     match.shots = current.shots
     match.history = current.history
     match.messages = current.messages
+    match.last_highlight = current.last_highlight
 
 
 def save_match(match: Match15) -> str | None:
@@ -194,6 +198,7 @@ def save_match(match: Match15) -> str | None:
             'shots': match.shots,
             'messages': match.messages,
             'history': match.history,
+            'last_highlight': match.last_highlight,
         }
         return _save_all(data)
 
