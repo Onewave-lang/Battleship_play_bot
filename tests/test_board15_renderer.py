@@ -70,3 +70,24 @@ def test_miss_renders_cross_without_fill():
     sample = (cx + 6, cy)
     assert img.getpixel(sample) == renderer.COLORS[renderer.THEME]["bg"]
 
+
+def test_hit_orange_player_renders_dark_orange():
+    sys.modules.pop("PIL", None)
+    sys.modules.pop("game_board15.renderer", None)
+    from PIL import Image
+    renderer = importlib.import_module("game_board15.renderer")
+    from game_board15.state import Board15State
+
+    board = [[0] * 15 for _ in range(15)]
+    owners = [[None] * 15 for _ in range(15)]
+    board[0][0] = 3
+    owners[0][0] = "C"
+    state = Board15State(board=board, owners=owners)
+    buf = renderer.render_board(state)
+
+    img = Image.open(buf)
+    x = renderer.TILE_PX + 5
+    y = renderer.TILE_PX + 5
+    expected = renderer.PLAYER_SHIP_COLORS_DARK.get(renderer.THEME, {}).get("C")
+    assert img.getpixel((x, y)) == expected
+
