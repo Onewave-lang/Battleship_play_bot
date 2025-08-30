@@ -97,6 +97,8 @@ async def _auto_play_bots(
     async def _safe_send_state(player_key: str, message: str) -> None:
         try:
             await router_module._send_state(context, match, player_key, message)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             logger.exception("Failed to send state to %s", player_key)
             human_player = match.players.get(human)
@@ -114,6 +116,8 @@ async def _auto_play_bots(
                     hist = msgs.setdefault("text_history", [])
                     hist.append(msg.message_id)
                     msgs["text"] = msg.message_id
+                except asyncio.CancelledError:
+                    raise
                 except Exception:
                     logger.exception(
                         "Failed to notify human about state send failure"
@@ -122,6 +126,8 @@ async def _auto_play_bots(
     async def _safe_send_message(chat_id: int, text: str) -> None:
         try:
             await context.bot.send_message(chat_id, text)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             logger.exception("Failed to send message to chat %s", chat_id)
             human_player = match.players.get(human)
@@ -131,6 +137,8 @@ async def _auto_play_bots(
                         human_player.chat_id,
                         "Не удалось отправить сообщение участнику",
                     )
+                except asyncio.CancelledError:
+                    raise
                 except Exception:
                     logger.exception(
                         "Failed to notify human about message send failure"

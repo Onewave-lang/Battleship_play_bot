@@ -1,6 +1,7 @@
 from __future__ import annotations
 import logging
 import random
+import asyncio
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -57,6 +58,8 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
     try:
         buf.seek(0)
         msg_board = await context.bot.send_photo(chat_id, buf)
+    except asyncio.CancelledError:
+        raise
     except Exception:
         logger.exception("Failed to send board image for chat %s", chat_id)
         return
@@ -69,6 +72,8 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
     # send result text message
     try:
         msg_text = await context.bot.send_message(chat_id, message)
+    except asyncio.CancelledError:
+        raise
     except Exception:
         logger.exception("Failed to send text message for chat %s", chat_id)
         return

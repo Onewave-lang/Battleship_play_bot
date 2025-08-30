@@ -55,6 +55,8 @@ async def _send_state(
     if board_id:
         try:
             await context.bot.delete_message(chat_id, board_id)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             pass
     board_msg = await context.bot.send_message(
@@ -76,9 +78,13 @@ async def _send_state(
                 text=message,
                 parse_mode="HTML",
             )
+        except asyncio.CancelledError:
+            raise
         except Exception:
             try:
                 await context.bot.delete_message(chat_id, text_id)
+            except asyncio.CancelledError:
+                raise
             except Exception:
                 pass
             text_msg = await context.bot.send_message(
@@ -126,6 +132,8 @@ async def _send_state_board_test(
     if board_id:
         try:
             await context.bot.delete_message(chat_id, board_id)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             pass
     board_msg = await context.bot.send_message(
@@ -146,9 +154,13 @@ async def _send_state_board_test(
                 text=message,
                 parse_mode="HTML",
             )
+        except asyncio.CancelledError:
+            raise
         except Exception:
             try:
                 await context.bot.delete_message(chat_id, text_id)
+            except asyncio.CancelledError:
+                raise
             except Exception:
                 pass
             text_msg = await context.bot.send_message(
@@ -366,6 +378,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             if msg_id:
                 try:
                     await context.bot.delete_message(chat_id, msg_id)
+                except asyncio.CancelledError:
+                    raise
                 except Exception:
                     pass
         result_shared = result_self.replace('Ваш ход:', f'Ход игрока {player_label}:')
