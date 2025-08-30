@@ -195,6 +195,10 @@ async def _auto_play_bots(
             results[enemy] = res
             if res in (battle.HIT, battle.KILL):
                 hit_any = True
+        # record detailed shot history including attacked players
+        shot_hist = match.shots[current].setdefault("history", [])
+        for enemy, res in results.items():
+            shot_hist.append({"coord": coord, "enemy": enemy, "result": res})
         battle.update_history(match.history, match.boards, coord, results)
         match.shots[current]["last_coord"] = coord
         for k in match.shots:
@@ -213,21 +217,25 @@ async def _auto_play_bots(
         match.turn = next_player
 
         parts_self: list[str] = []
+        watch_parts: list[str] = []
         enemy_msgs: dict[str, str] = {}
         player_label = getattr(match.players.get(current), 'name', '') or current
         for enemy, res in results.items():
             enemy_name = match.players.get(enemy)
             enemy_label = getattr(enemy_name, 'name', '') or enemy
-            if res == battle.MISS:
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-                enemy_msgs[enemy] = f"соперник промахнулся. {phrase_enemy}"
-            elif res == battle.HIT:
+            if res == battle.HIT:
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
-                parts_self.append(f"ранен корабль игрока {enemy_label}.")
+                parts_self.append(f"корабль игрока {enemy_label} ранен.")
+                watch_parts.append(
+                    f"игрок {player_label} поразил корабль игрока {enemy_label}."
+                )
                 enemy_msgs[enemy] = f"ваш корабль ранен. {phrase_enemy}"
             elif res == battle.KILL:
                 phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
                 parts_self.append(f"уничтожен корабль игрока {enemy_label}!")
+                watch_parts.append(
+                    f"игрок {player_label} поразил корабль игрока {enemy_label}."
+                )
                 enemy_msgs[enemy] = f"ваш корабль уничтожен. {phrase_enemy}"
                 if match.boards[enemy].alive_cells == 0 and match.players[enemy].user_id != 0:
                     enemy_label = getattr(match.players.get(enemy), 'name', '') or enemy
@@ -236,6 +244,9 @@ async def _auto_play_bots(
                         f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
                     )
         enemy_msgs[current] = ' '.join(parts_self) if parts_self else 'мимо'
+        watch_msg = ' '.join(watch_parts)
+        for pk in match.players:
+            enemy_msgs.setdefault(pk, watch_msg)
 
         if any(res == battle.KILL for res in results.values()):
             phrase_self = _phrase_or_joke(match, current, SELF_KILL)

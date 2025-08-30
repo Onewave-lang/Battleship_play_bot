@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from game_board15 import handlers, storage, router
-from game_board15.models import Board15, Match15, Player
+from game_board15.models import Board15, Match15, Player, Ship
 from tests.utils import _new_grid
 
 
@@ -144,6 +144,53 @@ def test_auto_play_bots_notifies_human(monkeypatch):
             await asyncio.wait_for(handlers._auto_play_bots(match, context, 1), timeout=0.01)
 
         assert any(player == 'A' and msg.endswith('Следующим ходит A.') for player, msg in calls)
+
+    asyncio.run(run())
+
+
+def test_auto_play_bots_reports_hits(monkeypatch):
+    async def run():
+        match = Match15.new(1, 1, 'A')
+        match.players['B'] = Player(user_id=0, chat_id=1, name='B')
+        match.players['C'] = Player(user_id=0, chat_id=2, name='C')
+        match.status = 'playing'
+        match.turn = 'B'
+        ship = Ship(cells=[(0, 0)])
+        match.boards['C'].ships = [ship]
+        match.boards['C'].grid[0][0] = 1
+        match.boards['C'].alive_cells = 1
+
+        def fake_apply_shot(board, coord):
+            return handlers.battle.HIT if board is match.boards['C'] else handlers.battle.MISS
+
+        monkeypatch.setattr(handlers.battle, 'apply_shot', fake_apply_shot)
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(storage, 'get_match', lambda mid: match)
+        monkeypatch.setattr(storage, 'finish', lambda m, w: None)
+        monkeypatch.setattr(handlers.random, 'choice', lambda seq: (0, 0))
+
+        calls: list[tuple[str, str]] = []
+
+        async def fake_send_state(context, match_, player_key, message):
+            calls.append((player_key, message))
+
+        monkeypatch.setattr(router, '_send_state', fake_send_state)
+
+        async def fast_sleep(t):
+            pass
+
+        monkeypatch.setattr(asyncio, 'sleep', fast_sleep)
+
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
+
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(handlers._auto_play_bots(match, context, 1), timeout=0.01)
+
+        msg = next(m for k, m in calls if k == 'A')
+        assert 'игрок B поразил корабль игрока C' in msg
+        hist = match.shots['B']['history']
+        assert any(entry['enemy'] == 'C' and entry['result'] == handlers.battle.HIT for entry in hist)
+        assert any(entry['enemy'] == 'A' and entry['result'] == handlers.battle.MISS for entry in hist)
 
     asyncio.run(run())
 

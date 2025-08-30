@@ -296,9 +296,9 @@ def test_router_notifies_other_players_on_hit(monkeypatch):
         await router.router_text(update, context)
 
         calls = [c for c in send_state.call_args_list if c.args[2] == 'C']
-        assert len(calls) >= 2
+        assert len(calls) >= 1
         msg = calls[-1].args[3]
-        assert msg.startswith('Ход игрока A: a1 - ранен корабль игрока B')
+        assert msg.startswith('Ход игрока A: a1 - игрок A поразил корабль игрока B')
         assert msg.strip().endswith('Следующим ходит A.')
 
     asyncio.run(run_test())
@@ -498,9 +498,9 @@ def test_router_uses_player_names(monkeypatch):
 
         await router.router_text(update, context)
 
-        calls = [c for c in send_state.call_args_list if 'мимо' in c.args[3]]
+        calls = [c for c in send_state.call_args_list if c.args[2] == 'C']
         msg = calls[0].args[3]
-        assert msg.startswith('Ход игрока Alice: a1 - мимо')
+        assert msg.startswith('Ход игрока Alice: a1 - ')
         assert 'B:' not in msg and 'C:' not in msg
         assert msg.strip().endswith('Следующим ходит Bob.')
 
