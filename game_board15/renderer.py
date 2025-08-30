@@ -5,6 +5,7 @@ from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageFont
 
+from constants import BOMB
 from .state import Board15State
 from .models import Board15
 
@@ -182,7 +183,7 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
                     bomb_font = ImageFont.truetype(FONT_PATH, int(TILE_PX * 0.8))
                 except OSError:
                     bomb_font = ImageFont.load_default()
-                draw.text((cx, cy), "💣", fill=(0, 0, 0, 255), anchor="mm", font=bomb_font)
+                draw.text((cx, cy), BOMB, fill=(0, 0, 0, 255), anchor="mm", font=bomb_font)
                 draw.point((cx, cy), fill=(0, 0, 0, 255))
             elif shape == "dot":
                 cx = x0 + TILE_PX // 2
@@ -302,7 +303,7 @@ def render_player_board(board: Board15, player_key: str | None = None) -> BytesI
                     bomb_font = ImageFont.truetype(FONT_PATH, int(TILE_PX * 0.8))
                 except OSError:
                     bomb_font = ImageFont.load_default()
-                draw.text((cx, cy), "💣", fill=(0, 0, 0, 255), anchor="mm", font=bomb_font)
+                draw.text((cx, cy), BOMB, fill=(0, 0, 0, 255), anchor="mm", font=bomb_font)
                 draw.point((cx, cy), fill=(0, 0, 0, 255))
             elif shape == "dot":
                 cx = x0 + TILE_PX // 2
