@@ -122,6 +122,37 @@ def test_last_highlight_persists_after_kill(monkeypatch):
     asyncio.run(run_test())
 
 
+def test_last_highlight_persists_through_storage(monkeypatch, tmp_path):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "data15.json")
+    match = storage.create_match(1, 100, "A")
+    storage.join_match(match.match_id, 2, 200, "B")
+    match.status = "playing"
+    match.last_highlight = [(3, 4)]
+    storage.save_match(match)
+
+    reloaded = storage.get_match(match.match_id)
+
+    captured = {}
+
+    def fake_render_board(state, player_key):
+        captured["highlight"] = state.highlight.copy()
+        return BytesIO(b"x")
+
+    monkeypatch.setattr(router, "render_board", fake_render_board)
+
+    send_photo = AsyncMock()
+    send_message = AsyncMock()
+    context = SimpleNamespace(
+        bot=SimpleNamespace(send_photo=send_photo, send_message=send_message),
+        bot_data={},
+        chat_data={},
+    )
+
+    asyncio.run(router._send_state(context, reloaded, "A", "msg"))
+
+    assert captured["highlight"] == [(3, 4)]
+
+
 def test_kill_marks_all_cells_and_contour(monkeypatch):
     async def run_test():
         board_self = Board15()
