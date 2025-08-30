@@ -288,20 +288,26 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         for other in others:
             next_phrase = f" Следующим ходит {next_name}."
             if match.players[other].user_id != 0:
+                watch_body = msg_watch.rstrip()
+                if not watch_body.endswith(('.', '!', '?')):
+                    watch_body += '.'
                 await _send_state(
                     context,
                     match,
                     other,
-                    f"Ход игрока {player_label}: {coord_str} - {msg_watch} {phrase_self}{next_phrase}",
+                    f"Ход игрока {player_label}: {coord_str} - {watch_body} {phrase_self}{next_phrase}",
                 )
     msg_body = ' '.join(parts_self) if parts_self else 'мимо'
+    body_self = msg_body.rstrip()
+    if not body_self.endswith(('.', '!', '?')):
+        body_self += '.'
     if same_chat:
         result_self = (
-            f"Ход игрока {player_label}: {coord_str} - {msg_body} {phrase_self} Следующим ходит {next_name}."
+            f"Ход игрока {player_label}: {coord_str} - {body_self} {phrase_self} Следующим ходит {next_name}."
         )
         view_key = player_key
     else:
-        result_self = f"Ваш ход: {coord_str} - {msg_body} {phrase_self} Следующим ходит {next_name}."
+        result_self = f"Ваш ход: {coord_str} - {body_self} {phrase_self} Следующим ходит {next_name}."
         view_key = match.turn if single_user else player_key
     await _send_state(context, match, view_key, result_self)
 
