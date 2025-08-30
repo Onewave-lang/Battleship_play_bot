@@ -316,10 +316,12 @@ def test_router_game_over_messages(monkeypatch):
         )
         await router.router_text(update, context)
         calls = send_message.call_args_list
-        assert 'Вы победили. 🏆🎉' in calls[1].args[1]
-        assert 'Все ваши корабли уничтожены' in calls[3].args[1]
-        assert calls[4].args[1] == 'Игра завершена!'
-        assert calls[5].args[1] == 'Игра завершена!'
-        assert calls[4].kwargs['reply_markup'].keyboard[0][0].text == 'Начать новую игру'
-        assert calls[5].kwargs['reply_markup'].keyboard[0][0].text == 'Начать новую игру'
+        texts = [c.args[1] for c in calls]
+        assert any('Флот игрока B потоплен! B занял 2 место. Вы победили!🏆' in t for t in texts)
+        assert any('Флот игрока B потоплен! B занял 2 место. Игрок A победил!' in t for t in texts)
+        assert any('Все ваши корабли уничтожены' in t for t in texts)
+        assert texts[-2] == 'Игра завершена!'
+        assert texts[-1] == 'Игра завершена!'
+        assert calls[-2].kwargs['reply_markup'].keyboard[0][0].text == 'Начать новую игру'
+        assert calls[-1].kwargs['reply_markup'].keyboard[0][0].text == 'Начать новую игру'
     asyncio.run(run_test())

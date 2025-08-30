@@ -47,7 +47,8 @@ def test_router_notifies_on_bot_elimination(monkeypatch):
 
         await router.router_text(update, context)
 
-        assert context.bot.send_message.call_count == 0
+        assert context.bot.send_message.call_count == 1
+        assert 'B выбывает' in context.bot.send_message.call_args.args[1]
         calls = [(c.args[2], c.args[3]) for c in send_state.call_args_list]
         assert any(
             player == 'A' and 'уничтожен корабль игрока B!' in msg
