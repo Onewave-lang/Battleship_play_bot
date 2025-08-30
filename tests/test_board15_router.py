@@ -649,3 +649,66 @@ def test_router_skips_eliminated_players(monkeypatch):
 
     asyncio.run(run_test())
 
+
+def test_router_blocks_shots_in_kill_contour(monkeypatch):
+    async def run_test():
+        board_self = Board15()
+        board_b = Board15()
+        board_c = Board15()
+        ship_b = Ship(cells=[(0, 0)])
+        board_b.ships = [ship_b]
+        board_b.grid[0][0] = 1
+        board_b.alive_cells = 1
+        ship_c = Ship(cells=[(2, 2)])
+        board_c.ships = [ship_c]
+        board_c.grid[2][2] = 1
+        board_c.alive_cells = 1
+        match = SimpleNamespace(
+            status="playing",
+            players={
+                "A": SimpleNamespace(user_id=1, chat_id=10, name="A"),
+                "B": SimpleNamespace(user_id=2, chat_id=20, name="B"),
+                "C": SimpleNamespace(user_id=3, chat_id=30, name="C"),
+            },
+            boards={"A": board_self, "B": board_b, "C": board_c},
+            turn="A",
+            shots={"A": {"move_count": 0, "joke_start": 10}, "B": {}, "C": {}},
+            messages={"A": {}, "B": {}, "C": {}},
+            history=_new_grid(15),
+        )
+
+        monkeypatch.setattr(storage, "find_match_by_user", lambda uid, chat_id=None: match)
+        monkeypatch.setattr(storage, "save_match", lambda m: None)
+        coords = {"a1": (0, 0), "b1": (0, 1)}
+        monkeypatch.setattr(router.parser, "parse_coord", lambda text: coords[text.lower()])
+        rev = {v: k for k, v in coords.items()}
+        monkeypatch.setattr(router.parser, "format_coord", lambda coord: rev[coord])
+        monkeypatch.setattr(router, "_phrase_or_joke", lambda m, pk, ph: "")
+        send_state = AsyncMock()
+        monkeypatch.setattr(router, "_send_state", send_state)
+
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), chat_data={}, bot_data={})
+        update = SimpleNamespace(
+            message=SimpleNamespace(text="a1", reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
+        await router.router_text(update, context)
+        assert _get_cell_state(match.history[0][1]) == 5
+
+        move_before = match.shots["A"]["move_count"]
+        turn_before = match.turn
+
+        update2 = SimpleNamespace(
+            message=SimpleNamespace(text="b1", reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
+        await router.router_text(update2, context)
+
+        update2.message.reply_text.assert_called_once_with("Эта клетка уже обстреляна")
+        assert match.turn == turn_before
+        assert match.shots["A"]["move_count"] == move_before
+
+    asyncio.run(run_test())
+
