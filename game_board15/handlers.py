@@ -382,7 +382,7 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     storage.save_match(match)
     asyncio.create_task(
         _auto_play_bots(
-            match, context, update.effective_chat.id, human='A', delay=4
+            match, context, update.effective_chat.id, human='A', delay=3
         )
     )
 
