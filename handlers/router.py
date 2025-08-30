@@ -266,6 +266,9 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await _send_state(context, match, player_key, 'Не понял клетку. Пример: е5 или д10.')
         return
 
+    for b in match.boards.values():
+        b.highlight = []
+
     result = apply_shot(match.boards[enemy_key], coord)
     match.shots[player_key]['history'].append(text)
     match.shots[player_key]['last_result'] = result
@@ -414,6 +417,8 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
 
     enemies = [k for k in match.players.keys() if k != player_key and match.boards[k].alive_cells > 0]
     boards = {k: match.boards[k] for k in enemies}
+    for b in match.boards.values():
+        b.highlight = []
     results = apply_shot_multi(coord, boards, match.history)
     match.shots[player_key]['history'].append(text)
     match.shots[player_key]['last_coord'] = coord
@@ -430,6 +435,7 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
     else:
         match.last_highlight = [coord]
         match.shots[player_key]['last_result'] = 'miss'
+    storage.save_match(match)
     for k in match.shots:
         shots = match.shots.setdefault(k, {})
         shots.setdefault('move_count', 0)
@@ -482,8 +488,6 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
             enemy_msgs[enemy] = (
                 f"соперник стрелял по уже обстрелянной клетке. {phrase_enemy}"
             )
-
-    storage.save_match(match)
 
     next_label = getattr(match.players[next_player], 'name', '') or next_player
     next_phrase_self = f"Следующим ходит {next_label}."
