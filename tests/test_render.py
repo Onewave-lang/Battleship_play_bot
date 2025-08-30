@@ -1,4 +1,10 @@
-from logic.render import render_board_own, render_board_enemy, PLAYER_COLORS
+import pytest
+from logic.render import (
+    render_board_own,
+    render_board_enemy,
+    PLAYER_COLORS,
+    PLAYER_COLORS_DARK,
+)
 from logic.battle import apply_shot, KILL
 from models import Board, Ship
 from tests.utils import _new_grid, _state
@@ -9,20 +15,19 @@ def test_render_board_own_uses_board_owner_color():
     b.grid[0][0] = 1
     own = render_board_own(b)
     assert PLAYER_COLORS['A'] in own
-
-
-def test_render_board_enemy_marks_hit_dark_red():
-    b = Board(owner='B')
+@pytest.mark.parametrize(
+    "owner, expected",
+    [
+        ("A", PLAYER_COLORS_DARK["A"]),
+        ("B", PLAYER_COLORS_DARK["B"]),
+        ("C", PLAYER_COLORS_DARK["C"]),
+    ],
+)
+def test_render_board_enemy_marks_hit_player_color(owner, expected):
+    b = Board(owner=owner)
     b.grid[0][0] = 3
     enemy = render_board_enemy(b)
-    assert "#8b0000" in enemy
-
-
-def test_render_board_enemy_marks_hit_orange_player():
-    b = Board(owner='C')
-    b.grid[0][0] = 3
-    enemy = render_board_enemy(b)
-    assert "#ff8c00" in enemy
+    assert expected in enemy
 
 
 def test_render_last_move_symbols():
@@ -48,7 +53,7 @@ def test_render_last_move_symbols():
     assert "border:1px solid red" in enemy and "#8b0000" in enemy
     b.highlight = []
     enemy = render_board_enemy(b)
-    assert "border:1px solid red" not in enemy and "#8b0000" in enemy
+    assert "border:1px solid red" not in enemy and PLAYER_COLORS_DARK['B'] in enemy
 
     # kill highlight
     b.grid[2][2] = [4, 'B']
