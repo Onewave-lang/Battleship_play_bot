@@ -51,7 +51,7 @@ def test_killed_ship_past_move_renders_dark_square():
     assert img.getpixel((cx, cy)) == expected
 
 
-def test_miss_renders_cross_without_fill():
+def test_miss_renders_dot():
     sys.modules.pop("PIL", None)
     sys.modules.pop("game_board15.renderer", None)
     from PIL import Image
@@ -68,6 +68,7 @@ def test_miss_renders_cross_without_fill():
     y0 = renderer.TILE_PX
     cx = x0 + renderer.TILE_PX // 2
     cy = y0 + renderer.TILE_PX // 2
+    assert img.getpixel((cx, cy)) == renderer.COLORS[renderer.THEME]["miss"]
     sample = (cx + 6, cy)
     assert img.getpixel(sample) == renderer.COLORS[renderer.THEME]["bg"]
 

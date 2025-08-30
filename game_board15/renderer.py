@@ -82,12 +82,12 @@ PLAYER_SHIP_COLORS_LIGHT = {
 
 CELL_STYLE = {
     1: ("square", "ship"),
-    2: ("cross", "miss"),
+    2: ("dot", "miss"),
     3: ("square", "hit"),
     4: ("square", "destroyed"),
-    # Cells adjacent to a destroyed ship are marked as a cross so they look
+    # Cells adjacent to a destroyed ship are marked as a dot so they look
     # the same as already shot cells on the board.
-    5: ("cross", "miss"),
+    5: ("dot", "miss"),
 }
 
 
