@@ -134,7 +134,18 @@ async def _auto_play_bots(
                     logger.exception(
                         "Failed to notify human about message send failure"
                     )
-    coords = [(r, c) for r in range(15) for c in range(15)]
+    def _adjacent_mask(grid: list[list[int]]) -> list[list[bool]]:
+        mask = [[False] * 15 for _ in range(15)]
+        for r in range(15):
+            for c in range(15):
+                if grid[r][c] == 1:
+                    for dr in (-1, 0, 1):
+                        for dc in (-1, 0, 1):
+                            nr, nc = r + dr, c + dc
+                            if 0 <= nr < 15 and 0 <= nc < 15:
+                                mask[nr][nc] = True
+        return mask
+
     order = ['A', 'B', 'C']
     from . import router as router_module
 
@@ -163,18 +174,19 @@ async def _auto_play_bots(
             continue
 
         current = match.turn
-        # find first untouched cell scanning from the start each time
-        coord = None
-        for pt in coords:
-            r, c = pt
-            if (
-                _get_cell_state(match.history[r][c]) == 0
-                and match.boards[current].grid[r][c] != 1
-            ):
-                coord = pt
-                break
-        if coord is None:
+        board = match.boards[current]
+        adj = _adjacent_mask(board.grid)
+        candidates = [
+            (r, c)
+            for r in range(15)
+            for c in range(15)
+            if _get_cell_state(match.history[r][c]) == 0
+            and board.grid[r][c] != 1
+            and not adj[r][c]
+        ]
+        if not candidates:
             break
+        coord = random.choice(candidates)
         enemies = [k for k in alive if k != current]
         results = {}
         hit_any = False

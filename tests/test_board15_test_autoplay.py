@@ -70,6 +70,7 @@ def test_auto_play_bots_skips_closed(monkeypatch):
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
         monkeypatch.setattr(storage, 'get_match', lambda mid: match)
         monkeypatch.setattr(storage, 'finish', lambda m, w: None)
+        monkeypatch.setattr(handlers.random, 'choice', lambda seq: seq[0])
 
         context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
 
@@ -99,13 +100,14 @@ def test_auto_play_bots_skips_own_ship(monkeypatch):
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
         monkeypatch.setattr(storage, 'get_match', lambda mid: match)
         monkeypatch.setattr(storage, 'finish', lambda m, w: None)
+        monkeypatch.setattr(handlers.random, 'choice', lambda seq: seq[0])
 
         context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
 
         with pytest.raises(RuntimeError):
             await handlers._auto_play_bots(match, context, 0)
 
-        assert recorded['coord'] == (0, 1)
+        assert recorded['coord'] == (0, 2)
 
     asyncio.run(run())
 
@@ -189,6 +191,7 @@ def test_auto_play_bots_refreshes_match(monkeypatch):
             return handlers.battle.MISS
 
         monkeypatch.setattr(handlers.battle, 'apply_shot', fake_apply_shot)
+        monkeypatch.setattr(handlers.random, 'choice', lambda seq: seq[0])
 
         with pytest.raises(RuntimeError):
             await handlers._auto_play_bots(match, context, 0)
