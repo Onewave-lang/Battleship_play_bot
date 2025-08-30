@@ -23,8 +23,9 @@ COLORS = {
         "grid": (200, 200, 200, 255),
         "mark": (220, 0, 0, 255),
         "ship": (0, 0, 0, 255),
-        "miss": (0, 0, 0, 255),
-        "hit": (220, 0, 0, 255),
+        "miss": (220, 0, 0, 255),
+        "miss_bg": (255, 165, 0, 255),
+        "hit": (139, 0, 0, 255),
         "destroyed": (139, 0, 0, 255),
         "contour": (120, 120, 120, 255),
     },
@@ -33,8 +34,9 @@ COLORS = {
         "grid": (80, 80, 80, 255),
         "mark": (255, 0, 0, 255),
         "ship": (220, 220, 220, 255),
-        "miss": (220, 220, 220, 255),
-        "hit": (255, 0, 0, 255),
+        "miss": (255, 0, 0, 255),
+        "miss_bg": (255, 140, 0, 255),
+        "hit": (139, 0, 0, 255),
         "destroyed": (255, 100, 100, 255),
         "contour": (160, 160, 160, 255),
     },
@@ -84,7 +86,7 @@ CELL_STYLE = {
     1: ("square", "ship"),
     2: ("cross", "miss"),
     3: ("square", "hit"),
-    4: ("square", "destroyed"),
+    4: ("bomb", "destroyed"),
     # Cells adjacent to a destroyed ship are marked as a cross so they look
     # the same as already shot cells on the board.
     5: ("cross", "miss"),
@@ -123,18 +125,19 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
             if coord in highlight:
                 if val in (2, 5):
                     color = COLORS[THEME]["mark"]
-                    shape = "cross"
                 elif val == 4:
-                    color = PLAYER_SHIP_COLORS_LIGHT.get(THEME, {}).get(owner, COLORS[THEME]["ship"])
-                    shape = "bomb"
+                    color = PLAYER_SHIP_COLORS_LIGHT.get(THEME, {}).get(owner, COLORS[THEME]["destroyed"])
                 else:
                     color = COLORS[THEME]["mark"]
-                    shape = "square"
             else:
                 if val == 1 and owner:
                     color = PLAYER_SHIP_COLORS.get(THEME, {}).get(owner, COLORS[THEME]["ship"])
-                elif val in (3, 4) and owner:
-                    color = PLAYER_SHIP_COLORS_DARK.get(THEME, {}).get(owner, COLORS[THEME][color_key])
+                elif val == 3:
+                    color = COLORS[THEME]["hit"]
+                elif val == 4 and owner:
+                    color = PLAYER_SHIP_COLORS_LIGHT.get(THEME, {}).get(owner, COLORS[THEME]["destroyed"])
+                elif val in (2, 5):
+                    color = COLORS[THEME]["miss"]
                 else:
                     color = COLORS[THEME][color_key]
             if shape == "square":
@@ -143,6 +146,10 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
                     fill=color,
                 )
             elif shape == "cross":
+                draw.rectangle(
+                    (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
+                    fill=COLORS[THEME]["miss_bg"],
+                )
                 draw.line(
                     (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
                     fill=color,
@@ -227,18 +234,19 @@ def render_player_board(board: Board15, player_key: str | None = None) -> BytesI
             if coord in highlight:
                 if val in (2, 5):
                     color = COLORS[THEME]["mark"]
-                    shape = "cross"
                 elif val == 4 and player_key:
-                    color = PLAYER_SHIP_COLORS_LIGHT.get(THEME, {}).get(player_key, COLORS[THEME]["ship"])
-                    shape = "bomb"
+                    color = PLAYER_SHIP_COLORS_LIGHT.get(THEME, {}).get(player_key, COLORS[THEME]["destroyed"])
                 else:
                     color = COLORS[THEME]["mark"]
-                    shape = "square"
             else:
                 if val == 1 and player_key:
                     color = PLAYER_SHIP_COLORS.get(THEME, {}).get(player_key, COLORS[THEME]["ship"])
-                elif val in (3, 4) and player_key:
-                    color = PLAYER_SHIP_COLORS_DARK.get(THEME, {}).get(player_key, COLORS[THEME][color_key])
+                elif val == 3:
+                    color = COLORS[THEME]["hit"]
+                elif val == 4 and player_key:
+                    color = PLAYER_SHIP_COLORS_LIGHT.get(THEME, {}).get(player_key, COLORS[THEME]["destroyed"])
+                elif val in (2, 5):
+                    color = COLORS[THEME]["miss"]
                 else:
                     color = COLORS[THEME][color_key]
             if shape == "square":
@@ -247,6 +255,10 @@ def render_player_board(board: Board15, player_key: str | None = None) -> BytesI
                     fill=color,
                 )
             elif shape == "cross":
+                draw.rectangle(
+                    (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
+                    fill=COLORS[THEME]["miss_bg"],
+                )
                 draw.line(
                     (x0 + 4, y0 + 4, x0 + TILE_PX - 4, y0 + TILE_PX - 4),
                     fill=color,
@@ -264,8 +276,12 @@ def render_player_board(board: Board15, player_key: str | None = None) -> BytesI
                 )
                 cx = x0 + TILE_PX // 2
                 cy = y0 + TILE_PX // 2
-                r = max(2, TILE_PX // 6)
-                draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(0, 0, 0, 255))
+                try:
+                    bomb_font = ImageFont.truetype(FONT_PATH, int(TILE_PX * 0.8))
+                except OSError:
+                    bomb_font = ImageFont.load_default()
+                draw.text((cx, cy), "💣", fill=(0, 0, 0, 255), anchor="mm", font=bomb_font)
+                draw.point((cx, cy), fill=(0, 0, 0, 255))
             elif shape == "dot":
                 cx = x0 + TILE_PX // 2
                 cy = y0 + TILE_PX // 2
