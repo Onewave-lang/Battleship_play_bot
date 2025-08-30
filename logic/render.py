@@ -5,6 +5,7 @@ import re
 from models import Board
 from logic.parser import LATIN
 from wcwidth import wcswidth
+from constants import BOMB
 
 
 # figure space keeps alignment even when clients collapse regular spaces
@@ -93,7 +94,7 @@ def render_board_own(board: Board) -> str:
                 sym = f'<span style="color:{hit_color}">■</span>'
             elif cell_state == 4:
                 if coord in highlight:
-                    sym = '💣'
+                    sym = BOMB
                 else:
                     hit_color = "#ff8c00" if owner == "C" else "#8b0000"
                     sym = f'<span style="color:{hit_color}">■</span>'
@@ -134,7 +135,7 @@ def render_board_enemy(board: Board) -> str:
                 sym = f'<span style="color:{hit_color}">■</span>'
             elif cell_state == 4:
                 if coord in highlight:
-                    sym = '💣'
+                    sym = BOMB
                 else:
                     hit_color = "#ff8c00" if owner == "C" else "#8b0000"
                     sym = f'<span style="color:{hit_color}">■</span>'

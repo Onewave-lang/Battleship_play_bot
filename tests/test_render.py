@@ -8,6 +8,7 @@ from logic.render import (
 from logic.battle import apply_shot, KILL
 from models import Board, Ship
 from tests.utils import _new_grid, _state
+from constants import BOMB
 
 
 def test_render_board_own_uses_board_owner_color():
@@ -62,20 +63,20 @@ def test_render_last_move_symbols():
     # highlight the kill cell
     b.highlight = [(2, 2)]
     enemy = render_board_enemy(b)
-    assert enemy.count('💣') == 1
+    assert enemy.count(BOMB) == 1
     assert enemy.count("border:1px solid red") == 1
 
     # highlight the contour cell
     b.highlight = [(2, 3)]
     enemy = render_board_enemy(b)
-    assert '💣' not in enemy
+    assert BOMB not in enemy
     assert enemy.count('background-color:orange') >= 1
     assert enemy.count("border:1px solid red") == 1
 
     # no highlight
     b.highlight = []
     enemy = render_board_enemy(b)
-    assert '💣' not in enemy and "border:1px solid red" not in enemy
+    assert BOMB not in enemy and "border:1px solid red" not in enemy
     assert '<span style="color:#8b0000">■</span>' in enemy
     assert '<span style="color:black">x</span>' in enemy
 
