@@ -177,6 +177,9 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     ):
         logger.warning("History is empty after shot %s", coord_str)
     match.shots[player_key]["last_coord"] = coord
+    shot_hist = match.shots[player_key].setdefault("history", [])
+    for enemy, res in results.items():
+        shot_hist.append({"coord": coord, "enemy": enemy, "result": res})
     if any(res == battle.KILL for res in results.values()):
         cells: list[tuple[int, int]] = []
         for enemy, res in results.items():
@@ -197,6 +200,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         shots['move_count'] += 1
 
     parts_self: list[str] = []
+    watch_parts: list[str] = []
     # keep both the original result value and the message body for each enemy
     # so that the result (miss/hit/kill) is not lost for later processing
     enemy_msgs: dict[str, tuple[str, str]] = {}
@@ -207,17 +211,20 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     for enemy, res in results.items():
         enemy_obj = match.players.get(enemy)
         enemy_label = getattr(enemy_obj, "name", "") or enemy
-        if res == battle.MISS:
-            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-            enemy_msgs[enemy] = (res, f"соперник промахнулся. {phrase_enemy}")
-        elif res == battle.HIT:
+        if res == battle.HIT:
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
-            parts_self.append(f"ранен корабль игрока {enemy_label}.")
+            parts_self.append(f"корабль игрока {enemy_label} ранен.")
+            watch_parts.append(
+                f"игрок {player_label} поразил корабль игрока {enemy_label}."
+            )
             enemy_msgs[enemy] = (res, f"ваш корабль ранен. {phrase_enemy}")
             targets.append(enemy)
         elif res == battle.KILL:
             phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
             parts_self.append(f"уничтожен корабль игрока {enemy_label}!")
+            watch_parts.append(
+                f"игрок {player_label} поразил корабль игрока {enemy_label}."
+            )
             enemy_msgs[enemy] = (res, f"ваш корабль уничтожен. {phrase_enemy}")
             targets.append(enemy)
             if (
@@ -238,10 +245,11 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     else:
         phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
 
+    msg_watch = ' '.join(watch_parts)
     others = [
         k
         for k in match.players
-        if k not in targets and k != player_key and match.boards[k].alive_cells > 0
+        if k not in enemy_msgs and k != player_key and match.boards[k].alive_cells > 0
     ]
     if not hit_any:
         order = [
@@ -268,7 +276,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     f"Ход игрока {player_label}: {coord_str} - {msg_body_enemy}{next_phrase}",
                 )
     if others and not same_chat:
-        msg_body = ' '.join(parts_self) if parts_self else 'мимо'
         for other in others:
             next_phrase = f" Следующим ходит {next_name}."
             if match.players[other].user_id != 0:
@@ -276,7 +283,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     context,
                     match,
                     other,
-                    f"Ход игрока {player_label}: {coord_str} - {msg_body} {phrase_self}{next_phrase}",
+                    f"Ход игрока {player_label}: {coord_str} - {msg_watch} {phrase_self}{next_phrase}",
                 )
     msg_body = ' '.join(parts_self) if parts_self else 'мимо'
     if same_chat:
