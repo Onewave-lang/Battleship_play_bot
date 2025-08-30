@@ -27,9 +27,12 @@ def test_render_last_move_symbols():
     b.highlight = [(0, 0)]
     own = render_board_own(b)
     assert "border:1px solid red" in own
+    assert "background-color:orange" in own
     b.highlight = []
     own = render_board_own(b)
-    assert "border:1px solid red" not in own and 'background-color:orange' in own
+    assert "border:1px solid red" not in own
+    assert 'background-color:orange' not in own
+    assert '<span style="color:black">x</span>' in own
 
     # hit highlight
     b.grid[1][1] = [3, 'B']
@@ -51,6 +54,7 @@ def test_render_last_move_symbols():
     b.highlight = []
     enemy = render_board_enemy(b)
     assert enemy.count('💣') >= 1 and "border:1px solid red" not in enemy
+    assert '<span style="color:black">x</span>' in enemy
 
 
 def test_apply_shot_marks_contour():
