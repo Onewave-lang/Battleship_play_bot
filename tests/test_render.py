@@ -18,6 +18,13 @@ def test_render_board_enemy_marks_hit_dark_red():
     assert "#8b0000" in enemy
 
 
+def test_render_board_enemy_marks_hit_orange_player():
+    b = Board(owner='C')
+    b.grid[0][0] = 3
+    enemy = render_board_enemy(b)
+    assert "#ff8c00" in enemy
+
+
 def test_render_last_move_symbols():
     b = Board()
     b.grid = _new_grid()

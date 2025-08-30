@@ -137,7 +137,10 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
                 if val == 1 and owner:
                     color = PLAYER_SHIP_COLORS.get(THEME, {}).get(owner, COLORS[THEME]["ship"])
                 elif val == 3:
-                    color = COLORS[THEME]["hit"]
+                    if owner == "C":
+                        color = PLAYER_SHIP_COLORS_DARK.get(THEME, {}).get("C", COLORS[THEME]["hit"])
+                    else:
+                        color = COLORS[THEME]["hit"]
                 elif val == 4:
                     shape = "square"
                     if owner:
@@ -254,7 +257,10 @@ def render_player_board(board: Board15, player_key: str | None = None) -> BytesI
                 if val == 1 and player_key:
                     color = PLAYER_SHIP_COLORS.get(THEME, {}).get(player_key, COLORS[THEME]["ship"])
                 elif val == 3:
-                    color = COLORS[THEME]["hit"]
+                    if player_key == "C":
+                        color = PLAYER_SHIP_COLORS_DARK.get(THEME, {}).get("C", COLORS[THEME]["hit"])
+                    else:
+                        color = COLORS[THEME]["hit"]
                 elif val == 4:
                     shape = "square"
                     if player_key:
