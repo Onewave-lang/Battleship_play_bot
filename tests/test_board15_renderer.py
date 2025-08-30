@@ -2,7 +2,7 @@ import sys
 import importlib
 
 
-def test_killed_ship_highlight_bomb():
+def test_killed_ship_renders_bomb():
     sys.modules.pop("PIL", None)
     sys.modules.pop("game_board15.renderer", None)
     from PIL import Image
@@ -13,7 +13,7 @@ def test_killed_ship_highlight_bomb():
     owners = [[None] * 15 for _ in range(15)]
     board[0][0] = 4
     owners[0][0] = "A"
-    state = Board15State(board=board, owners=owners, highlight=[(0, 0)])
+    state = Board15State(board=board, owners=owners)
     buf = renderer.render_board(state, player_key="B")
 
     img = Image.open(buf)

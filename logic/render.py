@@ -71,14 +71,12 @@ def render_board_own(board: Board) -> str:
             color = PLAYER_COLORS.get(owner or getattr(board, "owner", None), "#000")
             if cell_state == 1:
                 sym = f'<span style="color:{color}">□</span>'
-            elif cell_state == 2:
-                sym = 'x'
+            elif cell_state in (2, 5):
+                sym = '<span style="color:red;background-color:orange">x</span>'
             elif cell_state == 3:
-                sym = f'<span style="color:{color}">■</span>'
+                sym = '<span style="color:#8b0000">■</span>'
             elif cell_state == 4:
-                sym = f'<span style="color:{color}">■</span>'
-            elif cell_state == 5:
-                sym = f'<span style="color:{color}">x</span>'
+                sym = '💣'
             else:
                 sym = '·'
             if coord in highlight:
@@ -101,14 +99,12 @@ def render_board_enemy(board: Board) -> str:
             color = PLAYER_COLORS.get(owner or getattr(board, "owner", None), "#000")
             if cell_state == 1:
                 sym = '·'
-            elif cell_state == 2:
-                sym = 'x'
+            elif cell_state in (2, 5):
+                sym = '<span style="color:red;background-color:orange">x</span>'
             elif cell_state == 3:
-                sym = f'<span style="color:{color}">■</span>'
+                sym = '<span style="color:#8b0000">■</span>'
             elif cell_state == 4:
-                sym = f'<span style="color:{color}">■</span>'
-            elif cell_state == 5:
-                sym = f'<span style="color:{color}">x</span>'
+                sym = '💣'
             else:
                 sym = '·'
             if coord in highlight:
