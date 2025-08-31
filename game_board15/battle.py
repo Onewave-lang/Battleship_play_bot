@@ -75,7 +75,7 @@ def update_history(
                         # Mark contour cells as shot-through for everyone without
                         # overwriting prior shot information.
                         if _get_cell_state(history[rr][cc]) == 0:
-                            _set_cell_state(history, rr, cc, 5)
+                            _set_cell_state(history, rr, cc, 5, key)
         if kill_key is not None:
             _set_cell_state(history, r, c, 4, kill_key)
     elif any(res == HIT for res in results.values()):
