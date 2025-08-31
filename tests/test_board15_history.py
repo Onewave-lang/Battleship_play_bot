@@ -44,6 +44,52 @@ def test_hit_then_kill_updates_all_cells():
     assert _state(history[0][3]) == 4
 
 
+def test_hit_at_m1_updates_history_and_board(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            players={'A': SimpleNamespace(chat_id=1)},
+            boards={'A': Board15()},
+            history=_new_grid(15),
+            messages={'A': {}},
+        )
+        cell = (0, 12)  # m1
+        ship = Ship(cells=[cell, (0, 13)])
+        match.boards['A'].ships = [ship]
+        match.boards['A'].grid[cell[0]][cell[1]] = 1
+        match.boards['A'].grid[0][13] = 1
+
+        res = apply_shot(match.boards['A'], cell)
+        assert res == HIT
+        update_history(match.history, match.boards, cell, {'A': res})
+        assert _state(match.history[cell[0]][cell[1]]) == 3
+
+        captured = {}
+
+        def fake_render_board(state, player_key=None):
+            captured['board'] = [row[:] for row in state.board]
+            return BytesIO(b'img')
+
+        monkeypatch.setattr(router, 'render_board', fake_render_board)
+        monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
+
+        context = SimpleNamespace(
+            bot=SimpleNamespace(
+                edit_message_media=AsyncMock(),
+                send_photo=AsyncMock(return_value=SimpleNamespace(message_id=1)),
+                edit_message_text=AsyncMock(),
+                send_message=AsyncMock(return_value=SimpleNamespace(message_id=2)),
+            ),
+            bot_data={},
+            chat_data={},
+        )
+
+        await router._send_state(context, match, 'A', 'msg')
+
+        assert captured['board'][cell[0]][cell[1]] == 3
+
+    asyncio.run(run_test())
+
+
 def test_kill_contour_overwrites_previous_state():
     history = _new_grid(15)
     boards = {'B': Board15()}
