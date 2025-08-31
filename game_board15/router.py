@@ -140,10 +140,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if k != player_key and match.boards[k].alive_cells > 0
     ]
 
-    if not single_user and match.turn != player_key:
-        await update.message.reply_text('Сейчас ход другого игрока.')
-        return
-
     coord = parser.parse_coord(text)
     if coord is None:
         await update.message.reply_text('Не понял клетку. Пример: e5.')
@@ -159,6 +155,10 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     state = _get_cell_state(match.history[r][c])
     if state in {2, 3, 4, 5}:
         await update.message.reply_text('Эта клетка уже обстреляна')
+        return
+
+    if not single_user and match.turn != player_key:
+        await update.message.reply_text('Сейчас ход другого игрока.')
         return
 
     results = {}
@@ -298,14 +298,14 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     body_self = msg_body.rstrip()
     if not body_self.endswith(('.', '!', '?')):
         body_self += '.'
-    if same_chat:
+    if same_chat or single_user:
         result_self = (
             f"Ход игрока {player_label}: {coord_str} - {body_self} {phrase_self} Следующим ходит {next_name}."
         )
         view_key = player_key
     else:
         result_self = f"Ваш ход: {coord_str} - {body_self} {phrase_self} Следующим ходит {next_name}."
-        view_key = match.turn if single_user else player_key
+        view_key = player_key
     await _send_state(context, match, view_key, result_self)
 
     storage.save_match(match)
