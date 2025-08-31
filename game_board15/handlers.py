@@ -180,10 +180,8 @@ async def _auto_play_bots(
             await asyncio.sleep(delay)
 
         current = match.turn
-        if (
-            match.players[current].user_id != 0
-            or current == human
-        ):
+        player = match.players.get(current)
+        if player is None or player.user_id != 0:
             await asyncio.sleep(delay)
             continue
         board = match.boards[current]
