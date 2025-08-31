@@ -1,16 +1,34 @@
 from __future__ import annotations
-import re
 from typing import Optional, Tuple
 
 """Parsing utilities for 15x15 board.
 
 Historically the project used Cyrillic letters to label columns.  The modern
 board displays latin letters instead, therefore outgoing coordinates and
-rendered boards must also use them.  ``ROWS`` keeps the Cyrillic sequence for
-backwards compatible parsing while ``LATIN`` is the user-facing counterpart."""
+rendered boards must also use them.  Older clients might still send Cyrillic
+letters; ``CYRILLIC_ALIASES`` maps them to their latin counterparts."""
 
-ROWS = 'абвгдежзиклмнопр'
-LATIN = 'abcdefghijklmnopr'
+LATIN = "abcdefghijklmno"
+CYRILLIC_ALIASES = {
+    "а": "a",
+    "б": "b",
+    "в": "b",
+    "г": "g",
+    "д": "d",
+    "е": "e",
+    "х": "h",
+    "и": "i",
+    "к": "k",
+    "л": "l",
+    "м": "m",
+    "н": "n",
+    "о": "o",
+    "ц": "c",
+    "с": "c",
+    "э": "e",
+    "ф": "f",
+    "й": "j",
+}
 
 
 def normalize(cell: str) -> str:
@@ -22,18 +40,17 @@ def parse_coord(cell: str) -> Optional[Tuple[int, int]]:
     if len(cell) < 2:
         return None
     letter = cell[0]
-    rest = cell[1:]
-    if letter in LATIN:
-        letter = ROWS[LATIN.index(letter)]
-    if letter not in ROWS:
+    letter = CYRILLIC_ALIASES.get(letter, letter)
+    if letter not in LATIN:
         return None
+    rest = cell[1:]
     try:
         row = int(rest)
     except ValueError:
         return None
     if not 1 <= row <= 15:
         return None
-    col = ROWS.index(letter)
+    col = LATIN.index(letter)
     return row - 1, col
 
 
