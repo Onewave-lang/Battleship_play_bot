@@ -12,7 +12,7 @@ LATIN = "abcdefghijklmno"
 CYRILLIC_ALIASES = {
     "а": "a",
     "б": "b",
-    "в": "b",
+    "в": "v",
     "г": "g",
     "д": "d",
     "е": "e",
