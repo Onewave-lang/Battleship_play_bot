@@ -642,6 +642,43 @@ def test_router_repeat_shot(monkeypatch):
     asyncio.run(run_test())
 
 
+def test_router_blocks_contour_cell(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            status='playing',
+            players={'A': SimpleNamespace(user_id=1, chat_id=10),
+                     'B': SimpleNamespace(user_id=2, chat_id=20)},
+            boards={'A': Board15(), 'B': Board15()},
+            turn='A',
+            shots={'A': {'move_count': 0, 'joke_start': 10},
+                   'B': {'move_count': 0, 'joke_start': 10}},
+            messages={},
+            history=_new_grid(15),
+        )
+        match.history[0][0][0] = 5
+
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
+        save_match = Mock()
+        monkeypatch.setattr(storage, 'save_match', save_match)
+
+        update = SimpleNamespace(
+            message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), chat_data={}, bot_data={})
+        send_state = AsyncMock()
+        monkeypatch.setattr(router, '_send_state', send_state)
+
+        await router.router_text(update, context)
+
+        update.message.reply_text.assert_called_once_with('Эта клетка уже обстреляна')
+        assert not send_state.called
+        assert save_match.call_count == 0
+
+    asyncio.run(run_test())
+
+
 def test_router_skips_eliminated_players(monkeypatch):
     async def run_test():
         match = SimpleNamespace(

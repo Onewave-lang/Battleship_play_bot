@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Tuple, Dict, List
 
 from .models import Board15, Ship
-from .utils import _get_cell_state, _set_cell_state
+from .utils import _get_cell_state, _set_cell_state, _get_cell_owner
 
 MISS, HIT, KILL, REPEAT = 'miss', 'hit', 'kill', 'repeat'
 
@@ -74,14 +74,19 @@ def update_history(
             if not ship:
                 continue
             for rr, cc in ship.cells:
-                _set_cell_state(history, rr, cc, 4, key)
-            for rr, cc in ship.cells:
                 for dr in (-1, 0, 1):
                     for dc in (-1, 0, 1):
                         nr, nc = rr + dr, cc + dc
                         if 0 <= nr < 15 and 0 <= nc < 15:
-                            if _get_cell_state(history[nr][nc]) == 0:
-                                _set_cell_state(history, nr, nc, 5)
+                            _set_cell_state(
+                                history,
+                                nr,
+                                nc,
+                                5,
+                                _get_cell_owner(history[nr][nc]),
+                            )
+            for rr, cc in ship.cells:
+                _set_cell_state(history, rr, cc, 4, key)
     elif any(res == HIT for res in results.values()):
         hit_key = next((k for k, res in results.items() if res == HIT), None)
         _set_cell_state(history, r, c, 3, hit_key)

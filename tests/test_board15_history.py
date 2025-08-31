@@ -43,6 +43,36 @@ def test_hit_then_kill_updates_all_cells():
     assert _state(history[0][3]) == 4
 
 
+def test_kill_contour_overwrites_previous_state():
+    history = _new_grid(15)
+    boards = {'B': Board15()}
+    ship = Ship(cells=[(1, 1)])
+    boards['B'].ships = [ship]
+    boards['B'].grid[1][1] = 1
+
+    # Pre-fill surrounding cells with various states
+    history[0][0][0] = 2
+    history[0][1][0] = 3
+    history[0][2][0] = 2
+    history[1][0][0] = 3
+    history[1][2][0] = 2
+    history[2][0][0] = 3
+    history[2][1][0] = 2
+    history[2][2][0] = 3
+
+    res = apply_shot(boards['B'], (1, 1))
+    assert res == KILL
+    update_history(history, boards, (1, 1), {'B': res})
+
+    for rr in range(0, 3):
+        for cc in range(0, 3):
+            state = _state(history[rr][cc])
+            if (rr, cc) == (1, 1):
+                assert state == 4
+            else:
+                assert state == 5
+
+
 def test_send_state_uses_history(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
@@ -178,7 +208,7 @@ def test_render_board_shows_cumulative_history(monkeypatch):
         first, second = captured
         assert first[0][0] == 2
         assert first[1][1] == 1
-        assert second[0][0] == 2
+        assert second[0][0] == 5
         assert second[1][1] == 4
 
     asyncio.run(run_test())
