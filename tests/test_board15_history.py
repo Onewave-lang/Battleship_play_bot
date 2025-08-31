@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from game_board15 import router
-from game_board15.battle import apply_shot, update_history, KILL
+from game_board15.battle import apply_shot, update_history, KILL, HIT
 from game_board15.models import Board15, Ship
 from tests.utils import _new_grid, _state
 
@@ -20,6 +20,27 @@ def test_update_history_records_kill_and_contour():
     update_history(history, boards, (1, 1), {'B': res})
     assert _state(history[1][1]) == 4
     assert _state(history[0][0]) == 5
+
+
+def test_hit_then_kill_updates_all_cells():
+    history = _new_grid(15)
+    boards = {'A': Board15()}
+    ship = Ship(cells=[(0, 2), (0, 3)])
+    boards['A'].ships = [ship]
+    boards['A'].grid[0][2] = 1
+    boards['A'].grid[0][3] = 1
+
+    res_hit = apply_shot(boards['A'], (0, 2))
+    assert res_hit == HIT
+    update_history(history, boards, (0, 2), {'A': res_hit})
+    assert _state(history[0][2]) == 3
+
+    res_kill = apply_shot(boards['A'], (0, 3))
+    assert res_kill == KILL
+    update_history(history, boards, (0, 3), {'A': res_kill})
+
+    assert _state(history[0][2]) == 4
+    assert _state(history[0][3]) == 4
 
 
 def test_send_state_uses_history(monkeypatch):
