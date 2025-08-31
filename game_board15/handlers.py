@@ -243,7 +243,7 @@ async def _auto_play_bots(
             for enemy, res in results.items():
                 if res == battle.KILL:
                     cells.extend(match.boards[enemy].highlight)
-            match.last_highlight = cells.copy()
+            match.last_highlight = [coord] + [c for c in cells if c != coord]
         else:
             match.last_highlight = [coord]
         for k in match.shots:
