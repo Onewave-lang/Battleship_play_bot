@@ -90,6 +90,59 @@ def test_hit_at_m1_updates_history_and_board(monkeypatch):
     asyncio.run(run_test())
 
 
+def test_multiple_hits_recorded(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            players={'A': SimpleNamespace(chat_id=1), 'B': SimpleNamespace(chat_id=2)},
+            boards={'A': Board15(), 'B': Board15()},
+            history=_new_grid(15),
+            messages={'A': {}, 'B': {}},
+        )
+        coord = (0, 0)
+        extra = (0, 1)
+        for key in ('A', 'B'):
+            ship = Ship(cells=[coord, extra])
+            match.boards[key].ships = [ship]
+            match.boards[key].grid[coord[0]][coord[1]] = 1
+            match.boards[key].grid[extra[0]][extra[1]] = 1
+
+        res_a = apply_shot(match.boards['A'], coord)
+        res_b = apply_shot(match.boards['B'], coord)
+        assert res_a == HIT
+        assert res_b == HIT
+
+        update_history(match.history, match.boards, coord, {'A': res_a, 'B': res_b})
+        assert _state(match.history[coord[0]][coord[1]]) == 3
+
+        captured = {}
+
+        def fake_render_board(state, player_key=None):
+            captured[player_key] = [row[:] for row in state.board]
+            return BytesIO(b'img')
+
+        monkeypatch.setattr(router, 'render_board', fake_render_board)
+        monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
+
+        context = SimpleNamespace(
+            bot=SimpleNamespace(
+                edit_message_media=AsyncMock(),
+                send_photo=AsyncMock(return_value=SimpleNamespace(message_id=1)),
+                edit_message_text=AsyncMock(),
+                send_message=AsyncMock(return_value=SimpleNamespace(message_id=2)),
+            ),
+            bot_data={},
+            chat_data={},
+        )
+
+        await router._send_state(context, match, 'A', 'msg')
+        await router._send_state(context, match, 'B', 'msg')
+
+        assert captured['A'][coord[0]][coord[1]] == 3
+        assert captured['B'][coord[0]][coord[1]] == 3
+
+    asyncio.run(run_test())
+
+
 def test_kill_contour_overwrites_previous_state():
     history = _new_grid(15)
     boards = {'B': Board15()}
