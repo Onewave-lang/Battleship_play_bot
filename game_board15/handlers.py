@@ -180,6 +180,12 @@ async def _auto_play_bots(
             await asyncio.sleep(delay)
 
         current = match.turn
+        if (
+            match.players[current].user_id != 0
+            or current == human
+        ):
+            await asyncio.sleep(delay)
+            continue
         board = match.boards[current]
         adj = _adjacent_mask(board.grid)
         enemies = [k for k in alive if k != current]
