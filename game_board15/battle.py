@@ -60,24 +60,22 @@ def update_history(
 
     r, c = coord
     if any(res == KILL for res in results.values()):
-        kill_key = None
         for key, res in results.items():
             if res != KILL:
                 continue
-            kill_key = key if kill_key is None else kill_key
             board = boards[key]
-            for rr in range(15):
-                for cc in range(15):
-                    val = board.grid[rr][cc]
-                    if val == 4:
-                        _set_cell_state(history, rr, cc, 4, key)
-                    elif val == 5:
-                        # Mark contour cells as shot-through for everyone without
-                        # overwriting prior shot information.
-                        if _get_cell_state(history[rr][cc]) == 0:
-                            _set_cell_state(history, rr, cc, 5, key)
-        if kill_key is not None:
-            _set_cell_state(history, r, c, 4, kill_key)
+            ship = next((s for s in board.ships if coord in s.cells), None)
+            if not ship:
+                continue
+            for rr, cc in ship.cells:
+                _set_cell_state(history, rr, cc, 4, key)
+            for rr, cc in ship.cells:
+                for dr in (-1, 0, 1):
+                    for dc in (-1, 0, 1):
+                        nr, nc = rr + dr, cc + dc
+                        if 0 <= nr < 15 and 0 <= nc < 15:
+                            if _get_cell_state(history[nr][nc]) == 0:
+                                _set_cell_state(history, nr, nc, 5)
     elif any(res == HIT for res in results.values()):
         hit_key = next((k for k, res in results.items() if res == HIT), None)
         _set_cell_state(history, r, c, 3, hit_key)
