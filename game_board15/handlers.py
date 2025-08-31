@@ -65,7 +65,8 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     own_grid = match.boards[player_key].grid
     for r in range(15):
         for c in range(15):
-            if merged[r][c] == 0 and own_grid[r][c] == 1:
+            cell = own_grid[r][c]
+            if merged[r][c] == 0 and _get_cell_state(cell) == 1:
                 merged[r][c] = 1
     state.board = merged
     state.player_key = player_key
@@ -147,7 +148,7 @@ async def _auto_play_bots(
         mask = [[False] * 15 for _ in range(15)]
         for r in range(15):
             for c in range(15):
-                if grid[r][c] == 1:
+                if _get_cell_state(grid[r][c]) == 1:
                     for dr in (-1, 0, 1):
                         for dc in (-1, 0, 1):
                             nr, nc = r + dr, c + dc
@@ -192,7 +193,7 @@ async def _auto_play_bots(
             for r in range(15)
             for c in range(15)
             if _get_cell_state(match.history[r][c]) == 0
-            and board.grid[r][c] != 1
+            and _get_cell_state(board.grid[r][c]) != 1
             and not adj[r][c]
         ]
         if not candidates:
@@ -204,7 +205,7 @@ async def _auto_play_bots(
                     (r, c)
                     for r in range(15)
                     for c in range(15)
-                    if enemy_board.grid[r][c] == 1
+                    if _get_cell_state(enemy_board.grid[r][c]) == 1
                 ),
                 None,
             )
@@ -368,9 +369,10 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     own_grid = match.boards['A'].grid
     for r in range(15):
         for c in range(15):
-            if merged[r][c] == 0 and own_grid[r][c] == 1:
+            cell = own_grid[r][c]
+            if merged[r][c] == 0 and _get_cell_state(cell) == 1:
                 merged[r][c] = 1
-                owners[r][c] = 'A'
+                owners[r][c] = _get_cell_owner(cell) or 'A'
     state.board = merged
     state.owners = owners
     state.player_key = 'A'

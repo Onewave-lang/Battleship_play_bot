@@ -27,6 +27,16 @@ from logic.phrases import (
 )
 
 
+def _cell_state(cell):
+    """Return numerical state from a board cell.
+
+    Cells may store a plain integer or a ``(state, owner)`` tuple. This
+    helper extracts the state value so that comparisons work regardless of the
+    underlying representation.
+    """
+    return cell[0] if isinstance(cell, (list, tuple)) else cell
+
+
 # Delay after sending the board and before sending/editing the result text.
 # Can be tuned with the ``STATE_DELAY`` environment variable.
 STATE_DELAY = float(os.getenv("STATE_DELAY", "0.2"))
@@ -123,8 +133,10 @@ async def _send_state_board_test(
     own_grid = match.boards[player_key].grid
     for r in range(10):
         for c in range(10):
-            if merged[r][c] == 0 and own_grid[r][c] == 1:
-                merged[r][c] = 1
+            cell = own_grid[r][c]
+            if merged[r][c] == 0 and _cell_state(cell) == 1:
+                # Preserve owner information by copying the full cell value
+                merged[r][c] = cell
     board = Board(grid=merged, highlight=getattr(match, "last_highlight", []).copy())
     board_text = f"Ваше поле:\n{render_board_own(board)}"
     kb = move_keyboard()
