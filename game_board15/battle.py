@@ -91,5 +91,7 @@ def update_history(
         hit_key = next((k for k, res in results.items() if res == HIT), None)
         _set_cell_state(history, r, c, 3, hit_key)
     elif all(res == MISS for res in results.values()):
-        if _get_cell_state(history[r][c]) == 0:
+        if _get_cell_state(history[r][c]) == 0 and all(
+            _get_cell_state(b.grid[r][c]) != 1 for b in boards.values()
+        ):
             _set_cell_state(history, r, c, 2)

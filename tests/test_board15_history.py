@@ -4,8 +4,9 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from game_board15 import router
-from game_board15.battle import apply_shot, update_history, KILL, HIT
+from game_board15.battle import apply_shot, update_history, KILL, HIT, MISS
 from game_board15.models import Board15, Ship
+from game_board15.utils import _get_cell_state, _set_cell_state
 from tests.utils import _new_grid, _state
 
 
@@ -108,6 +109,62 @@ def test_send_state_uses_history(monkeypatch):
 
         assert captured['board'][0][0] == 2
         assert captured['board'][2][2] == 1
+
+    asyncio.run(run_test())
+
+
+def test_friendly_ship_survives_other_board_miss(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            players={
+                'A': SimpleNamespace(chat_id=1),
+                'B': SimpleNamespace(chat_id=2),
+            },
+            boards={'A': Board15(), 'B': Board15()},
+            history=_new_grid(15),
+            messages={'A': {}, 'B': {}},
+        )
+        ship = Ship(cells=[(0, 0)])
+        match.boards['A'].ships = [ship]
+        match.boards['A'].grid[0][0] = 1
+
+        res = apply_shot(match.boards['B'], (0, 0))
+        assert res == MISS
+        update_history(match.history, match.boards, (0, 0), {'B': res})
+        assert _state(match.history[0][0]) == 0
+
+        for b in match.boards.values():
+            if b.highlight:
+                for rr, cc in b.highlight:
+                    if _get_cell_state(match.history[rr][cc]) == 0 and all(
+                        _get_cell_state(bb.grid[rr][cc]) != 1 for bb in match.boards.values()
+                    ):
+                        _set_cell_state(match.history, rr, cc, 2)
+            b.highlight = []
+
+        captured = {}
+
+        def fake_render_board(state, player_key=None):
+            captured[player_key] = [row[:] for row in state.board]
+            return BytesIO(b'img')
+
+        monkeypatch.setattr(router, 'render_board', fake_render_board)
+        monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
+
+        context = SimpleNamespace(
+            bot=SimpleNamespace(
+                edit_message_media=AsyncMock(),
+                send_photo=AsyncMock(return_value=SimpleNamespace(message_id=1)),
+                edit_message_text=AsyncMock(),
+                send_message=AsyncMock(return_value=SimpleNamespace(message_id=2)),
+            ),
+            bot_data={},
+            chat_data={},
+        )
+
+        await router._send_state(context, match, 'A', 'msg')
+
+        assert captured['A'][0][0] == 1
 
     asyncio.run(run_test())
 

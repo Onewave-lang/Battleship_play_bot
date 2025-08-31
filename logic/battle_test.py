@@ -64,13 +64,17 @@ def apply_shot_multi(
                     for dc in (-1, 0, 1):
                         nr, nc = rr + dr, cc + dc
                         if 0 <= nr < 10 and 0 <= nc < 10:
-                            if _get_cell_state(history[nr][nc]) == 0:
+                            if _get_cell_state(history[nr][nc]) == 0 and all(
+                                _get_cell_state(b.grid[nr][nc]) != 1 for b in boards.values()
+                            ):
                                 _set_cell_state(history, nr, nc, 5)
         _set_cell_state(history, r, c, 4)
     elif any(res == HIT for res in results.values()):
         _set_cell_state(history, r, c, 3)
     elif all(res == MISS for res in results.values()):
-        if _get_cell_state(history[r][c]) == 0:
+        if _get_cell_state(history[r][c]) == 0 and all(
+            _get_cell_state(b.grid[r][c]) != 1 for b in boards.values()
+        ):
             _set_cell_state(history, r, c, 2)
 
     return results
