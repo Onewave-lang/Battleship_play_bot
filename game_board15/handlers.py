@@ -20,7 +20,7 @@ from logic.phrases import (
     SELF_KILL,
     SELF_MISS,
 )
-from .utils import _phrase_or_joke, _get_cell_state, _get_cell_owner
+from .utils import _phrase_or_joke, _get_cell_state, _get_cell_owner, _set_cell_state
 import random
 import asyncio
 import logging
@@ -211,7 +211,13 @@ async def _auto_play_bots(
             coord = target if target else random.choice(candidates)
         else:
             coord = random.choice(candidates)
+        # Persist previous highlights before clearing them so that temporary
+        # red marks become permanent dots on the history grid.
         for b in match.boards.values():
+            if b.highlight:
+                for rr, cc in b.highlight:
+                    if _get_cell_state(match.history[rr][cc]) == 0:
+                        _set_cell_state(match.history, rr, cc, 2)
             b.highlight = []
         results = {}
         hit_any = False
@@ -228,6 +234,9 @@ async def _auto_play_bots(
         for enemy, res in results.items():
             shot_hist.append({"coord": coord, "enemy": enemy, "result": res})
         battle.update_history(match.history, match.boards, coord, results)
+        # Save match immediately after updating history to avoid losing moves
+        # when multiple players act concurrently.
+        storage.save_match(match)
         match.shots[current]["last_coord"] = coord
         if any(res == battle.KILL for res in results.values()):
             cells: list[tuple[int, int]] = []

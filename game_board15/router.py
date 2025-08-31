@@ -18,7 +18,7 @@ from logic.phrases import (
     SELF_KILL,
     SELF_MISS,
 )
-from .utils import _phrase_or_joke, _get_cell_state, _get_cell_owner
+from .utils import _phrase_or_joke, _get_cell_state, _get_cell_owner, _set_cell_state
 
 
 logger = logging.getLogger(__name__)
@@ -149,7 +149,13 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.message.reply_text('Здесь ваш корабль')
         return
 
+    # Persist previous highlights before clearing so that red marks remain
+    # as permanent dots on the board history.
     for b in match.boards.values():
+        if b.highlight:
+            for rr, cc in b.highlight:
+                if _get_cell_state(match.history[rr][cc]) == 0:
+                    _set_cell_state(match.history, rr, cc, 2)
         b.highlight = []
 
     state = _get_cell_state(match.history[r][c])
