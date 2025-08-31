@@ -40,9 +40,10 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
     own_grid = match.boards[player_key].grid
     for r in range(15):
         for c in range(15):
-            if merged_states[r][c] == 0 and own_grid[r][c] == 1:
+            cell = own_grid[r][c]
+            if merged_states[r][c] == 0 and _get_cell_state(cell) == 1:
                 merged_states[r][c] = 1
-                owners[r][c] = player_key
+                owners[r][c] = _get_cell_owner(cell) or player_key
     state.board = merged_states
     state.owners = owners
     state.player_key = player_key
@@ -135,7 +136,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.message.reply_text('Не понял клетку. Пример: e5.')
         return
     r, c = coord
-    if match.boards[player_key].grid[r][c] == 1:
+    if _get_cell_state(match.boards[player_key].grid[r][c]) == 1:
         await update.message.reply_text('Здесь ваш корабль')
         return
 

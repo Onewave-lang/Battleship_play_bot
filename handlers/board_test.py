@@ -22,6 +22,11 @@ from logic.phrases import (
 )
 
 
+def _cell_state(cell):
+    """Return state value for a possibly annotated board cell."""
+    return cell[0] if isinstance(cell, (list, tuple)) else cell
+
+
 def _phrase_or_joke(match, player_key: str, phrases: list[str]) -> str:
     shots = match.shots[player_key]
     start = shots.get("joke_start")
@@ -94,7 +99,7 @@ async def _auto_play_bots(
         coord = None
         for pt in coords:
             r, c = pt
-            if match.history[r][c] == 0 and match.boards[current].grid[r][c] != 1:
+            if match.history[r][c] == 0 and _cell_state(match.boards[current].grid[r][c]) != 1:
                 coord = pt
                 break
         if coord is None:
