@@ -93,7 +93,14 @@ def test_apply_shot_multi_updates_history():
     res1 = apply_shot_multi((1, 1), {"B": board_b, "C": board_c}, history)
     assert res1 == {"B": KILL, "C": MISS}
     assert _state(history[1][1]) == 4
-    assert _state(history[0][0]) == 5
+    # all surrounding cells should be marked as shot (5)
+    for dr in (-1, 0, 1):
+        for dc in (-1, 0, 1):
+            rr, cc = 1 + dr, 1 + dc
+            if (rr, cc) == (1, 1):
+                continue
+            if 0 <= rr < 10 and 0 <= cc < 10:
+                assert _state(history[rr][cc]) == 5
     res2 = apply_shot_multi((3, 3), {"B": board_b, "C": board_c}, history)
     assert res2 == {"B": MISS, "C": KILL}
     assert _state(history[3][3]) == 4
