@@ -99,3 +99,15 @@ def test_apply_shot_marks_contour():
                 continue
             if 0 <= nr < 10 and 0 <= nc < 10:
                 assert _state(b.grid[nr][nc]) == 5
+
+
+def test_render_state5_symbol():
+    b = Board()
+    b.grid = _new_grid()
+    b.grid[0][0] = [5, 'A']
+
+    own = render_board_own(b)
+    enemy = render_board_enemy(b)
+
+    assert '<span style="color:#808080">x</span>' in own
+    assert '<span style="color:#808080">x</span>' in enemy
