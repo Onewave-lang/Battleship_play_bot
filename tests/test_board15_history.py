@@ -120,6 +120,40 @@ def test_kill_contour_overwrites_previous_state():
                 assert state == 5
 
 
+def test_ignore_foreign_board_ships_for_miss():
+    history = _new_grid(15)
+    boards = {'A': Board15(), 'B': Board15()}
+    ship = Ship(cells=[(0, 0)])
+    boards['B'].ships = [ship]
+    boards['B'].grid[0][0] = 1
+
+    res = apply_shot(boards['A'], (0, 0))
+    assert res == MISS
+    update_history(history, boards, (0, 0), {'A': res})
+    assert _get_cell_state(history[0][0]) == 2
+
+    import sys
+    import importlib
+    sys.modules.pop('PIL', None)
+    sys.modules.pop('game_board15.renderer', None)
+    from PIL import Image
+    renderer = importlib.import_module('game_board15.renderer')
+    from game_board15.state import Board15State
+
+    board = [[_get_cell_state(cell) for cell in row] for row in history]
+    state = Board15State(board=board)
+    buf = renderer.render_board(state)
+
+    img = Image.open(buf)
+    x0 = renderer.TILE_PX
+    y0 = renderer.TILE_PX
+    cx = x0 + renderer.TILE_PX // 2
+    cy = y0 + renderer.TILE_PX // 2
+    assert img.getpixel((cx, cy)) == renderer.COLORS[renderer.THEME]['miss']
+    sample = (cx + 6, cy)
+    assert img.getpixel(sample) == renderer.COLORS[renderer.THEME]['bg']
+
+
 def test_send_state_uses_history(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
@@ -159,7 +193,7 @@ def test_send_state_uses_history(monkeypatch):
     asyncio.run(run_test())
 
 
-def test_friendly_ship_survives_other_board_miss(monkeypatch):
+def test_friendly_ship_replaced_by_miss(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
             players={
@@ -177,7 +211,7 @@ def test_friendly_ship_survives_other_board_miss(monkeypatch):
         res = apply_shot(match.boards['B'], (0, 0))
         assert res == MISS
         update_history(match.history, match.boards, (0, 0), {'B': res})
-        assert _state(match.history[0][0]) == 0
+        assert _state(match.history[0][0]) == 2
 
         for b in match.boards.values():
             if b.highlight:
@@ -210,7 +244,7 @@ def test_friendly_ship_survives_other_board_miss(monkeypatch):
 
         await router._send_state(context, match, 'A', 'msg')
 
-        assert captured['A'][0][0] == 1
+        assert captured['A'][0][0] == 2
 
     asyncio.run(run_test())
 

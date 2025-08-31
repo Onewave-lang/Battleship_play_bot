@@ -93,6 +93,6 @@ def update_history(
                 _set_cell_state(history, r, c, 3, key)
     elif all(res == MISS for res in results.values()):
         if _get_cell_state(history[r][c]) == 0 and all(
-            _get_cell_state(b.grid[r][c]) != 1 for b in boards.values()
+            _get_cell_state(boards[k].grid[r][c]) != 1 for k in results
         ):
             _set_cell_state(history, r, c, 2)
