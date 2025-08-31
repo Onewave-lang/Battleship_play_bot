@@ -176,6 +176,7 @@ async def _auto_play_bots(
         phrase_self = _phrase_or_joke(match, current, phrase_map[overall_res]).rstrip()
 
         next_name = next_player
+        storage.save_match(match)
         if enemy_msgs:
             for enemy, msg_body in enemy_msgs.items():
                 if enemy == human:
@@ -198,7 +199,6 @@ async def _auto_play_bots(
                 f"Ход игрока {current}: {coord_str} - {enemy_msgs[human]}{next_phrase}",
             )
 
-        storage.save_match(match)
         parts_text = ' '.join(parts_self)
         base_self = (
             f"Ваш ход: {coord_str} - {parts_text} {phrase_self}"

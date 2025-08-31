@@ -182,10 +182,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         for row in match.history
     ):
         logger.warning("History is empty after shot %s", coord_str)
-    match.shots[player_key]["last_coord"] = coord
-    shot_hist = match.shots[player_key].setdefault("history", [])
-    for enemy, res in results.items():
-        shot_hist.append({"coord": coord, "enemy": enemy, "result": res})
     if any(res == battle.KILL for res in results.values()):
         cells: list[tuple[int, int]] = []
         for enemy, res in results.items():
@@ -200,6 +196,11 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         match.last_highlight = [coord]
         match.shots[player_key]["last_result"] = "miss"
     storage.save_match(match)
+
+    match.shots[player_key]["last_coord"] = coord
+    shot_hist = match.shots[player_key].setdefault("history", [])
+    for enemy, res in results.items():
+        shot_hist.append({"coord": coord, "enemy": enemy, "result": res})
     for k in match.shots:
         shots = match.shots[k]
         shots.setdefault('move_count', 0)

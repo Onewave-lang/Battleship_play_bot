@@ -234,9 +234,6 @@ async def _auto_play_bots(
         for enemy, res in results.items():
             shot_hist.append({"coord": coord, "enemy": enemy, "result": res})
         battle.update_history(match.history, match.boards, coord, results)
-        # Save match immediately after updating history to avoid losing moves
-        # when multiple players act concurrently.
-        storage.save_match(match)
         match.shots[current]["last_coord"] = coord
         if any(res == battle.KILL for res in results.values()):
             cells: list[tuple[int, int]] = []
@@ -246,6 +243,7 @@ async def _auto_play_bots(
             match.last_highlight = [coord] + [c for c in cells if c != coord]
         else:
             match.last_highlight = [coord]
+        storage.save_match(match)
         for k in match.shots:
             shots = match.shots[k]
             shots.setdefault('move_count', 0)
