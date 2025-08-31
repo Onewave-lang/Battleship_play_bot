@@ -478,7 +478,6 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
     else:
         match.last_highlight = [coord]
         match.shots[player_key]['last_result'] = 'miss'
-    storage.save_match(match)
     for k in match.shots:
         shots = match.shots.setdefault(k, {})
         shots.setdefault('move_count', 0)
@@ -540,6 +539,7 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
     else:
         self_lines = [f"Ваш ход: {coord_str}"]
     self_lines.append(next_phrase_self)
+    storage.save_match(match)
     await _send_state_board_test(
         context,
         match,
