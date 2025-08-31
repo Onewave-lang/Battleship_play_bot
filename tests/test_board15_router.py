@@ -65,13 +65,10 @@ def test_router_auto_sends_boards(monkeypatch):
         await router.router_text(update, context)
 
         assert send_photo.call_args_list == [
-            call(10, ANY),
-            call(20, ANY),
+            call(10, ANY, caption='Соперник готов. Бой начинается! Ваш ход.'),
+            call(20, ANY, caption='Корабли расставлены. Бой начинается! Ход соперника.'),
         ]
-        assert send_message.call_args_list == [
-            call(10, 'Соперник готов. Бой начинается! Ваш ход.'),
-            call(20, 'Корабли расставлены. Бой начинается! Ход соперника.'),
-        ]
+        assert send_message.call_args_list == []
 
     asyncio.run(run_test())
 
@@ -451,9 +448,10 @@ def test_router_notifies_next_player_on_miss(monkeypatch):
 
         await router.router_text(update, context)
 
-        b_msgs = [c for c in send_message.call_args_list if c.args[0] == 20]
-        assert b_msgs and b_msgs[0].args[1].endswith('Следующим ходит B.')
-        assert 'a1 - мимо' in b_msgs[0].args[1]
+        b_msgs = [c for c in send_photo.call_args_list if c.args[0] == 20]
+        assert b_msgs and b_msgs[0].kwargs["caption"].endswith('Следующим ходит B.')
+        assert 'a1 - мимо' in b_msgs[0].kwargs["caption"]
+        assert send_message.call_args_list == []
 
     asyncio.run(run_test())
 

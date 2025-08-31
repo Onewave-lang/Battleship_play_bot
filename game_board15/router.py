@@ -54,33 +54,23 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
 
     msgs = match.messages.setdefault(player_key, {})
 
-    # always send main board image
+    # send main board image with caption text
     try:
         buf.seek(0)
-        msg_board = await context.bot.send_photo(chat_id, buf)
+        msg = await context.bot.send_photo(chat_id, buf, caption=message)
     except asyncio.CancelledError:
         raise
     except Exception:
         logger.exception("Failed to send board image for chat %s", chat_id)
         return
-    state.message_id = msg_board.message_id
-    msgs["board"] = msg_board.message_id
+    state.message_id = msg.message_id
+    msgs["board"] = msg.message_id
+    msgs["text"] = msg.message_id
     board_hist = msgs.setdefault("board_history", [])
-    if msgs.get("history_active"):
-        board_hist.append(msg_board.message_id)
-
-    # send result text message
-    try:
-        msg_text = await context.bot.send_message(chat_id, message)
-    except asyncio.CancelledError:
-        raise
-    except Exception:
-        logger.exception("Failed to send text message for chat %s", chat_id)
-        return
-    msgs["text"] = msg_text.message_id
     text_hist = msgs.setdefault("text_history", [])
     if msgs.get("history_active"):
-        text_hist.append(msg_text.message_id)
+        board_hist.append(msg.message_id)
+        text_hist.append(msg.message_id)
 
 
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
