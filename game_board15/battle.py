@@ -8,13 +8,19 @@ MISS, HIT, KILL, REPEAT = 'miss', 'hit', 'kill', 'repeat'
 
 
 def mark_contour(board: Board15, cells: list[Tuple[int, int]]) -> None:
+    """Mark the contour around ``cells`` on a 15×15 board."""
+
+    contour: set[Tuple[int, int]] = set()
     for r, c in cells:
         for dr in (-1, 0, 1):
             for dc in (-1, 0, 1):
                 nr, nc = r + dr, c + dc
                 if 0 <= nr < 15 and 0 <= nc < 15:
-                    if board.grid[nr][nc] == 0:
-                        board.grid[nr][nc] = 5
+                    contour.add((nr, nc))
+
+    for r, c in contour.difference(cells):
+        if board.grid[r][c] == 0:
+            board.grid[r][c] = 5
 
 
 def apply_shot(board: Board15, coord: Tuple[int, int]) -> str:

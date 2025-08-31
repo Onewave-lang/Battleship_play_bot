@@ -22,14 +22,28 @@ def _set_cell_state(board: Board, r: int, c: int, value: int) -> None:
         board.grid[r][c] = value
 
 
-def mark_contour(board: Board, cells: list[Tuple[int,int]]) -> None:
+def mark_contour(board: Board, cells: list[Tuple[int, int]]) -> None:
+    """Mark all cells surrounding ``cells`` as shot.
+
+    The previous implementation updated the board in-place while iterating
+    through ``cells``.  When a ship spanned multiple cells this could skip
+    some neighbours because newly marked contour cells were visited again and
+    short‑circuited by the ``_get_cell_state`` check.  Collecting the contour
+    first and applying the update afterwards guarantees that every neighbour
+    around the destroyed ship becomes unavailable for subsequent shots.
+    """
+
+    contour: set[Tuple[int, int]] = set()
     for r, c in cells:
-        for dr in (-1,0,1):
-            for dc in (-1,0,1):
-                nr, nc = r+dr, c+dc
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                nr, nc = r + dr, c + dc
                 if 0 <= nr < 10 and 0 <= nc < 10:
-                    if _get_cell_state(board, nr, nc) == 0:
-                        _set_cell_state(board, nr, nc, 5)
+                    contour.add((nr, nc))
+
+    for r, c in contour.difference(cells):
+        if _get_cell_state(board, r, c) == 0:
+            _set_cell_state(board, r, c, 5)
 
 
 def apply_shot(board: Board, coord: Tuple[int,int]) -> str:
