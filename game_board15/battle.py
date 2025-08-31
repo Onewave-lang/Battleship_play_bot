@@ -88,8 +88,9 @@ def update_history(
             for rr, cc in ship.cells:
                 _set_cell_state(history, rr, cc, 4, key)
     elif any(res == HIT for res in results.values()):
-        hit_key = next((k for k, res in results.items() if res == HIT), None)
-        _set_cell_state(history, r, c, 3, hit_key)
+        for key, res in results.items():
+            if res == HIT:
+                _set_cell_state(history, r, c, 3, key)
     elif all(res == MISS for res in results.values()):
         if _get_cell_state(history[r][c]) == 0 and all(
             _get_cell_state(b.grid[r][c]) != 1 for b in boards.values()
