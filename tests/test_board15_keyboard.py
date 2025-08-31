@@ -20,16 +20,16 @@ def test_send_state_records_history(monkeypatch):
         monkeypatch.setattr(router.storage, "save_match", lambda m: None)
         bot = SimpleNamespace(
             send_photo=AsyncMock(side_effect=[SimpleNamespace(message_id=51)]),
-            send_message=AsyncMock(return_value=SimpleNamespace(message_id=60)),
+            send_message=AsyncMock(),
         )
         context = SimpleNamespace(bot=bot, bot_data={}, chat_data={})
         await router._send_state(context, match, "A", "msg")
         assert bot.send_photo.await_count == 1
-        assert bot.send_message.await_count == 1
+        assert bot.send_message.await_count == 0
         assert match.messages["A"]["board"] == 51
-        assert match.messages["A"]["text"] == 60
+        assert match.messages["A"]["text"] == 51
         assert match.messages["A"]["board_history"] == [51]
-        assert match.messages["A"]["text_history"] == [60]
+        assert match.messages["A"]["text_history"] == [51]
     asyncio.run(run_test())
 
 
@@ -48,20 +48,17 @@ def test_send_state_appends_history(monkeypatch):
                 SimpleNamespace(message_id=11),
                 SimpleNamespace(message_id=13),
             ]),
-            send_message=AsyncMock(side_effect=[
-                SimpleNamespace(message_id=20),
-                SimpleNamespace(message_id=21),
-            ]),
+            send_message=AsyncMock(),
         )
         context = SimpleNamespace(bot=bot, bot_data={}, chat_data={})
         await router._send_state(context, match, "A", "first")
         await router._send_state(context, match, "A", "second")
         assert bot.send_photo.await_count == 2
-        assert bot.send_message.await_count == 2
+        assert bot.send_message.await_count == 0
         assert match.messages["A"]["board"] == 13
-        assert match.messages["A"]["text"] == 21
+        assert match.messages["A"]["text"] == 13
         assert match.messages["A"]["board_history"] == [11, 13]
-        assert match.messages["A"]["text_history"] == [20, 21]
+        assert match.messages["A"]["text_history"] == [11, 13]
     asyncio.run(run_test())
 
 
@@ -77,7 +74,7 @@ def test_history_not_recorded_when_inactive(monkeypatch):
         monkeypatch.setattr(router.storage, "save_match", lambda m: None)
         bot = SimpleNamespace(
             send_photo=AsyncMock(side_effect=[SimpleNamespace(message_id=1)]),
-            send_message=AsyncMock(return_value=SimpleNamespace(message_id=3)),
+            send_message=AsyncMock(),
         )
         context = SimpleNamespace(bot=bot, bot_data={}, chat_data={})
         await router._send_state(context, match, "A", "msg")

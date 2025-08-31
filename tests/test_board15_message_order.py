@@ -93,7 +93,7 @@ def test_board15_message_order(tmp_path, monkeypatch):
 
     asyncio.run(play_moves())
 
-    expected = ['photo', 'text_send', 'photo', 'text_send']
+    expected = ['photo', 'photo']
     assert bot.logs[1] == expected
     assert bot.logs[2] == expected
     assert bot.logs[3] == expected
@@ -140,5 +140,5 @@ def test_board15_message_order_single_chat(tmp_path, monkeypatch):
 
     asyncio.run(play_moves())
 
-    expected = ['photo', 'text_send', 'photo', 'text_send']
+    expected = ['photo', 'photo']
     assert bot.logs[1] == expected
