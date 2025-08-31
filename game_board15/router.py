@@ -168,15 +168,12 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     results = {}
-    hit_any = False
     repeat = False
     for enemy in enemy_keys:
         res = battle.apply_shot(match.boards[enemy], coord)
         results[enemy] = res
         if res == battle.REPEAT:
             repeat = True
-        elif res in (battle.HIT, battle.KILL):
-            hit_any = True
     if repeat:
         await update.message.reply_text('Эта клетка уже обстреляна')
         return
@@ -225,7 +222,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     # so that the result (miss/hit/kill) is not lost for later processing
     enemy_msgs: dict[str, tuple[str, str]] = {}
     targets: list[str] = []
-    next_player = player_key
     player_obj = match.players.get(player_key)
     player_label = getattr(player_obj, "name", "") or player_key
     eliminated: list[str] = []
@@ -266,13 +262,19 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         for k in match.players
         if k not in enemy_msgs and k != player_key and match.boards[k].alive_cells > 0
     ]
+    hit_any = any(
+        res in (battle.HIT, battle.KILL, battle.REPEAT) for res in results.values()
+    )
     order = [
         k
         for k in ('A', 'B', 'C')
         if k in match.players and match.boards[k].alive_cells > 0
     ]
     idx = order.index(player_key)
-    next_player = order[(idx + 1) % len(order)]
+    if hit_any:
+        next_player = player_key
+    else:
+        next_player = order[(idx + 1) % len(order)]
     match.turn = next_player
     next_obj = match.players.get(next_player)
     next_name = getattr(next_obj, 'name', '') or next_player
