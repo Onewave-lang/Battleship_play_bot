@@ -249,6 +249,26 @@ def test_friendly_ship_replaced_by_miss(monkeypatch):
     asyncio.run(run_test())
 
 
+def test_clear_highlight_preserves_miss():
+    match = SimpleNamespace(
+        boards={'A': Board15(), 'B': Board15()},
+        history=_new_grid(15),
+    )
+    ship = Ship(cells=[(0, 0)])
+    match.boards['B'].ships = [ship]
+    match.boards['B'].grid[0][0] = 1
+    match.boards['A'].highlight = [(0, 0)]
+
+    for b in match.boards.values():
+        if b.highlight:
+            for rr, cc in b.highlight:
+                if _get_cell_state(match.history[rr][cc]) == 0 and _get_cell_state(b.grid[rr][cc]) != 1:
+                    _set_cell_state(match.history, rr, cc, 2)
+        b.highlight = []
+
+    assert _get_cell_state(match.history[0][0]) == 2
+
+
 def test_kill_contour_visible_to_all_players(monkeypatch):
     async def run_test():
         match = SimpleNamespace(

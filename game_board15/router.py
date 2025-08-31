@@ -145,9 +145,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     for b in match.boards.values():
         if b.highlight:
             for rr, cc in b.highlight:
-                if _get_cell_state(match.history[rr][cc]) == 0 and all(
-                    _get_cell_state(bb.grid[rr][cc]) != 1 for bb in match.boards.values()
-                ):
+                if _get_cell_state(match.history[rr][cc]) == 0 and _get_cell_state(b.grid[rr][cc]) != 1:
                     _set_cell_state(match.history, rr, cc, 2)
         b.highlight = []
 
