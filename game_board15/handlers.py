@@ -243,7 +243,6 @@ async def _auto_play_bots(
             match.last_highlight = [coord] + [c for c in cells if c != coord]
         else:
             match.last_highlight = [coord]
-        storage.save_match(match)
         for k in match.shots:
             shots = match.shots[k]
             shots.setdefault('move_count', 0)
@@ -258,8 +257,6 @@ async def _auto_play_bots(
         else:
             next_player = current
         match.turn = next_player
-
-        storage.save_match(match)
 
         parts_self: list[str] = []
         watch_parts: list[str] = []
@@ -299,6 +296,8 @@ async def _auto_play_bots(
         next_label = match.players.get(next_player)
         next_name = getattr(next_label, 'name', '') or next_player
 
+        storage.save_match(match)
+
         for player_key, msg_body in enemy_msgs.items():
             if match.players[player_key].user_id != 0:
                 next_phrase = f" Следующим ходит {next_name}."
@@ -312,8 +311,6 @@ async def _auto_play_bots(
                         f"Ход игрока {player_label}: {coord_str} - {body} {phrase_self}{next_phrase}"
                     )
                 await _safe_send_state(player_key, msg_text)
-
-        storage.save_match(match)
 
         finished = False
         for enemy in eliminated:
