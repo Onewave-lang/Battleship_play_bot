@@ -204,7 +204,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         for enemy, res in results.items():
             if res == battle.KILL:
                 cells.extend(match.boards[enemy].highlight)
-        match.last_highlight = cells.copy()
+        match.last_highlight = [coord] + [c for c in cells if c != coord]
         match.shots[player_key]["last_result"] = "kill"
     elif any(res == battle.HIT for res in results.values()):
         match.last_highlight = [coord]
