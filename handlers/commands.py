@@ -23,6 +23,12 @@ _WELCOME_PLACEHOLDER = base64.b64decode(
 )
 
 BOARD15_TEST_ENABLED = os.getenv("BOARD15_TEST_ENABLED") == "1"
+_ADMIN_ID_RAW = os.getenv("ADMIN_ID")
+try:
+    ADMIN_ID = int(_ADMIN_ID_RAW) if _ADMIN_ID_RAW is not None else None
+except (TypeError, ValueError):
+    logger.warning("Invalid ADMIN_ID provided: %s", _ADMIN_ID_RAW)
+    ADMIN_ID = None
 
 
 @contextmanager
@@ -126,6 +132,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 InlineKeyboardButton('Игра втроем', callback_data='mode_3'),
             ]
         ]
+        if ADMIN_ID is not None and update.effective_user and update.effective_user.id == ADMIN_ID:
+            buttons.append([InlineKeyboardButton('Тест 2 игроков', callback_data='mode_test2')])
         if BOARD15_TEST_ENABLED:
             buttons.append([InlineKeyboardButton('Тест 3 игроков', callback_data='mode_test3')])
         keyboard = InlineKeyboardMarkup(buttons)
@@ -303,5 +311,7 @@ async def choose_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         )
     elif query.data == 'mode_3':
         await query.message.reply_text('Используйте /board15 для игры втроем на поле 15×15.')
+    elif query.data == 'mode_test2':
+        await query.message.reply_text('Используйте /boardtest2 для тестовой игры вдвоем.')
     elif query.data == 'mode_test3':
         await query.message.reply_text('Используйте /board15test для тестовой игры втроем.')
