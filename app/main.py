@@ -25,7 +25,8 @@ from handlers.commands import (
     confirm_newgame,
     confirm_join,
 )
-from handlers.router import router_text
+from handlers.board_test import board_test_two
+from handlers.router import router_text, router_text_board_test_two
 
 BOARD15_ENABLED = os.getenv("BOARD15_ENABLED") == "1"
 BOARD15_TEST_ENABLED = os.getenv("BOARD15_TEST_ENABLED") == "1"
@@ -70,6 +71,7 @@ bot_app = ApplicationBuilder().token(token).updater(None).build()
 bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(CommandHandler("newgame", newgame))
 bot_app.add_handler(CommandHandler("board", board))
+bot_app.add_handler(CommandHandler("boardtest2", board_test_two))
 bot_app.add_handler(CommandHandler(["quit", "exit"], quit_game))
 bot_app.add_handler(CallbackQueryHandler(send_invite_link, pattern="^get_link$"))
 bot_app.add_handler(CallbackQueryHandler(choose_mode, pattern="^mode_test2$"))
@@ -81,6 +83,10 @@ if BOARD15_ENABLED:
     bot_app.add_handler(CallbackQueryHandler(send_board15_invite_link, pattern="^b15_get_link$"))
     if BOARD15_TEST_ENABLED:
         bot_app.add_handler(CommandHandler("board15test", board15_test))
+bot_app.add_handler(
+    MessageHandler(filters.TEXT & ~filters.COMMAND, router_text_board_test_two),
+    block=False,
+)
 bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, router_text))
 
 
