@@ -2,6 +2,7 @@ from __future__ import annotations
 import random
 import os
 import asyncio
+import logging
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationHandlerStop, ContextTypes
 
@@ -25,6 +26,28 @@ from logic.phrases import (
     random_phrase,
     random_joke,
 )
+
+
+logger = logging.getLogger(__name__)
+
+
+def _log_router_skip(
+    reason: str,
+    *,
+    match,
+    user_id: int,
+    text_raw: str,
+    level: str = "info",
+) -> None:
+    log_method = getattr(logger, level, logger.info)
+    context = {
+        "user_id": user_id,
+        "text_raw": text_raw,
+        "match_id": getattr(match, "match_id", None),
+        "match_status": getattr(match, "status", None),
+        "match_turn": getattr(match, "turn", None),
+    }
+    log_method("%s | context=%s", reason, context)
 
 
 def _cell_state(cell):
@@ -374,6 +397,12 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await router15.router_text(update, context)
             return
     if not match:
+        _log_router_skip(
+            "No active match for user",
+            match=match,
+            user_id=user_id,
+            text_raw=text_raw,
+        )
         await update.message.reply_text('Вы не участвуете в матче. Используйте /newgame.')
         return
 
@@ -426,6 +455,13 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 )
         else:
             await update.message.reply_text('Введите "авто" для автоматической расстановки.')
+            _log_router_skip(
+                'User provided manual placement input while match in placing status',
+                match=match,
+                user_id=user_id,
+                text_raw=text_raw,
+                level="warning",
+            )
         return
 
     if match.status != 'playing':
@@ -433,15 +469,34 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await update.message.reply_text('Матч ещё не начался. Ожидаем соперника.')
         else:
             await update.message.reply_text('Матч ещё не начался.')
+        _log_router_skip(
+            'Match not ready for playing state',
+            match=match,
+            user_id=user_id,
+            text_raw=text_raw,
+        )
         return
 
     if match.turn != player_key:
         await _send_state(context, match, player_key, 'Сейчас ход соперника.')
+        _log_router_skip(
+            "Player attempted move out of turn",
+            match=match,
+            user_id=user_id,
+            text_raw=text_raw,
+        )
         return
 
     coord = parse_coord(text)
     if coord is None:
         await _send_state(context, match, player_key, 'Не понял клетку. Пример: е5 или д10.')
+        _log_router_skip(
+            'Failed to parse coordinate from input',
+            match=match,
+            user_id=user_id,
+            text_raw=text_raw,
+            level="warning",
+        )
         return
 
     for b in match.boards.values():
