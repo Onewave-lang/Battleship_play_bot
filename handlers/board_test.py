@@ -3,13 +3,14 @@ from __future__ import annotations
 import asyncio
 import random
 import logging
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 
 import storage
 from models import Player
 from logic import placement, parser
 from logic import battle_test as battle
+from logic.battle import apply_shot, MISS, HIT, KILL, REPEAT
 from logic.phrases import (
     ENEMY_HIT,
     ENEMY_KILL,
@@ -245,6 +246,134 @@ async def _auto_play_bots(
             break
 
 
+async def _auto_play_bot(
+    match,
+    context: ContextTypes.DEFAULT_TYPE,
+    chat_id: int,
+    human: str = "A",
+    bot: str = "B",
+    delay: float = 0.0,
+) -> None:
+    """Automatically perform moves for the bot opponent in two-player tests."""
+
+    logger = logging.getLogger(__name__)
+
+    async def _safe_send_state(player_key: str, message: str) -> None:
+        from . import router as router_module
+
+        try:
+            await router_module._send_state(context, match, player_key, message)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Failed to send state to %s", player_key)
+
+    async def _safe_send_message(chat_id_: int, text: str, **kwargs) -> None:
+        try:
+            await context.bot.send_message(chat_id_, text, **kwargs)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Failed to send message to chat %s", chat_id_)
+
+    coords = [(r, c) for r in range(10) for c in range(10)]
+
+    while True:
+        refreshed = storage.get_match(match.match_id)
+        if refreshed is not None:
+            match = refreshed
+        if match.status != "playing" or bot not in match.players:
+            break
+        if match.boards[human].alive_cells <= 0:
+            break
+        if match.turn != bot:
+            await asyncio.sleep(0.5)
+            continue
+        if delay:
+            await asyncio.sleep(delay)
+
+        board = match.boards[human]
+        coord = None
+        for pt in coords:
+            r, c = pt
+            state = _cell_state(board.grid[r][c])
+            if state not in (2, 3, 4, 5):
+                coord = pt
+                break
+        if coord is None:
+            break
+
+        for b in match.boards.values():
+            b.highlight = []
+
+        result = apply_shot(board, coord)
+        coord_str = parser.format_coord(coord)
+        bot_shots = match.shots.setdefault(bot, {})
+        bot_shots.setdefault("history", []).append(coord_str)
+        bot_shots["last_coord"] = coord
+        bot_shots["last_result"] = result
+        for key in (human, bot):
+            shots = match.shots.setdefault(key, {})
+            shots.setdefault("move_count", 0)
+            shots.setdefault("joke_start", random.randint(1, 10))
+            shots["move_count"] += 1
+
+        if result == MISS:
+            match.turn = human
+            phrase_enemy = _phrase_or_joke(match, human, ENEMY_MISS).rstrip()
+            message = (
+                f"Ход соперника: {coord_str} — Промах. {phrase_enemy} Следующим ходите вы."
+            )
+        elif result == HIT:
+            match.turn = bot
+            phrase_enemy = _phrase_or_joke(match, human, ENEMY_HIT).rstrip()
+            message = (
+                f"Ход соперника: {coord_str} — Ваш корабль ранен. {phrase_enemy} Следующим ходит соперник."
+            )
+        elif result == REPEAT:
+            match.turn = bot
+            phrase_enemy = _phrase_or_joke(match, human, ENEMY_MISS).rstrip()
+            message = (
+                f"Ход соперника: {coord_str} — Клетка уже обстреляна. {phrase_enemy} Следующим ходит соперник."
+            )
+        elif result == KILL:
+            phrase_enemy = _phrase_or_joke(match, human, ENEMY_KILL).rstrip()
+            if board.alive_cells == 0:
+                message = (
+                    f"Ход соперника: {coord_str} — Ваш корабль уничтожен. {phrase_enemy}"
+                    " Все ваши корабли уничтожены. Бот победил!"
+                )
+                storage.finish(match, bot)
+                await _safe_send_state(human, message)
+                keyboard = ReplyKeyboardMarkup(
+                    [["Начать новую игру"]],
+                    one_time_keyboard=True,
+                    resize_keyboard=True,
+                )
+                await _safe_send_message(
+                    match.players[human].chat_id,
+                    "Игра завершена!",
+                    reply_markup=keyboard,
+                )
+                break
+            match.turn = bot
+            message = (
+                f"Ход соперника: {coord_str} — Ваш корабль уничтожен. {phrase_enemy}"
+                " Следующим ходит соперник."
+            )
+        else:
+            match.turn = human
+            message = (
+                f"Ход соперника: {coord_str} — Техническая ошибка. Следующим ходите вы."
+            )
+
+        storage.save_match(match)
+        await _safe_send_state(human, message)
+
+        if match.status == "finished":
+            break
+
+
 async def board_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Start a three-player test match with two dummy opponents."""
 
@@ -277,5 +406,60 @@ async def board_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     asyncio.create_task(
         _auto_play_bots(
             match, context, update.effective_chat.id, human="A", delay=5
+        )
+    )
+
+
+async def board_test_two(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Start a two-player test match against a bot opponent."""
+
+    message = getattr(update, "message", None)
+    if message is None and getattr(update, "callback_query", None):
+        message = update.callback_query.message
+    if message is None:
+        return
+
+    chat = update.effective_chat
+    user = update.effective_user
+    match = storage.create_match(user.id, chat.id)
+    match.players["B"] = Player(user_id=0, chat_id=chat.id)
+    match.players["A"].ready = True
+    match.players["B"].ready = True
+    match.status = "playing"
+    match.turn = "A"
+
+    board_a = placement.random_board()
+    board_a.owner = "A"
+    match.boards["A"] = board_a
+    board_b = placement.random_board()
+    board_b.owner = "B"
+    match.boards["B"] = board_b
+
+    flags = match.messages.setdefault("_flags", {})
+    flags["mode_test2"] = True
+
+    storage.save_match(match)
+
+    from . import router as router_module
+
+    await message.reply_text(
+        "Тестовый матч начат. Вы — игрок A; бот будет ходить автоматически."
+    )
+
+    await router_module._send_state(
+        context,
+        match,
+        "A",
+        "Выберите клетку или введите ход текстом.",
+    )
+
+    asyncio.create_task(
+        _auto_play_bot(
+            match,
+            context,
+            chat.id,
+            human="A",
+            bot="B",
+            delay=2,
         )
     )

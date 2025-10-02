@@ -3,7 +3,7 @@ import random
 import os
 import asyncio
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram.ext import ApplicationHandlerStop, ContextTypes
 
 import storage
 from logic.parser import parse_coord, format_coord
@@ -14,7 +14,7 @@ from logic.render import render_board_own, render_board_enemy
 from models import Board
 from handlers.commands import newgame
 from .move_keyboard import move_keyboard
-from .board_test import board_test
+from .board_test import board_test, board_test_two
 from logic.phrases import (
     ENEMY_HIT,
     ENEMY_KILL,
@@ -204,6 +204,146 @@ def _phrase_or_joke(match, player_key: str, phrases: list[str]) -> str:
     return f"{random_phrase(phrases)} "
 
 
+async def _handle_board_test_two(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    match=None,
+) -> bool:
+    """Handle two-player test mode turns. Return ``True`` when processed."""
+
+    user_id = update.effective_user.id
+    text_raw = update.message.text
+    text = text_raw.strip()
+    if match is None:
+        match = storage.find_match_by_user(user_id, update.effective_chat.id)
+    if not match:
+        return False
+    flags = match.messages.get("_flags", {}) if isinstance(match.messages, dict) else {}
+    if not flags.get("mode_test2"):
+        return False
+
+    player_key = "A"
+    enemy_key = "B"
+
+    if match.status != "playing":
+        await update.message.reply_text("Матч ещё не начался.")
+        return True
+
+    if match.turn != player_key:
+        await _send_state(context, match, player_key, "Сейчас ход соперника.")
+        return True
+
+    coord = parse_coord(text)
+    if coord is None:
+        await _send_state(context, match, player_key, "Не понял клетку. Пример: е5 или д10.")
+        return True
+
+    for b in match.boards.values():
+        b.highlight = []
+
+    result = apply_shot(match.boards[enemy_key], coord)
+    match.shots[player_key]["history"].append(text)
+    match.shots[player_key]["last_result"] = result
+    match.shots[player_key]["last_coord"] = coord
+    for key in (player_key, enemy_key):
+        shots = match.shots.setdefault(key, {})
+        shots.setdefault("move_count", 0)
+        shots.setdefault("joke_start", random.randint(1, 10))
+        shots["move_count"] += 1
+
+    coord_str = format_coord(coord)
+    player_label = getattr(match.players[player_key], "name", "") or player_key
+
+    if result == MISS:
+        match.turn = enemy_key
+        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
+        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_MISS)
+        result_self = (
+            f"Ваш ход: {coord_str} — Мимо. {phrase_self} Следующим ходит соперник."
+        )
+        result_enemy = (
+            f"Ход игрока {player_label}: {coord_str} — Соперник промахнулся. {phrase_enemy}"
+            " Следующим ходит соперник."
+        )
+    elif result == HIT:
+        match.turn = player_key
+        phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
+        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_HIT)
+        result_self = (
+            f"Ваш ход: {coord_str} — Ранил. {phrase_self} Следующим ходит игрок A."
+        )
+        result_enemy = (
+            f"Ход игрока {player_label}: {coord_str} — Соперник ранил ваш корабль. {phrase_enemy}"
+            " Следующим ходит соперник."
+        )
+    elif result == REPEAT:
+        match.turn = player_key
+        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
+        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_MISS)
+        result_self = (
+            f"Ваш ход: {coord_str} — Клетка уже обстреляна. {phrase_self} Следующим ходит игрок A."
+        )
+        result_enemy = (
+            f"Ход игрока {player_label}: {coord_str} — Соперник стрелял по уже обстрелянной клетке."
+            f" {phrase_enemy} Следующим ходит соперник."
+        )
+    elif result == KILL:
+        phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
+        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_KILL)
+        if match.boards[enemy_key].alive_cells == 0:
+            storage.finish(match, player_key)
+            result_self = (
+                f"Ваш ход: {coord_str} — Корабль соперника уничтожен! {phrase_self}"
+                " Вы победили!🏆"
+            )
+            result_enemy = (
+                f"Ход игрока {player_label}: {coord_str} — Соперник уничтожил ваш корабль. {phrase_enemy}"
+                " Все ваши корабли уничтожены. Игрок A победил!"
+            )
+        else:
+            match.turn = player_key
+            result_self = (
+                f"Ваш ход: {coord_str} — Корабль соперника уничтожен! {phrase_self}"
+                " Следующим ходит игрок A."
+            )
+            result_enemy = (
+                f"Ход игрока {player_label}: {coord_str} — Соперник уничтожил ваш корабль. {phrase_enemy}"
+                " Следующим ходит соперник."
+            )
+    else:
+        match.turn = enemy_key
+        result_self = f"Ваш ход: {coord_str} — Ошибка. Следующим ходит соперник."
+        result_enemy = (
+            f"Ход игрока {player_label}: {coord_str} — Техническая ошибка. Следующим ходит соперник."
+        )
+
+    storage.save_match(match)
+    await _send_state(context, match, player_key, result_self)
+    if match.players[enemy_key].user_id != 0:
+        await _send_state(context, match, enemy_key, result_enemy)
+    else:
+        match.messages.setdefault(enemy_key, {})["last_bot_message"] = result_enemy
+
+    if match.status == "finished":
+        keyboard = ReplyKeyboardMarkup(
+            [["Начать новую игру"]], one_time_keyboard=True, resize_keyboard=True
+        )
+        await context.bot.send_message(
+            match.players[player_key].chat_id,
+            "Игра завершена!",
+            reply_markup=keyboard,
+        )
+    return True
+
+
+async def router_text_board_test_two(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    handled = await _handle_board_test_two(update, context)
+    if handled:
+        raise ApplicationHandlerStop
+
+
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     text_raw = update.message.text
@@ -213,6 +353,9 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await newgame(update, context)
         return
     match = storage.find_match_by_user(user_id, update.effective_chat.id)
+    handled_test2 = await _handle_board_test_two(update, context, match)
+    if handled_test2:
+        return
     if not match and os.getenv("BOARD15_ENABLED") == "1":
         from game_board15 import storage as storage15, router as router15
         match15 = storage15.find_match_by_user(user_id, update.effective_chat.id)

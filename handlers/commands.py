@@ -13,6 +13,7 @@ import os
 
 import storage
 from logic.render import render_board_own, render_board_enemy
+from .board_test import board_test_two
 
 
 logger = logging.getLogger(__name__)
@@ -312,6 +313,11 @@ async def choose_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     elif query.data == 'mode_3':
         await query.message.reply_text('Используйте /board15 для игры втроем на поле 15×15.')
     elif query.data == 'mode_test2':
-        await query.message.reply_text('Используйте /boardtest2 для тестовой игры вдвоем.')
+        fake_update = SimpleNamespace(
+            message=query.message,
+            effective_user=query.from_user,
+            effective_chat=query.message.chat,
+        )
+        await board_test_two(fake_update, context)
     elif query.data == 'mode_test3':
         await query.message.reply_text('Используйте /board15test для тестовой игры втроем.')
