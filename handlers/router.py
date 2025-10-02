@@ -502,6 +502,19 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     for b in match.boards.values():
         b.highlight = []
 
+    logger.info(
+        "Preparing shot | context=%s",
+        {
+            "user_id": user_id,
+            "text_raw": text_raw,
+            "match_id": getattr(match, "match_id", None),
+            "match_turn": getattr(match, "turn", None),
+            "player_key": player_key,
+            "enemy_key": enemy_key,
+            "coord": coord,
+        },
+    )
+
     result = apply_shot(match.boards[enemy_key], coord)
     match.shots[player_key]['history'].append(text)
     match.shots[player_key]['last_result'] = result
@@ -515,6 +528,16 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     player_label = getattr(match.players[player_key], 'name', '') or player_key
     enemy_label = getattr(match.players[enemy_key], 'name', '') or enemy_key
     next_player = None
+
+    logger.info(
+        "Shot resolved | context=%s",
+        {
+            "user_id": user_id,
+            "match_id": getattr(match, "match_id", None),
+            "coord": coord,
+            "result": result,
+        },
+    )
 
     eliminated: list[str] = []
     if result == MISS:
@@ -587,6 +610,17 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         next_phrase_enemy = f" Следующим ходит {next_label}."
         result_self = f"Ваш ход: {coord_str} — Ошибка.{next_phrase_self}"
         result_enemy = f"Ход игрока {player_label}: {coord_str} — Техническая ошибка.{next_phrase_enemy}"
+
+    logger.info(
+        "Post-shot state | context=%s",
+        {
+            "user_id": user_id,
+            "match_id": getattr(match, "match_id", None),
+            "result": result,
+            "match_turn": getattr(match, "turn", None),
+            "next_player": next_player,
+        },
+    )
 
     if error:
         msg = 'Произошла техническая ошибка. Ход прерван.'
