@@ -28,6 +28,9 @@ from handlers.commands import (
 from handlers.board_test import board_test_two
 from handlers.router import router_text, router_text_board_test_two
 
+from app.webhook_utils import normalize_webhook_base
+
+
 BOARD15_ENABLED = os.getenv("BOARD15_ENABLED") == "1"
 BOARD15_TEST_ENABLED = os.getenv("BOARD15_TEST_ENABLED") == "1"
 if BOARD15_ENABLED:
@@ -43,13 +46,15 @@ token = os.getenv("BOT_TOKEN")
 if not token:
     raise RuntimeError("BOT_TOKEN environment variable is not set")
 
-webhook_url = os.getenv("WEBHOOK_URL")
-if not webhook_url:
+webhook_url_raw = os.getenv("WEBHOOK_URL")
+if not webhook_url_raw:
     raise RuntimeError("WEBHOOK_URL environment variable is not set")
-webhook_url = webhook_url.rstrip("/")
+webhook_url = normalize_webhook_base(webhook_url_raw)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+logger.info("Using webhook base URL %s", webhook_url)
 
 
 def _handle_exit(sig: int, frame: object | None) -> None:
