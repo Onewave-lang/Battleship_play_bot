@@ -8,6 +8,36 @@ from models import Board, Ship
 import logic.phrases as phrases
 
 
+def test_router_test_mode_skips_commands(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            status='playing',
+            players={'A': SimpleNamespace(user_id=1, chat_id=10),
+                     'B': SimpleNamespace(user_id=2, chat_id=20)},
+            boards={'A': SimpleNamespace(), 'B': SimpleNamespace()},
+            turn='A',
+            shots={'A': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10},
+                   'B': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10}},
+            messages={'_flags': {'mode_test2': True}},
+        )
+        monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
+        send_message = AsyncMock()
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message, delete_message=AsyncMock()))
+        update = SimpleNamespace(
+            message=SimpleNamespace(
+                text='/quit',
+                entities=[SimpleNamespace(type='bot_command', offset=0, length=5)],
+                reply_text=AsyncMock(),
+            ),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
+        handled = await router._handle_board_test_two(update, context)
+        assert handled is False
+        assert send_message.call_count == 0
+    asyncio.run(run_test())
+
+
 def test_router_invalid_cell_shows_board(monkeypatch):
     async def run_test():
         match = SimpleNamespace(

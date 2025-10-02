@@ -211,8 +211,19 @@ async def _handle_board_test_two(
 ) -> bool:
     """Handle two-player test mode turns. Return ``True`` when processed."""
 
+    message = update.message
+    if not message:
+        return False
+
     user_id = update.effective_user.id
-    text_raw = update.message.text
+    text_raw = message.text or ""
+    if text_raw.startswith("/"):
+        return False
+
+    for entity in getattr(message, "entities", []) or []:
+        if getattr(entity, "type", "") == "bot_command" and getattr(entity, "offset", 0) == 0:
+            return False
+
     text = text_raw.strip()
     if match is None:
         match = storage.find_match_by_user(user_id, update.effective_chat.id)
