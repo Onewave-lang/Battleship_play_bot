@@ -1,4 +1,6 @@
 import asyncio
+import importlib
+import sys
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, call
 
@@ -6,6 +8,49 @@ import storage
 from handlers import router
 from models import Board, Ship
 import logic.phrases as phrases
+
+
+def test_router_text_board_test_two_falls_through(monkeypatch):
+    monkeypatch.setenv("BOT_TOKEN", "TEST:TOKEN")
+    monkeypatch.setenv("WEBHOOK_URL", "https://example.com")
+
+    sys.modules.pop("app.main", None)
+    main = importlib.import_module("app.main")
+
+    handlers = list(main.bot_app.handlers.get(0, ()))
+    handler_board = next(
+        h for h in handlers if getattr(h.callback, "__name__", "") == "router_text_board_test_two"
+    )
+    handler_text = next(
+        h for h in handlers if getattr(h.callback, "__name__", "") == "router_text"
+    )
+
+    async def run_test():
+        handle_mock = AsyncMock(return_value=False)
+        monkeypatch.setattr(router, "_handle_board_test_two", handle_mock)
+
+        router_text_mock = AsyncMock()
+        monkeypatch.setattr(router, "router_text", router_text_mock)
+        monkeypatch.setattr(handler_text, "callback", router_text_mock, raising=False)
+
+        update = SimpleNamespace(
+            message=SimpleNamespace(text="hello"),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=2),
+        )
+        context = SimpleNamespace()
+
+        block_attr = getattr(handler_board, "block", True)
+        block_value = getattr(block_attr, "value", block_attr)
+        assert block_value is False
+
+        await handler_board.callback(update, context)
+        await handler_text.callback(update, context)
+
+        handle_mock.assert_awaited_once_with(update, context)
+        router_text_mock.assert_awaited_once_with(update, context)
+
+    asyncio.run(run_test())
 
 
 def test_router_test_mode_skips_commands(monkeypatch):
@@ -255,6 +300,7 @@ def test_router_at_sends_to_opponent(monkeypatch):
             turn='A',
             shots={'A': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10},
                    'B': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10}},
+            messages={},
         )
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
 

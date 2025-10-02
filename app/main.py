@@ -89,7 +89,11 @@ if BOARD15_ENABLED:
     if BOARD15_TEST_ENABLED:
         bot_app.add_handler(CommandHandler("board15test", board15_test))
 bot_app.add_handler(
-    MessageHandler(filters.TEXT & ~filters.COMMAND, router_text_board_test_two)
+    MessageHandler(
+        filters.TEXT & ~filters.COMMAND,
+        router_text_board_test_two,
+        block=False,
+    )
 )
 bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, router_text))
 
