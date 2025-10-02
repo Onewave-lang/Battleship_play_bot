@@ -90,7 +90,7 @@ if BOARD15_ENABLED:
         bot_app.add_handler(CommandHandler("board15test", board15_test))
 bot_app.add_handler(
     MessageHandler(
-        filters.TEXT & ~filters.COMMAND,
+        filters.Regex(r"^[a-oA-O](?:[1-9]|1[0-5])$"),
         router_text_board_test_two,
         block=False,
     )
