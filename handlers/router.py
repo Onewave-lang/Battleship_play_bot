@@ -2,6 +2,7 @@ from __future__ import annotations
 import random
 import os
 import asyncio
+import logging
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationHandlerStop, ContextTypes
 
@@ -25,6 +26,65 @@ from logic.phrases import (
     random_phrase,
     random_joke,
 )
+
+
+logger = logging.getLogger(__name__)
+
+
+def _build_router_context(
+    *,
+    match,
+    user_id: int,
+    text_raw: str,
+    **extra,
+) -> dict[str, object]:
+    context: dict[str, object] = {
+        "user_id": user_id,
+        "text_raw": text_raw,
+        "match_id": getattr(match, "match_id", None),
+        "match_status": getattr(match, "status", None),
+        "match_turn": getattr(match, "turn", None),
+    }
+    context.update({k: v for k, v in extra.items() if v is not None})
+    return context
+
+
+def _log_router_skip(
+    reason: str,
+    *,
+    match,
+    user_id: int,
+    text_raw: str,
+    level: str = "info",
+    **extra,
+) -> None:
+    log_method = getattr(logger, level, logger.info)
+    context = _build_router_context(
+        match=match,
+        user_id=user_id,
+        text_raw=text_raw,
+        **extra,
+    )
+    log_method("%s | context=%s", reason, context)
+
+
+def _log_router_event(
+    message: str,
+    *,
+    match,
+    user_id: int,
+    text_raw: str,
+    level: str = "info",
+    **extra,
+) -> None:
+    log_method = getattr(logger, level, logger.info)
+    context = _build_router_context(
+        match=match,
+        user_id=user_id,
+        text_raw=text_raw,
+        **extra,
+    )
+    log_method("%s | context=%s", message, context)
 
 
 def _cell_state(cell):
@@ -374,6 +434,12 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await router15.router_text(update, context)
             return
     if not match:
+        _log_router_skip(
+            "No active match for user",
+            match=match,
+            user_id=user_id,
+            text_raw=text_raw,
+        )
         await update.message.reply_text('Вы не участвуете в матче. Используйте /newgame.')
         return
 
@@ -426,6 +492,13 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 )
         else:
             await update.message.reply_text('Введите "авто" для автоматической расстановки.')
+            _log_router_skip(
+                'User provided manual placement input while match in placing status',
+                match=match,
+                user_id=user_id,
+                text_raw=text_raw,
+                level="warning",
+            )
         return
 
     if match.status != 'playing':
@@ -433,19 +506,50 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await update.message.reply_text('Матч ещё не начался. Ожидаем соперника.')
         else:
             await update.message.reply_text('Матч ещё не начался.')
+        _log_router_skip(
+            'Match not ready for playing state',
+            match=match,
+            user_id=user_id,
+            text_raw=text_raw,
+        )
         return
 
     if match.turn != player_key:
         await _send_state(context, match, player_key, 'Сейчас ход соперника.')
+        _log_router_skip(
+            "Player attempted move out of turn",
+            match=match,
+            user_id=user_id,
+            text_raw=text_raw,
+        )
         return
 
     coord = parse_coord(text)
     if coord is None:
         await _send_state(context, match, player_key, 'Не понял клетку. Пример: е5 или д10.')
+        _log_router_skip(
+            'Failed to parse coordinate from input',
+            match=match,
+            user_id=user_id,
+            text_raw=text_raw,
+            level="warning",
+        )
         return
 
     for b in match.boards.values():
         b.highlight = []
+
+    coord_str = format_coord(coord)
+    _log_router_event(
+        "Processing player shot",
+        match=match,
+        user_id=user_id,
+        text_raw=text_raw,
+        player_key=player_key,
+        enemy_key=enemy_key,
+        coord=coord,
+        coord_str=coord_str,
+    )
 
     result = apply_shot(match.boards[enemy_key], coord)
     match.shots[player_key]['history'].append(text)
@@ -456,7 +560,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         shots.setdefault('joke_start', random.randint(1, 10))
         shots['move_count'] += 1
     error = None
-    coord_str = format_coord(coord)
     player_label = getattr(match.players[player_key], 'name', '') or player_key
     enemy_label = getattr(match.players[enemy_key], 'name', '') or enemy_key
     next_player = None
@@ -532,6 +635,20 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         next_phrase_enemy = f" Следующим ходит {next_label}."
         result_self = f"Ваш ход: {coord_str} — Ошибка.{next_phrase_self}"
         result_enemy = f"Ход игрока {player_label}: {coord_str} — Техническая ошибка.{next_phrase_enemy}"
+
+    _log_router_event(
+        "Shot result prepared",
+        match=match,
+        user_id=user_id,
+        text_raw=text_raw,
+        player_key=player_key,
+        enemy_key=enemy_key,
+        coord=coord,
+        coord_str=coord_str,
+        result=result,
+        next_player=next_player,
+        eliminated=eliminated if eliminated else None,
+    )
 
     if error:
         msg = 'Произошла техническая ошибка. Ход прерван.'
