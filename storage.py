@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import json
+import os
 from pathlib import Path
 import logging
 from threading import Lock
@@ -8,7 +10,7 @@ from datetime import datetime
 
 from models import Match, Board
 
-DATA_FILE = Path("data.json")
+DATA_FILE = Path(os.getenv("DATA_FILE_PATH", "/var/data/data.json"))
 _lock = Lock()
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,7 @@ def _load_all() -> Dict[str, dict]:
 def _save_all(data: Dict[str, dict]) -> str | None:
     tmp_file = DATA_FILE.with_suffix('.tmp')
     try:
+        DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
         with tmp_file.open("w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         tmp_file.replace(DATA_FILE)
