@@ -176,13 +176,32 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     coord_str = parser.format_coord(coord)
     before_history = [[_get_cell_state(cell) for cell in row] for row in match.history]
     battle.update_history(match.history, match.boards, coord, results)
-    if [[_get_cell_state(cell) for cell in row] for row in match.history] == before_history:
+    after_history = [[_get_cell_state(cell) for cell in row] for row in match.history]
+    history_unchanged = after_history == before_history
+    history_empty = all(all(state == 0 for state in row) for row in after_history)
+    if history_unchanged:
         logger.warning("History unchanged after shot %s", coord_str)
-    if all(
-        all(_get_cell_state(cell) == 0 for cell in row)
-        for row in match.history
-    ):
+    if history_empty:
         logger.warning("History is empty after shot %s", coord_str)
+    if history_unchanged or history_empty:
+        if any(res == battle.KILL for res in results.values()):
+            best_value = 4
+            owner = next(
+                (enemy for enemy, res in results.items() if res == battle.KILL),
+                None,
+            )
+        elif any(res == battle.HIT for res in results.values()):
+            best_value = 3
+            owner = next(
+                (enemy for enemy, res in results.items() if res == battle.HIT),
+                None,
+            )
+        else:
+            best_value = 2
+            owner = None
+        if owner is None:
+            owner = _get_cell_owner(match.history[r][c])
+        _set_cell_state(match.history, r, c, best_value, owner)
     if any(res == battle.KILL for res in results.values()):
         cells: list[tuple[int, int]] = []
         for enemy, res in results.items():
