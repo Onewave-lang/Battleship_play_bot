@@ -31,7 +31,7 @@ def format_cell(symbol: str) -> str:
     return symbol + " " * pad
 
 
-COL_NUMBERS = ''.join(format_cell(str(i)) for i in range(1, 11))
+COL_HEADERS = ''.join(format_cell(letter) for letter in ROWS)
 
 
 def _render_line(cells: List[str]) -> str:
@@ -50,7 +50,7 @@ def _resolve_cell(v: Union[int, Tuple[int, str]]) -> Tuple[int, str | None]:
 
 
 def render_board_own(board: Board) -> str:
-    header = format_cell("") + "|" + " " + COL_NUMBERS
+    header = format_cell("") + "|" + " " + COL_HEADERS
     lines = [header]
     highlight = set(board.highlight)
     for r_idx, row in enumerate(board.grid):
@@ -76,13 +76,13 @@ def render_board_own(board: Board) -> str:
                 else:
                     sym = f"<b>{sym}</b>"
             cells.append(format_cell(sym))
-        row_label = format_cell(ROWS[r_idx])
+        row_label = format_cell(str(r_idx + 1))
         lines.append(f"{row_label}| " + _render_line(cells))
     return '<pre>' + '\n'.join(lines) + '</pre>'
 
 
 def render_board_enemy(board: Board) -> str:
-    header = format_cell("") + "|" + " " + COL_NUMBERS
+    header = format_cell("") + "|" + " " + COL_HEADERS
     lines = [header]
     highlight = set(board.highlight)
     for r_idx, row in enumerate(board.grid):
@@ -106,6 +106,6 @@ def render_board_enemy(board: Board) -> str:
                 else:
                     sym = f"<b>{sym}</b>"
             cells.append(format_cell(sym))
-        row_label = format_cell(ROWS[r_idx])
+        row_label = format_cell(str(r_idx + 1))
         lines.append(f"{row_label}| " + _render_line(cells))
     return '<pre>' + '\n'.join(lines) + '</pre>'

@@ -1,4 +1,5 @@
 from logic.render import render_board_own, render_board_enemy
+from logic.parser import ROWS
 from logic.battle import apply_shot, KILL
 from models import Board, Ship
 from tests.utils import _new_grid, _state
@@ -97,3 +98,24 @@ def test_render_state5_symbol():
 
     assert '·' in own
     assert 'x' in enemy
+
+
+def _extract_lines(rendered: str):
+    assert rendered.startswith('<pre>')
+    assert rendered.endswith('</pre>')
+    inner = rendered[len('<pre>'):-len('</pre>')]
+    inner = inner.strip('\n')
+    return inner.split('\n')
+
+
+def test_render_axis_labels():
+    board = Board()
+    own_lines = _extract_lines(render_board_own(board))
+    enemy_lines = _extract_lines(render_board_enemy(board))
+
+    expected_header = ' '.join(ROWS)
+    for lines in (own_lines, enemy_lines):
+        header = lines[0].split('|', 1)[1].strip()
+        assert header == expected_header
+        row_labels = [line.split('|', 1)[0].strip() for line in lines[1:]]
+        assert row_labels == [str(i) for i in range(1, 11)]
