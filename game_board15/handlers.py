@@ -481,7 +481,7 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     }
     storage.save_match(match)
     _schedule_auto_play(
-        match, context, update.effective_chat.id, human='A', delay=5
+        match, context, update.effective_chat.id, human='A', delay=3
     )
 
 
