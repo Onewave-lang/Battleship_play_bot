@@ -10,7 +10,7 @@ from models import Board, Ship
 import logic.phrases as phrases
 
 
-def test_router_text_board_test_two_falls_through(monkeypatch):
+def test_router_text_board_test_two_not_registered(monkeypatch):
     monkeypatch.setenv("BOT_TOKEN", "TEST:TOKEN")
     monkeypatch.setenv("WEBHOOK_URL", "https://example.com")
 
@@ -18,37 +18,121 @@ def test_router_text_board_test_two_falls_through(monkeypatch):
     main = importlib.import_module("app.main")
 
     handlers = list(main.bot_app.handlers.get(0, ()))
-    handler_board = next(
-        h for h in handlers if getattr(h.callback, "__name__", "") == "router_text_board_test_two"
-    )
-    handler_text = next(
-        h for h in handlers if getattr(h.callback, "__name__", "") == "router_text"
-    )
+    callbacks = {getattr(h.callback, "__name__", "") for h in handlers}
 
+    assert "router_text" in callbacks
+    assert "router_text_board_test_two" not in callbacks
+
+
+def test_router_text_handles_latin_coords_standard_match(monkeypatch):
     async def run_test():
-        handle_mock = AsyncMock(return_value=False)
-        monkeypatch.setattr(router, "_handle_board_test_two", handle_mock)
-
-        router_text_mock = AsyncMock()
-        monkeypatch.setattr(router, "router_text", router_text_mock)
-        monkeypatch.setattr(handler_text, "callback", router_text_mock, raising=False)
-
-        update = SimpleNamespace(
-            message=SimpleNamespace(text="hello"),
-            effective_user=SimpleNamespace(id=1),
-            effective_chat=SimpleNamespace(id=2),
+        match = SimpleNamespace(
+            status="playing",
+            players={
+                "A": SimpleNamespace(user_id=1, chat_id=10, name="Player A"),
+                "B": SimpleNamespace(user_id=2, chat_id=20, name="Player B"),
+            },
+            boards={
+                "A": SimpleNamespace(highlight=[]),
+                "B": SimpleNamespace(highlight=[], alive_cells=5),
+            },
+            turn="A",
+            shots={
+                "A": {"history": [], "last_result": None, "move_count": 0, "joke_start": 10},
+                "B": {"history": [], "last_result": None, "move_count": 0, "joke_start": 10},
+            },
+            messages={},
         )
-        context = SimpleNamespace()
 
-        block_attr = getattr(handler_board, "block", True)
-        block_value = getattr(block_attr, "value", block_attr)
-        assert block_value is False
+        monkeypatch.setattr(storage, "find_match_by_user", lambda uid, chat_id=None: match)
+        monkeypatch.setattr(router, "render_board_own", lambda board: "own")
+        monkeypatch.setattr(router, "render_board_enemy", lambda board: "enemy")
+        monkeypatch.setattr(storage, "save_match", lambda m: None)
+        kb = object()
+        monkeypatch.setattr(router, "move_keyboard", lambda: kb)
+        monkeypatch.setattr(router, "parse_coord", lambda text: (0, 0))
+        monkeypatch.setattr(router, "format_coord", lambda coord: "a1")
+        monkeypatch.setattr(router, "random_phrase", lambda phrases: phrases[0])
+        monkeypatch.setattr(router, "random_joke", lambda: "JOKE")
 
-        await handler_board.callback(update, context)
-        await handler_text.callback(update, context)
+        apply_calls: list[tuple[object, tuple[int, int]]] = []
 
-        handle_mock.assert_awaited_once_with(update, context)
-        router_text_mock.assert_awaited_once_with(update, context)
+        def fake_apply(board, coord):
+            apply_calls.append((board, coord))
+            return router.MISS
+
+        monkeypatch.setattr(router, "apply_shot", fake_apply)
+
+        send_message = AsyncMock()
+        delete_message = AsyncMock()
+        context = SimpleNamespace(
+            bot=SimpleNamespace(send_message=send_message, delete_message=delete_message)
+        )
+        update = SimpleNamespace(
+            message=SimpleNamespace(text="a1", reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
+
+        await router.router_text(update, context)
+
+        assert apply_calls == [(match.boards["B"], (0, 0))]
+        assert match.turn == "B"
+        assert any("Ваш ход: a1" in call.args[1] for call in send_message.call_args_list)
+
+    asyncio.run(run_test())
+
+
+def test_router_text_handles_latin_coords_board_test_two(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            status="playing",
+            players={
+                "A": SimpleNamespace(user_id=1, chat_id=10, name="Player A"),
+                "B": SimpleNamespace(user_id=2, chat_id=20, name="Player B"),
+            },
+            boards={
+                "A": SimpleNamespace(highlight=[]),
+                "B": SimpleNamespace(highlight=[], alive_cells=5),
+            },
+            turn="A",
+            shots={
+                "A": {"history": [], "last_result": None, "move_count": 0, "joke_start": 10},
+                "B": {"history": [], "last_result": None, "move_count": 0, "joke_start": 10},
+            },
+            messages={"_flags": {"mode_test2": True}},
+        )
+
+        monkeypatch.setattr(storage, "find_match_by_user", lambda uid, chat_id=None: match)
+        monkeypatch.setattr(router, "parse_coord", lambda text: (0, 0))
+        monkeypatch.setattr(router, "format_coord", lambda coord: "a1")
+        monkeypatch.setattr(router, "random_phrase", lambda phrases: phrases[0])
+        monkeypatch.setattr(router, "random_joke", lambda: "JOKE")
+        monkeypatch.setattr(storage, "save_match", lambda m: None)
+
+        apply_calls: list[tuple[object, tuple[int, int]]] = []
+
+        def fake_apply(board, coord):
+            apply_calls.append((board, coord))
+            return router.MISS
+
+        monkeypatch.setattr(router, "apply_shot", fake_apply)
+
+        send_state = AsyncMock()
+        monkeypatch.setattr(router, "_send_state", send_state)
+
+        context = SimpleNamespace(bot=SimpleNamespace())
+        update = SimpleNamespace(
+            message=SimpleNamespace(text="a1", reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
+
+        await router.router_text(update, context)
+
+        assert apply_calls == [(match.boards["B"], (0, 0))]
+        assert match.turn == "B"
+        send_state.assert_awaited()
 
     asyncio.run(run_test())
 
