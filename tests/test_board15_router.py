@@ -17,7 +17,7 @@ sys.modules.setdefault('PIL', pil)
 
 from game_board15 import router, storage
 from game_board15.models import Board15, Ship
-from game_board15.utils import _get_cell_state
+from game_board15.utils import _get_cell_state, _get_cell_owner
 
 
 def test_router_auto_sends_boards(monkeypatch):
@@ -115,6 +115,109 @@ def test_last_highlight_persists_after_kill(monkeypatch):
         assert match.last_highlight == [(0, 0)]
         board_enemy.highlight.clear()
         assert match.last_highlight == [(0, 0)]
+
+    asyncio.run(run_test())
+
+
+@pytest.mark.parametrize(
+    "scenario, expected_state, expected_owner",
+    [
+        ("miss", 2, None),
+        ("hit", 3, "B"),
+        ("kill", 4, "B"),
+    ],
+)
+def test_router_text_fallback_stamps_cell(monkeypatch, scenario, expected_state, expected_owner):
+    async def run_test():
+        coord = (1, 1)
+        board_self = Board15()
+        board_enemy = Board15()
+        if scenario == "hit":
+            ship = Ship(cells=[coord, (1, 2)])
+            board_enemy.ships = [ship]
+            board_enemy.grid[1][1] = 1
+            board_enemy.grid[1][2] = 1
+            board_enemy.alive_cells = len(ship.cells)
+        elif scenario == "kill":
+            ship = Ship(cells=[coord])
+            board_enemy.ships = [ship]
+            board_enemy.grid[1][1] = 1
+            board_enemy.alive_cells = len(ship.cells)
+        match = SimpleNamespace(
+            status="playing",
+            players={
+                "A": SimpleNamespace(user_id=1, chat_id=10, name="A"),
+                "B": SimpleNamespace(user_id=2, chat_id=20, name="B"),
+            },
+            boards={"A": board_self, "B": board_enemy},
+            turn="A",
+            shots={
+                "A": {"history": [], "move_count": 0, "joke_start": 10},
+                "B": {"history": [], "move_count": 0, "joke_start": 10},
+            },
+            messages={"A": {}, "B": {}},
+            history=_new_grid(15),
+            last_highlight=[],
+        )
+
+        monkeypatch.setattr(storage, "find_match_by_user", lambda uid, chat_id=None: match)
+        monkeypatch.setattr(storage, "save_match", lambda m: None)
+        monkeypatch.setattr(storage, "finish", lambda m, winner: None)
+        monkeypatch.setattr(router.parser, "parse_coord", lambda text: coord)
+        monkeypatch.setattr(router.parser, "format_coord", lambda coord: "b2")
+        monkeypatch.setattr(router, "_phrase_or_joke", lambda m, pk, ph: "")
+
+        original_update_history = router.battle.update_history
+
+        def fake_update_history(history, boards, coord_local, results):
+            original_update_history(history, boards, coord_local, results)
+            r_local, c_local = coord_local
+            other_r, other_c = (0, 0)
+            if (other_r, other_c) == coord_local:
+                other_c = 1
+            other_cell = history[other_r][other_c]
+            if isinstance(other_cell, list):
+                other_cell[0] = 9
+            else:
+                history[other_r][other_c] = [9, None]
+            cell = history[r_local][c_local]
+            if isinstance(cell, list):
+                cell[0] = 0
+                if len(cell) > 1:
+                    cell[1] = None
+            else:
+                history[r_local][c_local] = [0, None]
+
+        monkeypatch.setattr(router.battle, "update_history", fake_update_history)
+
+        send_state_calls = 0
+
+        async def fake_send_state(context, match_obj, key, message):
+            nonlocal send_state_calls
+            send_state_calls += 1
+            cell = match_obj.history[coord[0]][coord[1]]
+            assert _get_cell_state(cell) == expected_state
+            if expected_owner is None:
+                assert _get_cell_owner(cell) is None
+            else:
+                assert _get_cell_owner(cell) == expected_owner
+
+        monkeypatch.setattr(router, "_send_state", fake_send_state)
+
+        update = SimpleNamespace(
+            message=SimpleNamespace(text="b2", reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
+        context = SimpleNamespace(
+            bot=SimpleNamespace(send_message=AsyncMock()),
+            chat_data={},
+            bot_data={},
+        )
+
+        await router.router_text(update, context)
+
+        assert send_state_calls > 0
 
     asyncio.run(run_test())
 
