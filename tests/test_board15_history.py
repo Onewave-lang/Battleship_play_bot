@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 from game_board15 import handlers, router, storage
 from game_board15.battle import apply_shot, update_history, KILL, HIT, MISS
-from game_board15.models import Board15, Ship, Match15
+from game_board15.models import Board15, Ship, Match15, Player
 from game_board15.utils import _get_cell_state, _get_cell_owner, _set_cell_state
 from tests.utils import _new_grid, _state
 
@@ -140,6 +140,121 @@ def test_multiple_hits_recorded(monkeypatch):
 
         assert captured['A'][coord[0]][coord[1]] == 3
         assert captured['B'][coord[0]][coord[1]] == 3
+
+    asyncio.run(run_test())
+
+
+def test_shared_chat_board_hides_enemy_ships(monkeypatch):
+    async def run_test():
+        shared_chat = 555
+        match = Match15.new(1, shared_chat, "A")
+        match.players['A'].name = 'A'
+        match.players['B'] = Player(user_id=2, chat_id=shared_chat, name='B')
+        match.status = 'playing'
+        match.turn = 'A'
+        match.history = _new_grid(15)
+        match.snapshots = []
+        match.last_highlight = []
+        match.messages = {key: {} for key in ('A', 'B')}
+        match.boards['A'] = Board15()
+        match.boards['B'] = Board15()
+        match.boards.pop('C', None)
+        ship_a = Ship(cells=[(2, 2)])
+        match.boards['A'].ships = [ship_a]
+        match.boards['A'].grid[2][2] = 1
+        match.boards['A'].alive_cells = len(ship_a.cells)
+        ship_b = Ship(cells=[(0, 2)])
+        match.boards['B'].ships = [ship_b]
+        match.boards['B'].grid[0][2] = 1
+        match.boards['B'].alive_cells = len(ship_b.cells)
+        match.shots = {
+            'A': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10, 'last_coord': None},
+            'B': {'history': [], 'last_result': None, 'move_count': 0, 'joke_start': 10, 'last_coord': None},
+        }
+
+        monkeypatch.setattr(
+            router.storage,
+            'find_match_by_user',
+            lambda user_id, chat_id=None: match if chat_id == shared_chat else None,
+        )
+        monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(router, '_phrase_or_joke', lambda m, pk, ph: '')
+        coords = {'a1': (0, 0), 'c3': (2, 2)}
+        monkeypatch.setattr(router.parser, 'parse_coord', lambda text: coords.get(text))
+        monkeypatch.setattr(
+            router.parser,
+            'format_coord',
+            lambda coord: next((label for label, value in coords.items() if value == coord), 'a1'),
+        )
+
+        orig_send_state = router._send_state
+        send_state_calls: list[tuple[str, bool]] = []
+        history_snapshots: list[list[list[int]]] = []
+
+        async def capture_send_state(context, match_obj, player_key, message, *, reveal_ships=True):
+            send_state_calls.append((player_key, reveal_ships))
+            history_snapshots.append(
+                [[_get_cell_state(cell) for cell in row] for row in match_obj.history]
+            )
+            await orig_send_state(
+                context,
+                match_obj,
+                player_key,
+                message,
+                reveal_ships=reveal_ships,
+            )
+
+        monkeypatch.setattr(router, '_send_state', capture_send_state)
+
+        rendered: list[tuple[str, list[list[int]]]] = []
+
+        def fake_render_board(state, player_key=None):
+            rendered.append((player_key, [row[:] for row in state.board]))
+            return BytesIO(b'img')
+
+        monkeypatch.setattr(router, 'render_board', fake_render_board)
+
+        context = SimpleNamespace(
+            bot=SimpleNamespace(
+                send_message=AsyncMock(),
+                send_photo=AsyncMock(return_value=SimpleNamespace(message_id=1)),
+                edit_message_media=AsyncMock(),
+                edit_message_text=AsyncMock(),
+            ),
+            bot_data={},
+            chat_data={},
+        )
+
+        update_a = SimpleNamespace(
+            message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=shared_chat),
+        )
+
+        await router.router_text(update_a, context)
+        assert match.turn == 'B'
+
+        update_b = SimpleNamespace(
+            message=SimpleNamespace(text='c3', reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=2),
+            effective_chat=SimpleNamespace(id=shared_chat),
+        )
+
+        await router.router_text(update_b, context)
+
+        assert len(send_state_calls) == 2
+        assert send_state_calls == [('A', False), ('B', False)]
+        assert len(rendered) == len(history_snapshots) == 2
+        for idx, ((player_key, board), history_state) in enumerate(zip(rendered, history_snapshots)):
+            assert player_key in {'A', 'B'}
+            assert board == history_state
+            assert board[0][2] == 0
+            if idx == 0:
+                assert board[0][0] == 2
+                assert board[2][2] == 0
+            else:
+                assert board[0][0] == 2
+                assert board[2][2] == 4
 
     asyncio.run(run_test())
 
@@ -558,7 +673,7 @@ def test_router_text_patches_history_on_noop_update(monkeypatch):
 
         calls: list[tuple[str, list[list[int]]]] = []
 
-        async def fake_send_state(ctx, match_obj, player_key, message):
+        async def fake_send_state(ctx, match_obj, player_key, message, *, reveal_ships=True):
             board_copy = [
                 [_get_cell_state(cell) for cell in row]
                 for row in match_obj.history

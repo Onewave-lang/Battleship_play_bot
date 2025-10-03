@@ -35,7 +35,7 @@ def test_send_state_for_all_players(tmp_path, monkeypatch):
     storage.save_board(match, "C", placement.random_board())
 
     called = []
-    async def fake_send_state(context, match_obj, player_key, message):
+    async def fake_send_state(context, match_obj, player_key, message, *, reveal_ships=True):
         called.append(player_key)
     monkeypatch.setattr(router, "_send_state", fake_send_state)
 
