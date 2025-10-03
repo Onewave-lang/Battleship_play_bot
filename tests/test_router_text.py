@@ -48,8 +48,6 @@ def test_router_text_handles_latin_coords_standard_match(monkeypatch):
         monkeypatch.setattr(router, "render_board_own", lambda board: "own")
         monkeypatch.setattr(router, "render_board_enemy", lambda board: "enemy")
         monkeypatch.setattr(storage, "save_match", lambda m: None)
-        kb = object()
-        monkeypatch.setattr(router, "move_keyboard", lambda: kb)
         monkeypatch.setattr(router, "parse_coord", lambda text: (0, 0))
         monkeypatch.setattr(router, "format_coord", lambda coord: "a1")
         monkeypatch.setattr(router, "random_phrase", lambda phrases: phrases[0])
@@ -183,8 +181,6 @@ def test_router_invalid_cell_shows_board(monkeypatch):
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
-        kb = object()
-        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
 
         send_message = AsyncMock()
         context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message, delete_message=AsyncMock()))
@@ -195,7 +191,7 @@ def test_router_invalid_cell_shows_board(monkeypatch):
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML', reply_markup=kb),
+            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML'),
             call(10, 'Не понял клетку. Пример: е5 или д10.', parse_mode='HTML'),
         ]
     asyncio.run(run_test())
@@ -217,8 +213,6 @@ def test_router_wrong_turn_shows_board(monkeypatch):
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
-        kb = object()
-        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
 
         send_message = AsyncMock()
         context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message, delete_message=AsyncMock()))
@@ -229,7 +223,7 @@ def test_router_wrong_turn_shows_board(monkeypatch):
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML', reply_markup=kb),
+            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML'),
             call(10, 'Сейчас ход соперника.', parse_mode='HTML'),
         ]
     asyncio.run(run_test())
@@ -259,8 +253,6 @@ def test_router_auto_shows_board(monkeypatch):
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
-        kb = object()
-        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
 
         send_message = AsyncMock()
         context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message, delete_message=AsyncMock()))
@@ -271,9 +263,9 @@ def test_router_auto_shows_board(monkeypatch):
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML', reply_markup=kb),
+            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML'),
             call(10, 'Корабли расставлены. Бой начинается! Ваш ход.', parse_mode='HTML'),
-            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML', reply_markup=kb),
+            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML'),
             call(20, 'Соперник готов. Бой начинается! Ход соперника.', parse_mode='HTML'),
         ]
     asyncio.run(run_test())
@@ -305,8 +297,6 @@ def test_router_auto_waits_and_sends_instruction(monkeypatch):
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
-        kb = object()
-        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
 
         send_message = AsyncMock()
         context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message, delete_message=AsyncMock()))
@@ -317,9 +307,9 @@ def test_router_auto_waits_and_sends_instruction(monkeypatch):
         )
         await router.router_text(update, context)
         assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML', reply_markup=kb),
+            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML'),
             call(10, 'Корабли расставлены. Ожидаем соперника.', parse_mode='HTML'),
-            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML', reply_markup=kb),
+            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML'),
             call(20, 'Соперник готов. Отправьте "авто" для расстановки кораблей.', parse_mode='HTML'),
             call(20, 'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.'),
         ]
@@ -351,8 +341,6 @@ def test_router_kill_message(monkeypatch):
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
-        kb = object()
-        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
         send_message = AsyncMock()
         context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message, delete_message=AsyncMock()))
         update = SimpleNamespace(
@@ -365,10 +353,11 @@ def test_router_kill_message(monkeypatch):
         assert len(calls) == 4
         msg_self = calls[1].args[1]
         msg_enemy = calls[3].args[1]
-        assert 'Ваш ход: a1 — Корабль соперника уничтожен!' in msg_self
+        coord_str = router.format_coord((0, 0))
+        assert f'Ваш ход: {coord_str} — Корабль соперника уничтожен!' in msg_self
         assert any(p in msg_self for p in phrases.SELF_KILL)
         assert msg_self.strip().endswith('Следующим ходит A.')
-        assert 'Ход игрока A: a1 — Соперник уничтожил ваш корабль.' in msg_enemy
+        assert f'Ход игрока A: {coord_str} — Соперник уничтожил ваш корабль.' in msg_enemy
         assert any(p in msg_enemy for p in phrases.ENEMY_KILL)
         assert msg_enemy.strip().endswith('Следующим ходит A.')
     asyncio.run(run_test())
@@ -422,8 +411,6 @@ def test_router_joke_format(monkeypatch):
         monkeypatch.setattr(router, 'random_phrase', lambda phrases: phrases[0])
         monkeypatch.setattr(router, 'random_joke', lambda: 'JOKE')
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
-        kb = object()
-        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
 
         send_message = AsyncMock()
         context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message, delete_message=AsyncMock()))
@@ -465,8 +452,6 @@ def test_router_game_over_messages(monkeypatch):
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
         monkeypatch.setattr(storage, 'finish', fake_finish)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
-        kb = object()
-        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
         send_message = AsyncMock()
         context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message, delete_message=AsyncMock()))
         update = SimpleNamespace(
@@ -480,8 +465,7 @@ def test_router_game_over_messages(monkeypatch):
         assert any('Флот игрока B потоплен! B занял 2 место. Вы победили!🏆' in t for t in texts)
         assert any('Флот игрока B потоплен! B занял 2 место. Игрок A победил!' in t for t in texts)
         assert any('Все ваши корабли уничтожены' in t for t in texts)
-        assert texts[-2] == 'Игра завершена!'
-        assert texts[-1] == 'Игра завершена!'
-        assert calls[-2].kwargs['reply_markup'].keyboard[0][0].text == 'Начать новую игру'
-        assert calls[-1].kwargs['reply_markup'].keyboard[0][0].text == 'Начать новую игру'
+        final_message = 'Игра завершена! Используйте /newgame, чтобы начать новую партию.'
+        assert texts[-2] == final_message
+        assert texts[-1] == final_message
     asyncio.run(run_test())

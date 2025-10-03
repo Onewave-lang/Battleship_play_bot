@@ -32,7 +32,6 @@ def test_send_state_board_test_uses_match_highlight(monkeypatch):
             return "board"
 
         monkeypatch.setattr(router, "render_board_own", fake_render_board_own)
-        monkeypatch.setattr(router, "move_keyboard", lambda: None)
         send_message = AsyncMock(return_value=SimpleNamespace(message_id=1))
         bot = SimpleNamespace(send_message=send_message)
         context = SimpleNamespace(bot=bot)

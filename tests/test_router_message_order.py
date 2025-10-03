@@ -1,5 +1,7 @@
 import asyncio
 import random
+import asyncio
+import random
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -14,14 +16,14 @@ class DummyBot:
         self.logs: dict[int, list[str]] = {}
         self.msg_id = 1
 
-    async def send_message(self, chat_id, *args, **kwargs):
-        kind = 'board_send' if 'reply_markup' in kwargs else 'text_send'
+    async def send_message(self, chat_id, text, *args, **kwargs):
+        kind = 'board_send' if 'Поле соперника:' in text else 'text_send'
         self.logs.setdefault(chat_id, []).append(kind)
         self.msg_id += 1
         return SimpleNamespace(message_id=self.msg_id)
 
     async def edit_message_text(self, chat_id, message_id, text, **kwargs):
-        kind = 'board_edit' if 'reply_markup' in kwargs else 'text_edit'
+        kind = 'board_edit' if 'Поле соперника:' in text else 'text_edit'
         self.logs.setdefault(chat_id, []).append(kind)
 
     async def delete_message(self, *args, **kwargs):

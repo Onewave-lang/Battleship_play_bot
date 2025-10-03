@@ -14,8 +14,6 @@ def test_send_state_sets_keyboard_on_new_board(monkeypatch):
         )
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
-        kb = object()
-        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
         monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
         bot = SimpleNamespace(
             send_message=AsyncMock(side_effect=[
@@ -32,7 +30,7 @@ def test_send_state_sets_keyboard_on_new_board(monkeypatch):
         assert bot.send_message.await_count == 2
         first_call, second_call = bot.send_message.await_args_list
         assert first_call.args[0] == 1
-        assert first_call.kwargs['reply_markup'] is kb
+        assert 'reply_markup' not in first_call.kwargs
         assert 'reply_markup' not in second_call.kwargs
         assert bot.delete_message.await_count == 0
         assert match.messages['A']['board'] == 50
@@ -50,8 +48,6 @@ def test_send_state_edits_existing_messages(monkeypatch):
         )
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
-        kb = object()
-        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
         monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
         bot = SimpleNamespace(
             edit_message_text=AsyncMock(),
@@ -80,8 +76,6 @@ def test_send_state_recreates_messages_on_edit_failure(monkeypatch):
         )
         monkeypatch.setattr(router, 'render_board_own', lambda b: 'own')
         monkeypatch.setattr(router, 'render_board_enemy', lambda b: 'enemy')
-        kb = object()
-        monkeypatch.setattr(router, 'move_keyboard', lambda: kb)
         monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
         bot = SimpleNamespace(
             edit_message_text=AsyncMock(side_effect=[Exception(), Exception()]),
@@ -97,7 +91,7 @@ def test_send_state_recreates_messages_on_edit_failure(monkeypatch):
 
         assert bot.delete_message.await_args_list == [call(1, 10), call(1, 11)]
         first_call, second_call = bot.send_message.await_args_list
-        assert first_call.kwargs['reply_markup'] is kb
+        assert 'reply_markup' not in first_call.kwargs
         assert 'reply_markup' not in second_call.kwargs
         assert match.messages['A']['board'] == 60
         assert match.messages['A']['text'] == 61
