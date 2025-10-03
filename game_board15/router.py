@@ -41,9 +41,9 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
     for r in range(15):
         for c in range(15):
             cell = own_grid[r][c]
-            if merged_states[r][c] == 0 and _get_cell_state(cell) == 1:
+            if _get_cell_state(cell) == 1:
                 merged_states[r][c] = 1
-                owners[r][c] = _get_cell_owner(cell) or player_key
+                owners[r][c] = player_key
     state.board = merged_states
     state.owners = owners
     state.player_key = player_key
