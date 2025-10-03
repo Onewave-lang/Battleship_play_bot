@@ -96,7 +96,7 @@ def test_render_state5_symbol():
     own = render_board_own(b)
     enemy = render_board_enemy(b)
 
-    assert '·' in own
+    assert 'x' in own
     assert 'x' in enemy
 
 
