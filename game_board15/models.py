@@ -39,6 +39,7 @@ class Match15:
     players: Dict[str, Player] = field(default_factory=dict)
     turn: str = "A"
     boards: Dict[str, Board15] = field(default_factory=dict)
+    snapshots: list[dict] = field(default_factory=list)
     # global shot history for rendering target board
     history: List[List[List[object]]] = field(
         default_factory=lambda: [[[0, None] for _ in range(15)] for _ in range(15)]
