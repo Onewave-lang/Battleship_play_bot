@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 from game_board15 import handlers, router, storage
 from game_board15.battle import apply_shot, update_history, KILL, HIT, MISS
 from game_board15.models import Board15, Ship, Match15
-from game_board15.utils import _get_cell_state, _set_cell_state
+from game_board15.utils import _get_cell_state, _get_cell_owner, _set_cell_state
 from tests.utils import _new_grid, _state
 
 
@@ -421,6 +421,70 @@ def test_render_board_shows_cumulative_history(monkeypatch):
         assert first[1][1] == 1
         assert second[0][0] == 5
         assert second[1][1] == 4
+
+    asyncio.run(run_test())
+
+
+def test_router_text_patches_history_on_noop_update(monkeypatch):
+    async def run_test():
+        coord = (0, 0)
+        player_a = SimpleNamespace(chat_id=1, user_id=101, name='A')
+        player_b = SimpleNamespace(chat_id=1, user_id=202, name='B')
+        match = SimpleNamespace(
+            players={'A': player_a, 'B': player_b},
+            boards={'A': Board15(), 'B': Board15()},
+            history=_new_grid(15),
+            messages={'A': {}, 'B': {}},
+            status='playing',
+            turn='A',
+        )
+        ship = Ship(cells=[coord])
+        match.boards['B'].ships = [ship]
+        match.boards['B'].grid[coord[0]][coord[1]] = 1
+        match.boards['B'].alive_cells = len(ship.cells)
+
+        update = SimpleNamespace(
+            effective_user=SimpleNamespace(id=player_a.user_id),
+            effective_chat=SimpleNamespace(id=player_a.chat_id),
+            message=SimpleNamespace(text='a1', reply_text=AsyncMock()),
+        )
+        context = SimpleNamespace(
+            bot=SimpleNamespace(
+                send_message=AsyncMock(return_value=SimpleNamespace(message_id=1)),
+                send_photo=AsyncMock(),
+            ),
+            bot_data={},
+            chat_data={},
+        )
+
+        monkeypatch.setattr(
+            router.storage,
+            'find_match_by_user',
+            lambda *args, **kwargs: match,
+        )
+        monkeypatch.setattr(router.storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(router.storage, 'finish', lambda *args, **kwargs: None)
+        monkeypatch.setattr(router.battle, 'update_history', lambda *args, **kwargs: None)
+
+        calls: list[tuple[str, list[list[int]]]] = []
+
+        async def fake_send_state(ctx, match_obj, player_key, message):
+            board_copy = [
+                [_get_cell_state(cell) for cell in row]
+                for row in match_obj.history
+            ]
+            calls.append((player_key, board_copy))
+
+        monkeypatch.setattr(router, '_send_state', fake_send_state)
+
+        await router.router_text(update, context)
+
+        assert calls, 'expected _send_state to be invoked'
+        player_key, board_state = calls[0]
+        assert player_key == 'A'
+        assert board_state[coord[0]][coord[1]] == 4
+        assert _get_cell_state(match.history[coord[0]][coord[1]]) == 4
+        assert _get_cell_owner(match.history[coord[0]][coord[1]]) == 'B'
 
     asyncio.run(run_test())
 
