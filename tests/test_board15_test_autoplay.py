@@ -151,6 +151,39 @@ def test_auto_play_bots_notifies_human(monkeypatch):
     asyncio.run(run())
 
 
+def test_auto_play_bots_accepts_int_history(monkeypatch):
+    async def run():
+        match = Match15.new(1, 1, 'A')
+        match.players['B'] = Player(user_id=0, chat_id=1, name='B')
+        match.players['C'] = Player(user_id=0, chat_id=2, name='C')
+        match.status = 'playing'
+        match.turn = 'B'
+        match.history = [[0 for _ in range(15)] for _ in range(15)]
+
+        calls = {'count': 0}
+
+        def fake_apply_shot(board, coord):
+            calls['count'] += 1
+            if calls['count'] >= 2:
+                raise RuntimeError('stop')
+            return handlers.battle.MISS
+
+        monkeypatch.setattr(handlers.battle, 'apply_shot', fake_apply_shot)
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(storage, 'get_match', lambda mid: match)
+        monkeypatch.setattr(storage, 'finish', lambda m, w: None)
+        monkeypatch.setattr(router, '_send_state', AsyncMock())
+
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
+
+        with pytest.raises(RuntimeError):
+            await handlers._auto_play_bots(match, context, 1)
+
+        assert calls['count'] == 2
+
+    asyncio.run(run())
+
+
 def test_auto_play_bots_waits_for_human(monkeypatch):
     async def run():
         match = Match15.new(1, 1, 'A')

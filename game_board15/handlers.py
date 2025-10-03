@@ -308,7 +308,10 @@ async def _auto_play_bots(
 
         storage.save_match(match)
 
-        history_snapshot = [[cell[:] for cell in row] for row in match.history]
+        history_snapshot = [
+            [cell[:] if isinstance(cell, list) else cell for cell in row]
+            for row in match.history
+        ]
         board_snapshots: dict[str, SimpleNamespace] = {}
         for key, board_view in match.boards.items():
             board_snapshots[key] = SimpleNamespace(
