@@ -183,7 +183,13 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         logger.warning("History unchanged after shot %s", coord_str)
     if history_empty:
         logger.warning("History is empty after shot %s", coord_str)
-    if history_unchanged or history_empty:
+    cell_state = _get_cell_state(match.history[r][c])
+    if cell_state == 0:
+        logger.warning(
+            "History cell %s is still empty after shot %s; applying fallback",
+            (r, c),
+            coord_str,
+        )
         if any(res == battle.KILL for res in results.values()):
             best_value = 4
             owner = next(
