@@ -3,7 +3,7 @@ from typing import List, Tuple, Union
 import re
 
 from models import Board
-from logic.parser import LATIN
+from logic.parser import ROWS
 from wcwidth import wcswidth
 from constants import BOMB
 
@@ -12,23 +12,14 @@ from constants import BOMB
 FIGURE_SPACE = "\u2007"
 
 
-# letters on top for columns
-# expanded slightly so that emoji icons do not stretch rows or columns
-CELL_WIDTH = 3
+# fixed-width layout for board cells
+CELL_WIDTH = 2
 
-# colourful emoji per player for ship cells
-PLAYER_COLORS = {
-    "A": "🟦",
-    "B": "🟩",
-    "C": "🟧",
-}
-
-# darker emoji for hit cells per player
-PLAYER_COLORS_DARK = {
-    "A": "🔵",
-    "B": "🟢",
-    "C": "🟠",
-}
+# text symbols for board rendering
+EMPTY_SYMBOL = "·"
+MISS_SYMBOL = "x"
+HIT_SYMBOL = "■"
+SUNK_SYMBOL = "▓"
 
 
 def format_cell(symbol: str) -> str:
@@ -44,13 +35,7 @@ def format_cell(symbol: str) -> str:
     return symbol + FIGURE_SPACE * pad
 
 
-"""Letters on the top of the board are rendered using latin characters.
-
-The project historically used Cyrillic letters internally, but players now see
-latin columns on the board.  ``LATIN`` mirrors the internal set and is used for
-display purposes.
-"""
-COL_HEADER = ''.join(format_cell(ch) for ch in LATIN)
+COL_NUMBERS = ''.join(format_cell(str(i)) for i in range(1, 11))
 
 
 def _render_line(cells: List[str]) -> str:
@@ -69,73 +54,62 @@ def _resolve_cell(v: Union[int, Tuple[int, str]]) -> Tuple[int, str | None]:
 
 
 def render_board_own(board: Board) -> str:
-    lines = [FIGURE_SPACE * (CELL_WIDTH + 1) + COL_HEADER]
+    header = format_cell("") + "|" + FIGURE_SPACE + COL_NUMBERS
+    lines = [header]
     highlight = set(board.highlight)
     for r_idx, row in enumerate(board.grid):
         cells = []
         for c_idx, v in enumerate(row):
             coord = (r_idx, c_idx)
             cell_state, owner = _resolve_cell(v)
-            owner_id = owner or getattr(board, "owner", None)
-            ship_symbol = PLAYER_COLORS.get(owner_id, "⬜")
-            hit_symbol = PLAYER_COLORS_DARK.get(owner_id, "💥")
             if cell_state == 1:
-                sym = ship_symbol
+                sym = HIT_SYMBOL
             elif cell_state == 2:
-                sym = "✖"
-            elif cell_state == 5:
-                sym = "•"
+                sym = MISS_SYMBOL
             elif cell_state == 3:
-                sym = hit_symbol
+                sym = HIT_SYMBOL
             elif cell_state == 4:
-                sym = "💥"
+                sym = SUNK_SYMBOL
+            elif cell_state == 5:
+                sym = EMPTY_SYMBOL
             else:
-                sym = "·"
+                sym = EMPTY_SYMBOL
             if coord in highlight:
                 if cell_state == 4:
                     sym = f"<b>{BOMB}</b>"
-                elif cell_state == 5:
-                    sym = "<b>⚠️</b>"
                 else:
                     sym = f"<b>{sym}</b>"
             cells.append(format_cell(sym))
-        num = str(r_idx + 1)
-        pad = FIGURE_SPACE * (CELL_WIDTH - wcswidth(num))
-        lines.append(f"{pad}{num}{FIGURE_SPACE}" + _render_line(cells))
+        row_label = format_cell(ROWS[r_idx])
+        lines.append(f"{row_label}|{FIGURE_SPACE}" + _render_line(cells))
     return '<pre>' + '\n'.join(lines) + '</pre>'
 
 
 def render_board_enemy(board: Board) -> str:
-    lines = [FIGURE_SPACE * (CELL_WIDTH + 1) + COL_HEADER]
+    header = format_cell("") + "|" + FIGURE_SPACE + COL_NUMBERS
+    lines = [header]
     highlight = set(board.highlight)
     for r_idx, row in enumerate(board.grid):
         cells = []
         for c_idx, v in enumerate(row):
             coord = (r_idx, c_idx)
             cell_state, owner = _resolve_cell(v)
-            owner_id = owner or getattr(board, "owner", None)
-            hit_symbol = PLAYER_COLORS_DARK.get(owner_id, "💥")
-            if cell_state == 1:
-                sym = "·"
-            elif cell_state == 2:
-                sym = "✖"
-            elif cell_state == 5:
-                sym = "•"
+            if cell_state == 2:
+                sym = MISS_SYMBOL
             elif cell_state == 3:
-                sym = hit_symbol
+                sym = HIT_SYMBOL
             elif cell_state == 4:
-                sym = "💥"
+                sym = SUNK_SYMBOL
+            elif cell_state == 5:
+                sym = MISS_SYMBOL
             else:
-                sym = "·"
+                sym = EMPTY_SYMBOL
             if coord in highlight:
                 if cell_state == 4:
                     sym = f"<b>{BOMB}</b>"
-                elif cell_state == 5:
-                    sym = "<b>⚠️</b>"
                 else:
                     sym = f"<b>{sym}</b>"
             cells.append(format_cell(sym))
-        num = str(r_idx + 1)
-        pad = FIGURE_SPACE * (CELL_WIDTH - wcswidth(num))
-        lines.append(f"{pad}{num}{FIGURE_SPACE}" + _render_line(cells))
+        row_label = format_cell(ROWS[r_idx])
+        lines.append(f"{row_label}|{FIGURE_SPACE}" + _render_line(cells))
     return '<pre>' + '\n'.join(lines) + '</pre>'

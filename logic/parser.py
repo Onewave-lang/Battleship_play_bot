@@ -2,11 +2,10 @@ from __future__ import annotations
 import re
 from typing import Optional, Tuple
 
-# Columns on the board are identified by latin letters when rendered for
-# users, while internally we still support both latin and Cyrillic inputs.
-# ``ROWS`` keeps the Cyrillic representation to remain backward compatible
-# with existing games, and ``LATIN`` mirrors it with latin characters so that
-# outbound messages and rendered boards use latin coordinates.
+# Columns on the board use Cyrillic letters in user-facing messages, while we
+# still accept latin input for convenience. ``ROWS`` keeps the Cyrillic
+# representation and ``LATIN`` mirrors it with latin characters so that we can
+# normalise incoming coordinates.
 ROWS = 'абвгдежзик'
 LATIN = 'abcdefghik'
 
@@ -17,7 +16,7 @@ def normalize(cell: str) -> str:
 
 
 def parse_coord(cell: str) -> Optional[Tuple[int, int]]:
-    """Parse user coordinate like 'e5' into (row, col)."""
+    """Parse user coordinate like 'г7' or 'e5' into ``(row, col)``."""
     cell = normalize(cell)
     if len(cell) < 2:
         return None
@@ -38,11 +37,6 @@ def parse_coord(cell: str) -> Optional[Tuple[int, int]]:
 
 
 def format_coord(coord: Tuple[int, int]) -> str:
-    """Convert internal (row, col) into user-facing string.
-
-    Even though we accept both latin and Cyrillic letters as input, users see
-    the board labelled with latin letters.  Therefore coordinates in outgoing
-    messages must also use latin letters.
-    """
+    """Convert internal (row, col) into user-facing string with Cyrillic axes."""
     r, c = coord
-    return f"{LATIN[c]}{r+1}"
+    return f"{ROWS[c]}{r+1}"
