@@ -8,10 +8,6 @@ from wcwidth import wcswidth
 from constants import BOMB
 
 
-# figure space keeps alignment even when clients collapse regular spaces
-FIGURE_SPACE = "\u2007"
-
-
 # fixed-width layout for board cells
 CELL_WIDTH = 2
 
@@ -32,7 +28,7 @@ def format_cell(symbol: str) -> str:
     pad = CELL_WIDTH - wcswidth(visible)
     if pad < 0:
         pad = 0
-    return symbol + FIGURE_SPACE * pad
+    return symbol + " " * pad
 
 
 COL_NUMBERS = ''.join(format_cell(str(i)) for i in range(1, 11))
@@ -54,7 +50,7 @@ def _resolve_cell(v: Union[int, Tuple[int, str]]) -> Tuple[int, str | None]:
 
 
 def render_board_own(board: Board) -> str:
-    header = format_cell("") + "|" + FIGURE_SPACE + COL_NUMBERS
+    header = format_cell("") + "|" + " " + COL_NUMBERS
     lines = [header]
     highlight = set(board.highlight)
     for r_idx, row in enumerate(board.grid):
@@ -81,12 +77,12 @@ def render_board_own(board: Board) -> str:
                     sym = f"<b>{sym}</b>"
             cells.append(format_cell(sym))
         row_label = format_cell(ROWS[r_idx])
-        lines.append(f"{row_label}|{FIGURE_SPACE}" + _render_line(cells))
+        lines.append(f"{row_label}| " + _render_line(cells))
     return '<pre>' + '\n'.join(lines) + '</pre>'
 
 
 def render_board_enemy(board: Board) -> str:
-    header = format_cell("") + "|" + FIGURE_SPACE + COL_NUMBERS
+    header = format_cell("") + "|" + " " + COL_NUMBERS
     lines = [header]
     highlight = set(board.highlight)
     for r_idx, row in enumerate(board.grid):
@@ -111,5 +107,5 @@ def render_board_enemy(board: Board) -> str:
                     sym = f"<b>{sym}</b>"
             cells.append(format_cell(sym))
         row_label = format_cell(ROWS[r_idx])
-        lines.append(f"{row_label}|{FIGURE_SPACE}" + _render_line(cells))
+        lines.append(f"{row_label}| " + _render_line(cells))
     return '<pre>' + '\n'.join(lines) + '</pre>'
