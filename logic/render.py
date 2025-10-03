@@ -16,18 +16,18 @@ FIGURE_SPACE = "\u2007"
 # expanded slightly so that emoji icons do not stretch rows or columns
 CELL_WIDTH = 3
 
-# colours per player for ship cells
+# colourful emoji per player for ship cells
 PLAYER_COLORS = {
-    "A": "#add8e6",  # light blue
-    "B": "#90ee90",  # light green
-    "C": "#ffc88c",  # light orange
+    "A": "🟦",
+    "B": "🟩",
+    "C": "🟧",
 }
 
-# darker colours for hit cells per player
+# darker emoji for hit cells per player
 PLAYER_COLORS_DARK = {
-    "A": "#00008b",  # dark blue
-    "B": "#228b22",  # dark green
-    "C": "#ff8c00",  # dark orange
+    "A": "🔵",
+    "B": "🟢",
+    "C": "🟠",
 }
 
 
@@ -76,37 +76,28 @@ def render_board_own(board: Board) -> str:
         for c_idx, v in enumerate(row):
             coord = (r_idx, c_idx)
             cell_state, owner = _resolve_cell(v)
-            color = PLAYER_COLORS.get(owner or getattr(board, "owner", None), "#000")
+            owner_id = owner or getattr(board, "owner", None)
+            ship_symbol = PLAYER_COLORS.get(owner_id, "⬜")
+            hit_symbol = PLAYER_COLORS_DARK.get(owner_id, "💥")
             if cell_state == 1:
-                sym = f'<span style="color:{color}">□</span>'
+                sym = ship_symbol
             elif cell_state == 2:
-                if coord in highlight:
-                    sym = '<span style="color:red;background-color:orange">x</span>'
-                else:
-                    sym = '<span style="color:black">x</span>'
+                sym = "✖"
             elif cell_state == 5:
-                if coord in highlight:
-                    sym = '<span style="color:red;background-color:orange">x</span>'
-                else:
-                    sym = '<span style="color:#808080">x</span>'
+                sym = "•"
             elif cell_state == 3:
-                if coord in highlight:
-                    hit_color = "#8b0000"
-                else:
-                    hit_color = PLAYER_COLORS_DARK.get(
-                        owner or getattr(board, "owner", None), "#8b0000"
-                    )
-                sym = f'<span style="color:{hit_color}">■</span>'
+                sym = hit_symbol
             elif cell_state == 4:
-                if coord in highlight:
-                    sym = BOMB
-                else:
-                    hit_color = "#ff8c00" if owner == "C" else "#8b0000"
-                    sym = f'<span style="color:{hit_color}">■</span>'
+                sym = "💥"
             else:
-                sym = '·'
+                sym = "·"
             if coord in highlight:
-                sym = f'<span style="border:1px solid red">{sym}</span>'
+                if cell_state == 4:
+                    sym = f"<b>{BOMB}</b>"
+                elif cell_state == 5:
+                    sym = "<b>⚠️</b>"
+                else:
+                    sym = f"<b>{sym}</b>"
             cells.append(format_cell(sym))
         num = str(r_idx + 1)
         pad = FIGURE_SPACE * (CELL_WIDTH - wcswidth(num))
@@ -122,37 +113,27 @@ def render_board_enemy(board: Board) -> str:
         for c_idx, v in enumerate(row):
             coord = (r_idx, c_idx)
             cell_state, owner = _resolve_cell(v)
-            color = PLAYER_COLORS.get(owner or getattr(board, "owner", None), "#000")
+            owner_id = owner or getattr(board, "owner", None)
+            hit_symbol = PLAYER_COLORS_DARK.get(owner_id, "💥")
             if cell_state == 1:
-                sym = '·'
+                sym = "·"
             elif cell_state == 2:
-                if coord in highlight:
-                    sym = '<span style="color:red;background-color:orange">x</span>'
-                else:
-                    sym = '<span style="color:black">x</span>'
+                sym = "✖"
             elif cell_state == 5:
-                if coord in highlight:
-                    sym = '<span style="color:red;background-color:orange">x</span>'
-                else:
-                    sym = '<span style="color:#808080">x</span>'
+                sym = "•"
             elif cell_state == 3:
-                if coord in highlight:
-                    hit_color = "#8b0000"
-                else:
-                    hit_color = PLAYER_COLORS_DARK.get(
-                        owner or getattr(board, "owner", None), "#8b0000"
-                    )
-                sym = f'<span style="color:{hit_color}">■</span>'
+                sym = hit_symbol
             elif cell_state == 4:
-                if coord in highlight:
-                    sym = BOMB
-                else:
-                    hit_color = "#ff8c00" if owner == "C" else "#8b0000"
-                    sym = f'<span style="color:{hit_color}">■</span>'
+                sym = "💥"
             else:
-                sym = '·'
+                sym = "·"
             if coord in highlight:
-                sym = f'<span style="border:1px solid red">{sym}</span>'
+                if cell_state == 4:
+                    sym = f"<b>{BOMB}</b>"
+                elif cell_state == 5:
+                    sym = "<b>⚠️</b>"
+                else:
+                    sym = f"<b>{sym}</b>"
             cells.append(format_cell(sym))
         num = str(r_idx + 1)
         pad = FIGURE_SPACE * (CELL_WIDTH - wcswidth(num))
