@@ -24,6 +24,8 @@ from .utils import _phrase_or_joke, _get_cell_state, _get_cell_owner, _set_cell_
 import random
 import asyncio
 import logging
+import copy
+from types import SimpleNamespace
 
 WELCOME_TEXT = 'Выберите способ приглашения соперников:'
 
@@ -95,9 +97,13 @@ async def _auto_play_bots(
     """Automatically let bot players make moves until the game ends."""
     logger = logging.getLogger(__name__)
 
-    async def _safe_send_state(player_key: str, message: str) -> None:
+    async def _safe_send_state(
+        player_key: str, message: str, render_match: object | None = None
+    ) -> None:
         try:
-            await router_module._send_state(context, match, player_key, message)
+            await router_module._send_state(
+                context, render_match or match, player_key, message
+            )
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -299,6 +305,28 @@ async def _auto_play_bots(
 
         storage.save_match(match)
 
+        history_snapshot = [[cell[:] for cell in row] for row in match.history]
+        board_snapshots: dict[str, SimpleNamespace] = {}
+        for key, board_view in match.boards.items():
+            board_snapshots[key] = SimpleNamespace(
+                grid=[row[:] for row in board_view.grid],
+                ships=board_view.ships,
+                alive_cells=board_view.alive_cells,
+                highlight=list(board_view.highlight),
+            )
+        render_match = SimpleNamespace(
+            match_id=match.match_id,
+            status=match.status,
+            created_at=getattr(match, "created_at", None),
+            players=match.players,
+            turn=match.turn,
+            boards=board_snapshots,
+            history=history_snapshot,
+            last_highlight=list(match.last_highlight),
+            shots=copy.deepcopy(match.shots),
+            messages=match.messages,
+        )
+
         for player_key, msg_body in enemy_msgs.items():
             if match.players[player_key].user_id != 0:
                 next_phrase = f" Следующим ходит {next_name}."
@@ -311,7 +339,7 @@ async def _auto_play_bots(
                     msg_text = (
                         f"Ход игрока {player_label}: {coord_str} - {body} {phrase_self}{next_phrase}"
                     )
-                await _safe_send_state(player_key, msg_text)
+                await _safe_send_state(player_key, msg_text, render_match)
 
         finished = False
         for enemy in eliminated:
@@ -344,6 +372,45 @@ async def _auto_play_bots(
                         )
         if finished:
             break
+
+
+def _schedule_auto_play(
+    match: storage.Match15,
+    context: ContextTypes.DEFAULT_TYPE,
+    chat_id: int,
+    *,
+    human: str,
+    delay: float,
+) -> asyncio.Task:
+    """Launch auto play ensuring moves run sequentially per chat."""
+
+    if not hasattr(context, "chat_data") or context.chat_data is None:
+        context.chat_data = {}
+    if not hasattr(context, "bot_data") or context.bot_data is None:
+        context.bot_data = {}
+    locks = context.bot_data.setdefault("_board15_auto_locks", {})
+    lock: asyncio.Lock = locks.setdefault(chat_id, asyncio.Lock())
+
+    async def runner() -> None:
+        async with lock:
+            await _auto_play_bots(
+                match, context, chat_id, human=human, delay=delay
+            )
+
+    application = getattr(context, "application", None)
+    if application and hasattr(application, "create_task"):
+        task: asyncio.Task = application.create_task(runner())
+    else:
+        task = asyncio.create_task(runner())
+
+    tasks = context.chat_data.setdefault("_board15_auto_tasks", set())
+    tasks.add(task)
+
+    def _cleanup(_: object) -> None:
+        tasks.discard(task)
+
+    task.add_done_callback(_cleanup)
+    return task
 
 
 async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -410,10 +477,8 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         'history_active': False,
     }
     storage.save_match(match)
-    asyncio.create_task(
-        _auto_play_bots(
-            match, context, update.effective_chat.id, human='A', delay=5
-        )
+    _schedule_auto_play(
+        match, context, update.effective_chat.id, human='A', delay=5
     )
 
 

@@ -1,11 +1,12 @@
 import asyncio
+from contextlib import suppress
 from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from game_board15 import router
+from game_board15 import handlers, router, storage
 from game_board15.battle import apply_shot, update_history, KILL, HIT, MISS
-from game_board15.models import Board15, Ship
+from game_board15.models import Board15, Ship, Match15
 from game_board15.utils import _get_cell_state, _set_cell_state
 from tests.utils import _new_grid, _state
 
@@ -422,3 +423,111 @@ def test_render_board_shows_cumulative_history(monkeypatch):
         assert second[1][1] == 4
 
     asyncio.run(run_test())
+
+
+def test_board15_test_autoplay_preserves_kill_highlight(monkeypatch):
+    async def run():
+        match = Match15.new(1, 10, "Tester")
+
+        board_a = Board15()
+        ship_a = Ship(cells=[(7, 7)])
+        board_a.ships = [ship_a]
+        board_a.grid[7][7] = 1
+        board_a.alive_cells = len(ship_a.cells)
+
+        board_b = Board15()
+        ship_b = Ship(cells=[(5, 5)])
+        board_b.ships = [ship_b]
+        board_b.grid[5][5] = 1
+        board_b.alive_cells = len(ship_b.cells)
+
+        board_c = Board15()
+        ship_c = Ship(cells=[(0, 0)])
+        board_c.ships = [ship_c]
+        board_c.grid[0][0] = 1
+        board_c.alive_cells = len(ship_c.cells)
+
+        boards = [board_a, board_b, board_c]
+
+        monkeypatch.setattr(
+            handlers.placement,
+            "random_board_global",
+            lambda mask: boards.pop(0),
+        )
+
+        monkeypatch.setattr(storage, "create_match", lambda uid, cid, name="": match)
+        monkeypatch.setattr(storage, "save_match", lambda m: None)
+        monkeypatch.setattr(storage, "get_match", lambda mid: match)
+        monkeypatch.setattr(storage, "finish", lambda m, w: None)
+
+        captured: list[list[list[int]]] = []
+        board_ready = asyncio.Event()
+
+        def fake_render_board(state, player_key=None):
+            board_copy = [row[:] for row in state.board]
+            if player_key == "A":
+                captured.append(board_copy)
+                if board_copy[0][0] == 4:
+                    board_ready.set()
+            return BytesIO(b"img")
+
+        monkeypatch.setattr(handlers, "render_board", fake_render_board)
+        monkeypatch.setattr(router, "render_board", fake_render_board)
+
+        orig_choice = handlers.random.choice
+
+        def choose_target(seq):
+            if (0, 0) in seq:
+                return (0, 0)
+            return orig_choice(seq)
+
+        monkeypatch.setattr(handlers.random, "choice", choose_target)
+
+        orig_sleep = asyncio.sleep
+
+        async def fast_sleep(delay):
+            await orig_sleep(0)
+
+        monkeypatch.setattr(handlers.asyncio, "sleep", fast_sleep)
+
+        update = SimpleNamespace(
+            message=SimpleNamespace(
+                reply_text=AsyncMock(),
+                reply_photo=AsyncMock(
+                    return_value=SimpleNamespace(message_id=101)
+                ),
+            ),
+            effective_user=SimpleNamespace(id=1, first_name="Tester"),
+            effective_chat=SimpleNamespace(id=200),
+        )
+
+        context = SimpleNamespace(
+            bot=SimpleNamespace(
+                send_message=AsyncMock(),
+                send_photo=AsyncMock(return_value=SimpleNamespace(message_id=202)),
+            ),
+            bot_data={},
+            chat_data={},
+        )
+
+        await handlers.board15_test(update, context)
+        match.turn = "B"
+
+        await asyncio.wait_for(board_ready.wait(), timeout=0.2)
+
+        board = next(board for board in captured if board[0][0] == 4)
+        assert board[0][0] == 4
+        contour_cells = [
+            board[r][c]
+            for r in range(0, 2)
+            for c in range(0, 2)
+            if (r, c) != (0, 0)
+        ]
+        assert any(cell == 5 for cell in contour_cells)
+
+        for task in list(context.chat_data.get("_board15_auto_tasks", [])):
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+
+    asyncio.run(run())
