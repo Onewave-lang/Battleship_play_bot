@@ -294,14 +294,45 @@ def test_friendly_ship_replaced_by_miss(monkeypatch):
         update_history(match.history, match.boards, (0, 0), {'B': res})
         assert _state(match.history[0][0]) == 2
 
-        for b in match.boards.values():
-            if b.highlight:
-                for rr, cc in b.highlight:
-                    if _get_cell_state(match.history[rr][cc]) == 0 and all(
-                        _get_cell_state(bb.grid[rr][cc]) != 1 for bb in match.boards.values()
-                    ):
+        for owner_key, board in match.boards.items():
+            if board.highlight:
+                for rr, cc in board.highlight:
+                    history_state = _get_cell_state(match.history[rr][cc])
+                    if history_state != 0:
+                        continue
+                    board_state = _get_cell_state(board.grid[rr][cc])
+                    if board_state == 1:
+                        continue
+                    if board_state == 3:
+                        _set_cell_state(match.history, rr, cc, 3, owner_key)
+                        continue
+                    if board_state == 4:
+                        _set_cell_state(match.history, rr, cc, 4, owner_key)
+                        for dr in (-1, 0, 1):
+                            for dc in (-1, 0, 1):
+                                nr, nc = rr + dr, cc + dc
+                                if 0 <= nr < 15 and 0 <= nc < 15:
+                                    if _get_cell_state(match.history[nr][nc]) == 0 and _get_cell_state(board.grid[nr][nc]) == 5:
+                                        _set_cell_state(
+                                            match.history,
+                                            nr,
+                                            nc,
+                                            5,
+                                            _get_cell_owner(match.history[nr][nc]),
+                                        )
+                        continue
+                    if board_state == 5:
+                        _set_cell_state(
+                            match.history,
+                            rr,
+                            cc,
+                            5,
+                            _get_cell_owner(match.history[rr][cc]),
+                        )
+                        continue
+                    if all(_get_cell_state(other.grid[rr][cc]) != 1 for other in match.boards.values()):
                         _set_cell_state(match.history, rr, cc, 2)
-            b.highlight = []
+            board.highlight = []
 
         captured = {}
 
@@ -326,7 +357,7 @@ def test_friendly_ship_replaced_by_miss(monkeypatch):
         await router._send_state(context, match, 'A', 'msg')
         await router._send_state(context, match, 'B', 'msg')
 
-        assert captured['A'][0][0] == 1
+        assert captured['A'][0][0] == 2
         assert captured['B'][0][0] == 2
 
     asyncio.run(run_test())
@@ -337,17 +368,47 @@ def test_clear_highlight_preserves_miss():
         boards={'A': Board15(), 'B': Board15()},
         history=_new_grid(15),
     )
-    ship = Ship(cells=[(0, 0)])
-    match.boards['B'].ships = [ship]
-    match.boards['B'].grid[0][0] = 1
     match.boards['A'].highlight = [(0, 0)]
 
-    for b in match.boards.values():
-        if b.highlight:
-            for rr, cc in b.highlight:
-                if _get_cell_state(match.history[rr][cc]) == 0 and _get_cell_state(b.grid[rr][cc]) != 1:
+    for owner_key, board in match.boards.items():
+        if board.highlight:
+            for rr, cc in board.highlight:
+                history_state = _get_cell_state(match.history[rr][cc])
+                if history_state != 0:
+                    continue
+                board_state = _get_cell_state(board.grid[rr][cc])
+                if board_state == 1:
+                    continue
+                if board_state == 3:
+                    _set_cell_state(match.history, rr, cc, 3, owner_key)
+                    continue
+                if board_state == 4:
+                    _set_cell_state(match.history, rr, cc, 4, owner_key)
+                    for dr in (-1, 0, 1):
+                        for dc in (-1, 0, 1):
+                            nr, nc = rr + dr, cc + dc
+                            if 0 <= nr < 15 and 0 <= nc < 15:
+                                if _get_cell_state(match.history[nr][nc]) == 0 and _get_cell_state(board.grid[nr][nc]) == 5:
+                                    _set_cell_state(
+                                        match.history,
+                                        nr,
+                                        nc,
+                                        5,
+                                        _get_cell_owner(match.history[nr][nc]),
+                                    )
+                    continue
+                if board_state == 5:
+                    _set_cell_state(
+                        match.history,
+                        rr,
+                        cc,
+                        5,
+                        _get_cell_owner(match.history[rr][cc]),
+                    )
+                    continue
+                if all(_get_cell_state(other.grid[rr][cc]) != 1 for other in match.boards.values()):
                     _set_cell_state(match.history, rr, cc, 2)
-        b.highlight = []
+        board.highlight = []
 
     assert _get_cell_state(match.history[0][0]) == 2
 
