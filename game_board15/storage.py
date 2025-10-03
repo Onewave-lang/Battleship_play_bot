@@ -3,15 +3,146 @@ import json
 from pathlib import Path
 import logging
 from threading import Lock
-from typing import Dict
+from typing import Dict, Any
 from datetime import datetime
 
 from .models import Match15, Board15, Player, Ship
 from . import placement
+from .utils import record_snapshot
 
 DATA_FILE = Path("data15.json")
 _lock = Lock()
 logger = logging.getLogger(__name__)
+
+
+def _serialize_history(history):
+    if history is None:
+        return None
+    serialized: list[list[Any]] = []
+    for row in history:
+        serialized_row: list[Any] = []
+        for cell in row:
+            if isinstance(cell, list):
+                serialized_row.append(cell.copy())
+            elif isinstance(cell, tuple):
+                serialized_row.append(list(cell))
+            else:
+                serialized_row.append(cell)
+        serialized.append(serialized_row)
+    return serialized
+
+
+def _deserialize_history(history):
+    if not history:
+        return [[[0, None] for _ in range(15)] for _ in range(15)]
+    restored: list[list[Any]] = []
+    for row in history:
+        restored_row: list[Any] = []
+        for cell in row:
+            if isinstance(cell, list):
+                restored_row.append(cell.copy())
+            elif isinstance(cell, tuple):
+                restored_row.append(list(cell))
+            else:
+                restored_row.append(cell)
+        restored.append(restored_row)
+    return restored
+
+
+def _serialize_board(board: Board15) -> dict:
+    return {
+        'grid': [row.copy() for row in board.grid],
+        'ships': [
+            {
+                'cells': [list(cell) for cell in ship.cells],
+                'alive': ship.alive,
+            }
+            for ship in board.ships
+        ],
+        'alive_cells': board.alive_cells,
+    }
+
+
+def _serialize_snapshot_board(board_data: Any) -> dict:
+    if isinstance(board_data, Board15):
+        grid = [row.copy() for row in board_data.grid]
+        ships = [
+            {
+                'cells': [list(cell) for cell in ship.cells],
+                'alive': ship.alive,
+            }
+            for ship in board_data.ships
+        ]
+        alive_cells = board_data.alive_cells
+    else:
+        grid = [list(row) for row in board_data.get('grid', [])]
+        ships = [
+            {
+                'cells': [list(cell) for cell in ship.get('cells', [])],
+                'alive': ship.get('alive', True),
+            }
+            for ship in board_data.get('ships', [])
+        ]
+        alive_cells = board_data.get('alive_cells', 20)
+    return {
+        'grid': grid,
+        'ships': ships,
+        'alive_cells': alive_cells,
+    }
+
+
+def _serialize_snapshots(snapshots: list[dict]) -> list[dict]:
+    result: list[dict] = []
+    for snap in snapshots or []:
+        serialized = {
+            'timestamp': snap.get('timestamp'),
+            'move': snap.get('move'),
+            'actor': snap.get('actor'),
+            'coord': list(snap['coord']) if snap.get('coord') is not None else None,
+            'next_turn': snap.get('next_turn'),
+            'history': _serialize_history(snap.get('history')),
+            'last_highlight': [list(cell) for cell in snap.get('last_highlight', [])],
+            'boards': {
+                key: _serialize_snapshot_board(board)
+                for key, board in snap.get('boards', {}).items()
+            },
+        }
+        result.append(serialized)
+    return result
+
+
+def _deserialize_snapshot_board(board: dict) -> dict:
+    return {
+        'grid': [list(row) for row in board.get('grid', [])],
+        'ships': [
+            {
+                'cells': [tuple(cell) for cell in ship.get('cells', [])],
+                'alive': ship.get('alive', True),
+            }
+            for ship in board.get('ships', [])
+        ],
+        'alive_cells': board.get('alive_cells', 20),
+    }
+
+
+def _deserialize_snapshots(snapshots: list[dict]) -> list[dict]:
+    result: list[dict] = []
+    for snap in snapshots or []:
+        restored = {
+            'timestamp': snap.get('timestamp'),
+            'move': snap.get('move'),
+            'actor': snap.get('actor'),
+            'coord': tuple(snap['coord']) if snap.get('coord') is not None else None,
+            'next_turn': snap.get('next_turn'),
+            'history': _deserialize_history(snap.get('history')),
+            'last_highlight': [tuple(cell) for cell in snap.get('last_highlight', [])],
+            'boards': {
+                key: _deserialize_snapshot_board(board)
+                for key, board in snap.get('boards', {}).items()
+            },
+        }
+        result.append(restored)
+    return result
 
 
 def _load_all() -> Dict[str, dict]:
@@ -53,12 +184,23 @@ def get_match(match_id: str) -> Match15 | None:
     match.players = {k: Player(**p) for k, p in m.get('players', {}).items()}
     match.boards = {}
     for key, b in m.get('boards', {}).items():
-        ships = [Ship(cells=[tuple(cell) for cell in s.get('cells', [])], alive=s.get('alive', True)) for s in b.get('ships', [])]
-        match.boards[key] = Board15(grid=b.get('grid', [[0]*15 for _ in range(15)]), ships=ships, alive_cells=b.get('alive_cells', 20))
-    match.history = m.get('history', [[0] * 15 for _ in range(15)])
+        ships = [
+            Ship(
+                cells=[tuple(cell) for cell in s.get('cells', [])],
+                alive=s.get('alive', True),
+            )
+            for s in b.get('ships', [])
+        ]
+        match.boards[key] = Board15(
+            grid=[row.copy() for row in b.get('grid', [[0] * 15 for _ in range(15)])],
+            ships=ships,
+            alive_cells=b.get('alive_cells', 20),
+        )
+    match.history = _deserialize_history(m.get('history'))
     match.shots = m.get('shots', match.shots)
     match.messages = m.get('messages', {})
     match.last_highlight = [tuple(cell) for cell in m.get('last_highlight', [])]
+    match.snapshots = _deserialize_snapshots(m.get('snapshots', []))
     return match
 
 
@@ -114,16 +256,19 @@ def save_board(match: Match15,
                     for s in b.get('ships', [])
                 ]
                 current.boards[key] = Board15(
-                    grid=b.get('grid', [[0] * 15 for _ in range(15)]),
+                    grid=[row.copy() for row in b.get('grid', [[0] * 15 for _ in range(15)])],
                     ships=ships,
                     alive_cells=b.get('alive_cells', 20),
                 )
             current.shots = m_dict.get('shots', current.shots)
             current.messages = m_dict.get('messages', {})
-            current.history = m_dict.get('history', [[0] * 15 for _ in range(15)])
+            current.history = _deserialize_history(m_dict.get('history'))
             current.last_highlight = [tuple(cell) for cell in m_dict.get('last_highlight', [])]
+            current.snapshots = _deserialize_snapshots(m_dict.get('snapshots', []))
         else:
             current = match
+
+        started_playing = False
 
         # build a mask of cells occupied or surrounded by other fleets
         mask = [[0] * 15 for _ in range(15)]
@@ -151,6 +296,10 @@ def save_board(match: Match15,
         ):
             current.status = 'playing'
             current.turn = 'A'
+            started_playing = True
+
+        if started_playing:
+            record_snapshot(current, actor=None, coord=None)
 
         # persist updated match
         data[current.match_id] = {
@@ -159,18 +308,12 @@ def save_board(match: Match15,
             'created_at': current.created_at,
             'players': {k: vars(p) for k, p in current.players.items()},
             'turn': current.turn,
-            'boards': {
-                k: {
-                    'grid': b.grid,
-                    'ships': [{'cells': s.cells, 'alive': s.alive} for s in b.ships],
-                    'alive_cells': b.alive_cells,
-                }
-                for k, b in current.boards.items()
-            },
+            'boards': {k: _serialize_board(b) for k, b in current.boards.items()},
             'shots': current.shots,
             'messages': current.messages,
-            'history': current.history,
-            'last_highlight': current.last_highlight,
+            'history': _serialize_history(current.history),
+            'last_highlight': [list(cell) for cell in current.last_highlight],
+            'snapshots': _serialize_snapshots(current.snapshots),
         }
         _save_all(data)
 
@@ -183,6 +326,7 @@ def save_board(match: Match15,
     match.history = current.history
     match.messages = current.messages
     match.last_highlight = current.last_highlight
+    match.snapshots = current.snapshots
 
 
 def save_match(match: Match15) -> str | None:
@@ -194,11 +338,12 @@ def save_match(match: Match15) -> str | None:
             'created_at': match.created_at,
             'players': {k: vars(p) for k, p in match.players.items()},
             'turn': match.turn,
-            'boards': {k: {'grid': b.grid, 'ships': [{'cells': s.cells, 'alive': s.alive} for s in b.ships], 'alive_cells': b.alive_cells} for k, b in match.boards.items()},
+            'boards': {k: _serialize_board(b) for k, b in match.boards.items()},
             'shots': match.shots,
             'messages': match.messages,
-            'history': match.history,
-            'last_highlight': match.last_highlight,
+            'history': _serialize_history(match.history),
+            'last_highlight': [list(cell) for cell in match.last_highlight],
+            'snapshots': _serialize_snapshots(match.snapshots),
         }
         return _save_all(data)
 

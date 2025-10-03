@@ -18,7 +18,13 @@ from logic.phrases import (
     SELF_KILL,
     SELF_MISS,
 )
-from .utils import _phrase_or_joke, _get_cell_state, _get_cell_owner, _set_cell_state
+from .utils import (
+    _phrase_or_joke,
+    _get_cell_state,
+    _get_cell_owner,
+    _set_cell_state,
+    record_snapshot,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -34,10 +40,16 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
         state = Board15State(chat_id=chat_id)
         states[chat_id] = state
 
-    # prepare board images
-    merged_states = [[_get_cell_state(cell) for cell in row] for row in match.history]
-    owners = [[_get_cell_owner(cell) for cell in row] for row in match.history]
-    own_grid = match.boards[player_key].grid
+    snapshot = match.snapshots[-1] if getattr(match, "snapshots", []) else None
+    history_source = snapshot.get("history") if snapshot else None
+    if not history_source:
+        history_source = match.history
+    merged_states = [[_get_cell_state(cell) for cell in row] for row in history_source]
+    owners = [[_get_cell_owner(cell) for cell in row] for row in history_source]
+    if snapshot and player_key in snapshot.get("boards", {}):
+        own_grid = snapshot["boards"][player_key]["grid"]
+    else:
+        own_grid = match.boards[player_key].grid
     for r in range(15):
         for c in range(15):
             cell = own_grid[r][c]
@@ -51,7 +63,10 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
     state.board = merged_states
     state.owners = owners
     state.player_key = player_key
-    state.highlight = getattr(match, "last_highlight", []).copy()
+    if snapshot:
+        state.highlight = [tuple(cell) for cell in snapshot.get("last_highlight", [])]
+    else:
+        state.highlight = getattr(match, "last_highlight", []).copy()
     buf = render_board(state, player_key)
     if buf.getbuffer().nbytes == 0:
         logger.warning("render_board returned empty buffer for chat %s", chat_id)
@@ -329,6 +344,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     else:
         next_player = order[(idx + 1) % len(order)]
     match.turn = next_player
+    record_snapshot(match, actor=player_key, coord=coord)
     next_obj = match.players.get(next_player)
     next_name = getattr(next_obj, 'name', '') or next_player
     same_chat = len({p.chat_id for p in match.players.values()}) == 1
