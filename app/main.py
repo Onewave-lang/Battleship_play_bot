@@ -26,7 +26,7 @@ from handlers.commands import (
     confirm_join,
 )
 from handlers.board_test import board_test_two
-from handlers.router import router_text, router_text_board_test_two
+from handlers.router import router_text
 
 from app.webhook_utils import normalize_webhook_base
 
@@ -88,13 +88,6 @@ if BOARD15_ENABLED:
     bot_app.add_handler(CallbackQueryHandler(send_board15_invite_link, pattern="^b15_get_link$"))
     if BOARD15_TEST_ENABLED:
         bot_app.add_handler(CommandHandler("board15test", board15_test))
-bot_app.add_handler(
-    MessageHandler(
-        filters.Regex(r"^[a-oA-O](?:[1-9]|1[0-5])$"),
-        router_text_board_test_two,
-        block=False,
-    )
-)
 bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, router_text))
 
 

@@ -376,6 +376,7 @@ async def router_text_board_test_two(
     handled = await _handle_board_test_two(update, context)
     if handled:
         raise ApplicationHandlerStop
+    await router_text(update, context)
 
 
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
