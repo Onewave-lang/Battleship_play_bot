@@ -61,7 +61,8 @@ def test_board15_router_updates_history_before_send(monkeypatch):
         await router15.router_text(update, context)
 
         assert captured["cell"] == 4
-        assert captured["saved"]
+        assert not captured["saved"]
+        assert saved
 
     asyncio.run(run())
 
