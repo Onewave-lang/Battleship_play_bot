@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import random
 import logging
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update
 from telegram.ext import ContextTypes
 
 import storage
@@ -345,15 +345,9 @@ async def _auto_play_bot(
                 )
                 storage.finish(match, bot)
                 await _safe_send_state(human, message)
-                keyboard = ReplyKeyboardMarkup(
-                    [["Начать новую игру"]],
-                    one_time_keyboard=True,
-                    resize_keyboard=True,
-                )
                 await _safe_send_message(
                     match.players[human].chat_id,
-                    "Игра завершена!",
-                    reply_markup=keyboard,
+                    "Игра завершена! Используйте /newgame, чтобы начать новую партию.",
                 )
                 break
             match.turn = bot

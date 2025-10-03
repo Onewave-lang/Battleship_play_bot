@@ -3,7 +3,7 @@ import random
 import os
 import asyncio
 import logging
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update
 from telegram.ext import ApplicationHandlerStop, ContextTypes
 
 import storage
@@ -14,7 +14,6 @@ from logic.battle_test import apply_shot_multi
 from logic.render import render_board_own, render_board_enemy
 from models import Board
 from handlers.commands import newgame
-from .move_keyboard import move_keyboard
 from .board_test import board_test, board_test_two
 from logic.phrases import (
     ENEMY_HIT,
@@ -81,9 +80,7 @@ async def _send_state(
 
     own = render_board_own(match.boards[player_key])
     enemy = render_board_enemy(match.boards[enemy_key])
-    kb = move_keyboard()
-
-    # send a fresh board message with keyboard and remove the old one
+    # send a fresh board message and remove the old one
     board_text = f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}"
     if board_id:
         try:
@@ -96,7 +93,6 @@ async def _send_state(
         chat_id,
         board_text,
         parse_mode="HTML",
-        reply_markup=kb,
     )
     msgs["board"] = board_msg.message_id
 
@@ -162,8 +158,6 @@ async def _send_state_board_test(
                 merged[r][c] = cell
     board = Board(grid=merged, highlight=getattr(match, "last_highlight", []).copy())
     board_text = f"Ваше поле:\n{render_board_own(board)}"
-    kb = move_keyboard()
-
     if board_id:
         try:
             await context.bot.delete_message(chat_id, board_id)
@@ -175,7 +169,6 @@ async def _send_state_board_test(
         chat_id,
         board_text,
         parse_mode="HTML",
-        reply_markup=kb,
     )
     msgs["board"] = board_msg.message_id
 
@@ -359,13 +352,9 @@ async def _handle_board_test_two(
         match.messages.setdefault(enemy_key, {})["last_bot_message"] = result_enemy
 
     if match.status == "finished":
-        keyboard = ReplyKeyboardMarkup(
-            [["Начать новую игру"]], one_time_keyboard=True, resize_keyboard=True
-        )
         await context.bot.send_message(
             match.players[player_key].chat_id,
-            "Игра завершена!",
-            reply_markup=keyboard,
+            "Игра завершена! Используйте /newgame, чтобы начать новую партию.",
         )
     return True
 
@@ -677,9 +666,14 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     )
 
     if match.status == 'finished':
-        keyboard = ReplyKeyboardMarkup([["Начать новую игру"]], one_time_keyboard=True, resize_keyboard=True)
-        await context.bot.send_message(match.players[player_key].chat_id, 'Игра завершена!', reply_markup=keyboard)
-        await context.bot.send_message(match.players[enemy_key].chat_id, 'Игра завершена!', reply_markup=keyboard)
+        await context.bot.send_message(
+            match.players[player_key].chat_id,
+            'Игра завершена! Используйте /newgame, чтобы начать новую партию.',
+        )
+        await context.bot.send_message(
+            match.players[enemy_key].chat_id,
+            'Игра завершена! Используйте /newgame, чтобы начать новую партию.',
+        )
 
 
 async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
