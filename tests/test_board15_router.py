@@ -192,7 +192,7 @@ def test_router_text_fallback_stamps_cell(monkeypatch, scenario, expected_state,
 
         send_state_calls = 0
 
-        async def fake_send_state(context, match_obj, key, message):
+        async def fake_send_state(context, match_obj, key, message, *, reveal_ships=True):
             nonlocal send_state_calls
             send_state_calls += 1
             cell = match_obj.history[coord[0]][coord[1]]

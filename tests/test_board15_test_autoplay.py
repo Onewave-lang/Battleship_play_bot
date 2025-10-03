@@ -122,7 +122,7 @@ def test_auto_play_bots_notifies_human(monkeypatch):
 
         calls: list[tuple[str, str]] = []
 
-        async def fake_send_state(context, match_, player_key, message):
+        async def fake_send_state(context, match_, player_key, message, *, reveal_ships=True):
             calls.append((player_key, message))
 
         monkeypatch.setattr(router, '_send_state', fake_send_state)
@@ -246,7 +246,7 @@ def test_auto_play_bots_reports_hits(monkeypatch):
 
         calls: list[tuple[str, str]] = []
 
-        async def fake_send_state(context, match_, player_key, message):
+        async def fake_send_state(context, match_, player_key, message, *, reveal_ships=True):
             calls.append((player_key, message))
 
             await asyncio.sleep(0)

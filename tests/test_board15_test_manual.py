@@ -79,7 +79,7 @@ def test_board15_test_manual(monkeypatch):
 
         sent_to: list[str] = []
 
-        async def fake_send_state(context, match_obj, player_key, message):
+        async def fake_send_state(context, match_obj, player_key, message, *, reveal_ships=True):
             sent_to.append(player_key)
 
         monkeypatch.setattr(router, "_send_state", fake_send_state)
