@@ -51,3 +51,18 @@ def test_apply_shot_kill_marks_contour():
     assert apply_shot(board, (1, 2)) == KILL
     assert _state(board.grid[0][0]) == 5
     assert _state(board.grid[2][3]) == 5
+
+
+def test_apply_shot_kill_marks_contour_on_larger_board_edge():
+    board = Board()
+    board.grid = _new_grid(15)
+    ship = Ship(cells=[(14, 14)])
+    board.ships.append(ship)
+    board.grid[14][14] = [1, 'A']
+    board.alive_cells = 1
+
+    assert apply_shot(board, (14, 14)) == KILL
+    assert _state(board.grid[14][14]) == 4
+    assert _state(board.grid[13][13]) == 5
+    assert _state(board.grid[13][14]) == 5
+    assert _state(board.grid[14][13]) == 5

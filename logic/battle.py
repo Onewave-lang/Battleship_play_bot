@@ -33,12 +33,17 @@ def mark_contour(board: Board, cells: list[Tuple[int, int]]) -> None:
     around the destroyed ship becomes unavailable for subsequent shots.
     """
 
+    rows = len(board.grid)
+    cols = len(board.grid[0]) if rows else 0
+    if rows == 0 or cols == 0:
+        return
+
     contour: set[Tuple[int, int]] = set()
     for r, c in cells:
         for dr in (-1, 0, 1):
             for dc in (-1, 0, 1):
                 nr, nc = r + dr, c + dc
-                if 0 <= nr < 10 and 0 <= nc < 10:
+                if 0 <= nr < rows and 0 <= nc < cols:
                     contour.add((nr, nc))
 
     for r, c in contour.difference(cells):
