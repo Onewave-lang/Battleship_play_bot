@@ -144,22 +144,23 @@ def test_multiple_hits_recorded(monkeypatch):
     asyncio.run(run_test())
 
 
-def test_kill_contour_overwrites_previous_state():
+def test_kill_contour_preserves_previous_states():
     history = _new_grid(15)
     boards = {'B': Board15()}
     ship = Ship(cells=[(1, 1)])
     boards['B'].ships = [ship]
     boards['B'].grid[1][1] = 1
 
-    # Pre-fill surrounding cells with various states
-    history[0][0][0] = 2
-    history[0][1][0] = 3
-    history[0][2][0] = 2
-    history[1][0][0] = 3
-    history[1][2][0] = 2
-    history[2][0][0] = 3
-    history[2][1][0] = 2
-    history[2][2][0] = 3
+    preset = {
+        (0, 0): (2, 'miss_owner'),
+        (0, 1): (3, 'hit_owner'),
+        (1, 0): (5, 'contour_owner'),
+        (1, 2): (3, 'another_hit'),
+        (2, 2): (4, 'kill_owner'),
+    }
+    for (rr, cc), (state, owner) in preset.items():
+        history[rr][cc][0] = state
+        history[rr][cc][1] = owner
 
     res = apply_shot(boards['B'], (1, 1))
     assert res == KILL
@@ -170,8 +171,34 @@ def test_kill_contour_overwrites_previous_state():
             state = _state(history[rr][cc])
             if (rr, cc) == (1, 1):
                 assert state == 4
+            elif (rr, cc) in preset:
+                assert state == preset[(rr, cc)][0]
             else:
                 assert state == 5
+
+
+def test_kill_contour_marks_only_unknown_cells():
+    history = _new_grid(15)
+    boards = {'B': Board15()}
+    ship = Ship(cells=[(1, 1)])
+    boards['B'].ships = [ship]
+    boards['B'].grid[1][1] = 1
+
+    # Pre-mark a miss that should remain unchanged
+    history[0][0][0] = 2
+
+    res = apply_shot(boards['B'], (1, 1))
+    assert res == KILL
+    update_history(history, boards, (1, 1), {'B': res})
+
+    for rr in range(0, 3):
+        for cc in range(0, 3):
+            if (rr, cc) == (1, 1):
+                assert _state(history[rr][cc]) == 4
+            elif (rr, cc) == (0, 0):
+                assert _state(history[rr][cc]) == 2
+            else:
+                assert _state(history[rr][cc]) == 5
 
 
 def test_ignore_foreign_board_ships_for_miss():
@@ -297,8 +324,10 @@ def test_friendly_ship_replaced_by_miss(monkeypatch):
         )
 
         await router._send_state(context, match, 'A', 'msg')
+        await router._send_state(context, match, 'B', 'msg')
 
-        assert captured['A'][0][0] == 2
+        assert captured['A'][0][0] == 1
+        assert captured['B'][0][0] == 2
 
     asyncio.run(run_test())
 
@@ -419,7 +448,7 @@ def test_render_board_shows_cumulative_history(monkeypatch):
         first, second = captured
         assert first[0][0] == 2
         assert first[1][1] == 1
-        assert second[0][0] == 5
+        assert second[0][0] == 2
         assert second[1][1] == 4
 
     asyncio.run(run_test())

@@ -78,13 +78,14 @@ def update_history(
                     for dc in (-1, 0, 1):
                         nr, nc = rr + dr, cc + dc
                         if 0 <= nr < 15 and 0 <= nc < 15:
-                            _set_cell_state(
-                                history,
-                                nr,
-                                nc,
-                                5,
-                                _get_cell_owner(history[nr][nc]),
-                            )
+                            if _get_cell_state(history[nr][nc]) == 0:
+                                _set_cell_state(
+                                    history,
+                                    nr,
+                                    nc,
+                                    5,
+                                    _get_cell_owner(history[nr][nc]),
+                                )
             for rr, cc in ship.cells:
                 _set_cell_state(history, rr, cc, 4, key)
     elif any(res == HIT for res in results.values()):
