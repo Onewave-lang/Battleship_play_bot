@@ -41,7 +41,7 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
     for r in range(15):
         for c in range(15):
             cell = own_grid[r][c]
-            if _get_cell_state(cell) == 1:
+            if _get_cell_state(cell) == 1 and merged_states[r][c] not in {2, 5}:
                 merged_states[r][c] = 1
                 owners[r][c] = player_key
     state.board = merged_states
@@ -142,12 +142,45 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     # Persist previous highlights before clearing so that red marks remain
     # as permanent dots on the board history.
-    for b in match.boards.values():
-        if b.highlight:
-            for rr, cc in b.highlight:
-                if _get_cell_state(match.history[rr][cc]) == 0 and _get_cell_state(b.grid[rr][cc]) != 1:
+    for owner_key, board in match.boards.items():
+        if board.highlight:
+            for rr, cc in board.highlight:
+                history_state = _get_cell_state(match.history[rr][cc])
+                if history_state != 0:
+                    continue
+                board_state = _get_cell_state(board.grid[rr][cc])
+                if board_state == 1:
+                    continue
+                if board_state == 3:
+                    _set_cell_state(match.history, rr, cc, 3, owner_key)
+                    continue
+                if board_state == 4:
+                    _set_cell_state(match.history, rr, cc, 4, owner_key)
+                    for dr in (-1, 0, 1):
+                        for dc in (-1, 0, 1):
+                            nr, nc = rr + dr, cc + dc
+                            if 0 <= nr < 15 and 0 <= nc < 15:
+                                if _get_cell_state(match.history[nr][nc]) == 0 and _get_cell_state(board.grid[nr][nc]) == 5:
+                                    _set_cell_state(
+                                        match.history,
+                                        nr,
+                                        nc,
+                                        5,
+                                        _get_cell_owner(match.history[nr][nc]),
+                                    )
+                    continue
+                if board_state == 5:
+                    _set_cell_state(
+                        match.history,
+                        rr,
+                        cc,
+                        5,
+                        _get_cell_owner(match.history[rr][cc]),
+                    )
+                    continue
+                if all(_get_cell_state(other.grid[rr][cc]) != 1 for other in match.boards.values()):
                     _set_cell_state(match.history, rr, cc, 2)
-        b.highlight = []
+        board.highlight = []
 
     state = _get_cell_state(match.history[r][c])
     if state in {2, 3, 4, 5}:
