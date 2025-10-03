@@ -189,7 +189,10 @@ async def _auto_play_bots(
         current = match.turn
         player = match.players.get(current)
         if player is None or player.user_id != 0:
-            await asyncio.sleep(delay)
+            await asyncio.sleep(delay or 0)
+            refreshed = storage.get_match(match.match_id)
+            if refreshed is not None:
+                match = refreshed
             continue
         board = match.boards[current]
         adj = _adjacent_mask(board.grid)

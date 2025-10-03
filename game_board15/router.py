@@ -270,7 +270,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     next_obj = match.players.get(next_player)
     next_name = getattr(next_obj, 'name', '') or next_player
     same_chat = len({p.chat_id for p in match.players.values()}) == 1
-    storage.save_match(match)
     if enemy_msgs and not same_chat:
         for enemy, (res_enemy, msg_body_enemy) in enemy_msgs.items():
             if match.players[enemy].user_id != 0:
