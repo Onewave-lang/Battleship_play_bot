@@ -67,7 +67,7 @@ def render_board_own(board: Board) -> str:
             elif cell_state == 4:
                 sym = SUNK_SYMBOL
             elif cell_state == 5:
-                sym = EMPTY_SYMBOL
+                sym = MISS_SYMBOL
             else:
                 sym = EMPTY_SYMBOL
             if coord in highlight:
