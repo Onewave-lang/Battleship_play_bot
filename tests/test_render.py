@@ -39,22 +39,20 @@ def test_render_last_move_symbols():
     b.grid[0][0] = [2, 'A']
     b.highlight = [(0, 0)]
     own = render_board_own(b)
-    assert "border:1px solid red" in own
-    assert "background-color:orange" in own
+    assert "<b>✖</b>" in own
     b.highlight = []
     own = render_board_own(b)
-    assert "border:1px solid red" not in own
-    assert 'background-color:orange' not in own
-    assert '<span style="color:black">x</span>' in own
+    assert "<b>✖</b>" not in own
+    assert '✖' in own
 
     # hit highlight
     b.grid[1][1] = [3, 'B']
     b.highlight = [(1, 1)]
     enemy = render_board_enemy(b)
-    assert "border:1px solid red" in enemy and "#8b0000" in enemy
+    assert f"<b>{PLAYER_COLORS_DARK['B']}</b>" in enemy
     b.highlight = []
     enemy = render_board_enemy(b)
-    assert "border:1px solid red" not in enemy and PLAYER_COLORS_DARK['B'] in enemy
+    assert f"<b>{PLAYER_COLORS_DARK['B']}</b>" not in enemy and PLAYER_COLORS_DARK['B'] in enemy
 
     # kill highlight
     b.grid[2][2] = [4, 'B']
@@ -64,21 +62,21 @@ def test_render_last_move_symbols():
     b.highlight = [(2, 2)]
     enemy = render_board_enemy(b)
     assert enemy.count(BOMB) == 1
-    assert enemy.count("border:1px solid red") == 1
+    assert enemy.count('<b>') == 1
 
     # highlight the contour cell
     b.highlight = [(2, 3)]
     enemy = render_board_enemy(b)
     assert BOMB not in enemy
-    assert enemy.count('background-color:orange') >= 1
-    assert enemy.count("border:1px solid red") == 1
+    assert enemy.count('⚠️') >= 1
+    assert enemy.count('<b>') >= 1
 
     # no highlight
     b.highlight = []
     enemy = render_board_enemy(b)
-    assert BOMB not in enemy and "border:1px solid red" not in enemy
-    assert '<span style="color:#8b0000">■</span>' in enemy
-    assert '<span style="color:black">x</span>' in enemy
+    assert BOMB not in enemy and '<b>' not in enemy
+    assert '💥' in enemy
+    assert '✖' in enemy
 
 
 def test_apply_shot_marks_contour():
@@ -109,5 +107,5 @@ def test_render_state5_symbol():
     own = render_board_own(b)
     enemy = render_board_enemy(b)
 
-    assert '<span style="color:#808080">x</span>' in own
-    assert '<span style="color:#808080">x</span>' in enemy
+    assert '•' in own
+    assert '•' in enemy
