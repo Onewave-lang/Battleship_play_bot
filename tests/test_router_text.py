@@ -4,6 +4,8 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, call
 
+import pytest
+
 import storage
 from handlers import router
 from handlers import commands as commands_module
@@ -531,7 +533,7 @@ def test_router_auto_waits_and_sends_instruction(monkeypatch):
         )
         assert messages_by_chat[2] == (
             20,
-            'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
+            'Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
         )
 
     asyncio.run(run_test())
@@ -586,7 +588,8 @@ def test_router_kill_message(monkeypatch):
     asyncio.run(run_test())
 
 
-def test_router_at_sends_to_opponent(monkeypatch):
+@pytest.mark.parametrize("prefix", ["@", "!"])
+def test_router_chat_prefix_sends_to_opponent(monkeypatch, prefix):
     async def run_test():
         match = SimpleNamespace(
             status='playing',
@@ -603,7 +606,7 @@ def test_router_at_sends_to_opponent(monkeypatch):
         send_message = AsyncMock()
         context = SimpleNamespace(bot=SimpleNamespace(send_message=send_message))
         update = SimpleNamespace(
-            message=SimpleNamespace(text='@ Привет', reply_text=AsyncMock()),
+            message=SimpleNamespace(text=f'{prefix} Привет', reply_text=AsyncMock()),
             effective_user=SimpleNamespace(id=1),
             effective_chat=SimpleNamespace(id=10),
         )

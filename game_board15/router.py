@@ -32,6 +32,9 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
+CHAT_PREFIXES = ("@", "!")
+
+
 def _compose_move_message(
     result_line: str, humor: str | None, next_line: str | None
 ) -> str:
@@ -236,7 +239,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         for k in match.players:
             match.shots.setdefault(k, {})
 
-    if text.startswith('@'):
+    if text.startswith(CHAT_PREFIXES):
         msg = text[1:].strip()
         for key, player in match.players.items():
             if key != player_key:

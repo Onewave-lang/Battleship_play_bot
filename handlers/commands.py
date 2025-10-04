@@ -106,7 +106,7 @@ async def _send_join_success(
     with welcome_photo() as img:
         await reply_photo(img, caption='Добро пожаловать в игру!')
     await reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки кораблей.')
-    await reply_text('Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.')
+    await reply_text('Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.')
 
     initiator = match.players.get('A')
     joiner = match.players.get('B')
@@ -123,7 +123,7 @@ async def _send_join_success(
     if 'Отправьте "авто"' in msg_a:
         await context.bot.send_message(
             initiator.chat_id,
-            'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
+            'Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
         )
 
 
@@ -225,7 +225,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             with welcome_photo() as img:
                 await update.message.reply_photo(img, caption='Добро пожаловать в игру!')
             await update.message.reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки.')
-            await update.message.reply_text('Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.')
+            await update.message.reply_text('Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.')
             for key, player in match.players.items():
                 if player.user_id == update.effective_user.id:
                     continue
@@ -238,7 +238,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 if 'Отправьте "авто"' in msg:
                     await context.bot.send_message(
                         player.chat_id,
-                        'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
+                        'Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
                     )
         else:
             await update.message.reply_text('Матч не найден или заполнен.')
