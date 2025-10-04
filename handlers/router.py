@@ -411,37 +411,61 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             board.owner = player_key
             storage.save_board(match, player_key, board)
             if match.status == 'playing':
-                await _send_state(
-                    context,
-                    match,
-                    player_key,
+                message_self = (
                     'Корабли расставлены. Бой начинается! '
-                    + ('Ваш ход.' if match.turn == player_key else 'Ход соперника.'),
+                    + ('Ваш ход.' if match.turn == player_key else 'Ход соперника.')
                 )
-                await _send_state(
-                    context,
-                    match,
-                    enemy_key,
+                message_enemy = (
                     'Соперник готов. Бой начинается! '
-                    + ('Ваш ход.' if match.turn == enemy_key else 'Ход соперника.'),
+                    + ('Ваш ход.' if match.turn == enemy_key else 'Ход соперника.')
                 )
-            else:
                 await _send_state(
                     context,
                     match,
                     player_key,
-                    'Корабли расставлены. Ожидаем соперника.',
+                    message_self,
+                )
+                enemy_player = match.players.get(enemy_key)
+                if enemy_player and enemy_player.user_id != 0:
+                    await _send_state(
+                        context,
+                        match,
+                        enemy_key,
+                        message_enemy,
+                    )
+                else:
+                    match.messages.setdefault(enemy_key, {})['last_bot_message'] = (
+                        message_enemy
+                    )
+                    storage.save_match(match)
+            else:
+                message_self = 'Корабли расставлены. Ожидаем соперника.'
+                message_enemy = (
+                    'Соперник готов. Отправьте "авто" для расстановки кораблей.'
                 )
                 await _send_state(
                     context,
                     match,
-                    enemy_key,
-                    'Соперник готов. Отправьте "авто" для расстановки кораблей.',
+                    player_key,
+                    message_self,
                 )
-                await context.bot.send_message(
-                    match.players[enemy_key].chat_id,
-                    'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
-                )
+                enemy_player = match.players.get(enemy_key)
+                if enemy_player and enemy_player.user_id != 0:
+                    await _send_state(
+                        context,
+                        match,
+                        enemy_key,
+                        message_enemy,
+                    )
+                    await context.bot.send_message(
+                        match.players[enemy_key].chat_id,
+                        'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
+                    )
+                else:
+                    match.messages.setdefault(enemy_key, {})['last_bot_message'] = (
+                        message_enemy
+                    )
+                    storage.save_match(match)
         else:
             await update.message.reply_text('Введите "авто" для автоматической расстановки.')
             _log_router_skip(
