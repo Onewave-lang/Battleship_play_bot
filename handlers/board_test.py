@@ -452,6 +452,6 @@ async def board_test_two(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             chat.id,
             human="A",
             bot="B",
-            delay=2,
+            delay=3,
         )
     )
