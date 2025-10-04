@@ -95,8 +95,17 @@ async def _send_state(
                 if _get_cell_state(cell) != 1:
                     continue
                 history_state = merged_states[r][c]
-                if history_state in {2, 5}:
+                history_owner = owners[r][c]
+                if history_state in {3, 4} and history_owner == player_key:
                     continue
+                if history_state in {2, 5}:
+                    logger.warning(
+                        "Correcting state %s for player %s at (%s, %s)",
+                        history_state,
+                        player_key,
+                        r,
+                        c,
+                    )
                 merged_states[r][c] = 1
                 owners[r][c] = player_key
     state.board = merged_states

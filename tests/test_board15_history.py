@@ -523,7 +523,7 @@ def test_send_state_uses_history(monkeypatch):
     asyncio.run(run_test())
 
 
-def test_friendly_ship_replaced_by_miss(monkeypatch):
+def test_friendly_ship_visible_to_owner_after_miss(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
             players={
@@ -606,7 +606,7 @@ def test_friendly_ship_replaced_by_miss(monkeypatch):
         await router._send_state(context, match, 'A', 'msg')
         await router._send_state(context, match, 'B', 'msg')
 
-        assert captured['A'][0][0] == 2
+        assert captured['A'][0][0] == 1
         assert captured['B'][0][0] == 2
 
     asyncio.run(run_test())
