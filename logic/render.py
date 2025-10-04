@@ -36,7 +36,9 @@ def format_cell(symbol: str) -> str:
     pad = CELL_WIDTH - wcswidth(visible)
     if pad < 0:
         pad = 0
-    return symbol + " " * pad
+    pad_left = (pad + 1) // 2
+    pad_right = pad - pad_left
+    return (" " * pad_left) + symbol + (" " * pad_right)
 
 
 COL_HEADERS = ''.join(format_cell(letter) for letter in ROWS)
