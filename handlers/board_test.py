@@ -35,8 +35,25 @@ def _phrase_or_joke(match, player_key: str, phrases: list[str]) -> str:
         start = shots["joke_start"] = random.randint(1, 10)
     count = shots.get("move_count", 0)
     if count >= start and (count - start) % 10 == 0:
-        return f"Слушай анекдот по этому поводу:\n{random_joke()}\n\n"
-    return f"{random_phrase(phrases)} "
+        return f"Слушай анекдот по этому поводу:\n{random_joke()}"
+    return random_phrase(phrases)
+
+
+def _compose_move_message(
+    result_line: str, humor: str | None, next_line: str | None
+) -> str:
+    """Format move outcome with spacing between sections."""
+
+    lines: list[str] = [result_line.strip()]
+    humor_text = (humor or "").strip()
+    if humor_text:
+        lines.append("")
+        lines.append(humor_text)
+    if next_line:
+        if humor_text:
+            lines.append("")
+        lines.append(next_line.strip())
+    return "\n".join(lines)
 
 
 async def _auto_play_bots(
@@ -148,30 +165,40 @@ async def _auto_play_bots(
         match.turn = next_player
 
         parts_self = []
-        enemy_msgs: dict[str, str] = {}
+        enemy_msgs: dict[str, tuple[str, str]] = {}
         priority = {battle.MISS: 0, battle.REPEAT: 1, battle.HIT: 2, battle.KILL: 3}
         overall_res = battle.MISS
         for enemy, res in results.items():
             if priority[res] > priority[overall_res]:
                 overall_res = res
             if res == battle.MISS:
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS).rstrip()
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS).strip()
                 parts_self.append(f"{enemy}: мимо.")
-                enemy_msgs[enemy] = f"соперник промахнулся. {phrase_enemy}".rstrip()
+                enemy_msgs[enemy] = (
+                    f"Ход игрока {current}: {coord_str} - Соперник промахнулся.",
+                    phrase_enemy,
+                )
             elif res == battle.HIT:
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT).rstrip()
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT).strip()
                 parts_self.append(f"{enemy}: ранил.")
-                enemy_msgs[enemy] = f"ваш корабль ранен. {phrase_enemy}".rstrip()
+                enemy_msgs[enemy] = (
+                    f"Ход игрока {current}: {coord_str} - Соперник ранил ваш корабль.",
+                    phrase_enemy,
+                )
             elif res == battle.KILL:
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL).rstrip()
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL).strip()
                 parts_self.append(f"{enemy}: уничтожен!")
-                enemy_msgs[enemy] = f"ваш корабль уничтожен. {phrase_enemy}".rstrip()
+                enemy_msgs[enemy] = (
+                    f"Ход игрока {current}: {coord_str} - Соперник уничтожил ваш корабль.",
+                    phrase_enemy,
+                )
             elif res == battle.REPEAT:
-                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS).rstrip()
+                phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS).strip()
                 parts_self.append(f"{enemy}: клетка уже обстреляна.")
                 enemy_msgs[enemy] = (
-                    f"соперник стрелял по уже обстрелянной клетке. {phrase_enemy}"
-                ).rstrip()
+                    f"Ход игрока {current}: {coord_str} - Соперник стрелял по уже обстрелянной клетке.",
+                    phrase_enemy,
+                )
 
         phrase_map = {
             battle.KILL: SELF_KILL,
@@ -179,39 +206,45 @@ async def _auto_play_bots(
             battle.REPEAT: SELF_MISS,
             battle.MISS: SELF_MISS,
         }
-        phrase_self = _phrase_or_joke(match, current, phrase_map[overall_res]).rstrip()
+        phrase_self = _phrase_or_joke(match, current, phrase_map[overall_res]).strip()
 
         next_name = next_player
         storage.save_match(match)
         if enemy_msgs:
-            for enemy, msg_body in enemy_msgs.items():
+            for enemy, (result_line_enemy, humor_enemy) in enemy_msgs.items():
                 if enemy == human:
                     continue
                 if match.players[enemy].user_id != 0:
-                    next_phrase = f" Следующим ходит {next_name}."
-                    await _safe_send_state(
-                        enemy,
-                        f"Ход игрока {current}: {coord_str} - {msg_body}{next_phrase}",
+                    message_enemy = _compose_move_message(
+                        result_line_enemy,
+                        humor_enemy,
+                        f"Следующим ходит {next_name}.",
                     )
+                    await _safe_send_state(enemy, message_enemy)
 
         if (
             current != human
             and human in enemy_msgs
             and match.players[human].user_id != 0
         ):
-            next_phrase = f" Следующим ходит {next_name}."
-            await _safe_send_state(
-                human,
-                f"Ход игрока {current}: {coord_str} - {enemy_msgs[human]}{next_phrase}",
+            result_line_human, humor_human = enemy_msgs[human]
+            message_human = _compose_move_message(
+                result_line_human,
+                humor_human,
+                f"Следующим ходит {next_name}.",
             )
+            await _safe_send_state(human, message_human)
 
         parts_text = ' '.join(parts_self)
-        base_self = (
-            f"Ваш ход: {coord_str} - {parts_text} {phrase_self}"
-            if parts_text
-            else f"Ваш ход: {coord_str} - {phrase_self}"
-        ).rstrip()
-        result_self = base_self + f" Следующим ходит {next_name}."
+        parts_text = parts_text.strip()
+        result_line_self = (
+            f"Ваш ход: {coord_str} - {parts_text}" if parts_text else f"Ваш ход: {coord_str}"
+        )
+        result_self = _compose_move_message(
+            result_line_self,
+            phrase_self,
+            f"Следующим ходит {next_name}.",
+        )
         if match.players[current].user_id != 0:
             await _safe_send_state(current, result_self)
 
@@ -328,28 +361,35 @@ async def _auto_play_bot(
 
         if result == MISS:
             match.turn = human
-            phrase_enemy = _phrase_or_joke(match, human, ENEMY_MISS).rstrip()
-            message = (
-                f"Ход соперника: {coord_str} — Промах. {phrase_enemy} Следующим ходите вы."
+            phrase_enemy = _phrase_or_joke(match, human, ENEMY_MISS).strip()
+            message = _compose_move_message(
+                f"Ход соперника: {coord_str} — Промах.",
+                phrase_enemy,
+                "Следующим ходите вы.",
             )
         elif result == HIT:
             match.turn = bot
-            phrase_enemy = _phrase_or_joke(match, human, ENEMY_HIT).rstrip()
-            message = (
-                f"Ход соперника: {coord_str} — Ваш корабль ранен. {phrase_enemy} Следующим ходит соперник."
+            phrase_enemy = _phrase_or_joke(match, human, ENEMY_HIT).strip()
+            message = _compose_move_message(
+                f"Ход соперника: {coord_str} — Ваш корабль ранен.",
+                phrase_enemy,
+                "Следующим ходит соперник.",
             )
         elif result == REPEAT:
             match.turn = bot
-            phrase_enemy = _phrase_or_joke(match, human, ENEMY_MISS).rstrip()
-            message = (
-                f"Ход соперника: {coord_str} — Клетка уже обстреляна. {phrase_enemy} Следующим ходит соперник."
+            phrase_enemy = _phrase_or_joke(match, human, ENEMY_MISS).strip()
+            message = _compose_move_message(
+                f"Ход соперника: {coord_str} — Клетка уже обстреляна.",
+                phrase_enemy,
+                "Следующим ходит соперник.",
             )
         elif result == KILL:
-            phrase_enemy = _phrase_or_joke(match, human, ENEMY_KILL).rstrip()
+            phrase_enemy = _phrase_or_joke(match, human, ENEMY_KILL).strip()
             if board.alive_cells == 0:
-                message = (
-                    f"Ход соперника: {coord_str} — Ваш корабль уничтожен. {phrase_enemy}"
-                    " Все ваши корабли уничтожены. Бот победил!"
+                message = _compose_move_message(
+                    f"Ход соперника: {coord_str} — Ваш корабль уничтожен.",
+                    phrase_enemy,
+                    "Все ваши корабли уничтожены. Бот победил!",
                 )
                 storage.finish(match, bot)
                 await _safe_send_state(human, message)
@@ -359,14 +399,17 @@ async def _auto_play_bot(
                 )
                 break
             match.turn = bot
-            message = (
-                f"Ход соперника: {coord_str} — Ваш корабль уничтожен. {phrase_enemy}"
-                " Следующим ходит соперник."
+            message = _compose_move_message(
+                f"Ход соперника: {coord_str} — Ваш корабль уничтожен.",
+                phrase_enemy,
+                "Следующим ходит соперник.",
             )
         else:
             match.turn = human
-            message = (
-                f"Ход соперника: {coord_str} — Техническая ошибка. Следующим ходите вы."
+            message = _compose_move_message(
+                f"Ход соперника: {coord_str} — Техническая ошибка.",
+                None,
+                "Следующим ходите вы.",
             )
 
         storage.save_match(match)

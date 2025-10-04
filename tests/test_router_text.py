@@ -343,7 +343,7 @@ def test_router_invalid_cell_shows_board(monkeypatch):
         assert msg_call.args[0] == 10
         assert msg_call.kwargs.get('parse_mode') == 'HTML'
         assert msg_call.args[1] == (
-            'Ваше поле:\nown\nПоле соперника:\nenemy\n\nНе понял клетку. Пример: е5 или д10.'
+            'Ваше поле:\nown\nПоле соперника:\nenemy\nНе понял клетку. Пример: е5 или д10.'
         )
     asyncio.run(run_test())
 
@@ -378,7 +378,7 @@ def test_router_wrong_turn_shows_board(monkeypatch):
         assert msg_call.args[0] == 10
         assert msg_call.kwargs.get('parse_mode') == 'HTML'
         assert msg_call.args[1] == (
-            'Ваше поле:\nown\nПоле соперника:\nenemy\n\nСейчас ход соперника.'
+            'Ваше поле:\nown\nПоле соперника:\nenemy\nСейчас ход соперника.'
         )
     asyncio.run(run_test())
 
@@ -422,10 +422,10 @@ def test_router_auto_shows_board(monkeypatch):
             assert call_args.kwargs.get('parse_mode') == 'HTML'
         messages_by_chat = {c.args[0]: c.args[1] for c in calls}
         assert messages_by_chat[10] == (
-            'Ваше поле:\nown\nПоле соперника:\nenemy\n\nКорабли расставлены. Бой начинается! Ваш ход.'
+            'Ваше поле:\nown\nПоле соперника:\nenemy\nКорабли расставлены. Бой начинается! Ваш ход.'
         )
         assert messages_by_chat[20] == (
-            'Ваше поле:\nown\nПоле соперника:\nenemy\n\nСоперник готов. Бой начинается! Ход соперника.'
+            'Ваше поле:\nown\nПоле соперника:\nenemy\nСоперник готов. Бой начинается! Ход соперника.'
         )
     asyncio.run(run_test())
 
@@ -473,11 +473,11 @@ def test_router_auto_waits_and_sends_instruction(monkeypatch):
         messages_by_chat = [(c.args[0], c.args[1]) for c in calls]
         assert messages_by_chat[0] == (
             10,
-            'Ваше поле:\nown\nПоле соперника:\nenemy\n\nКорабли расставлены. Ожидаем соперника.',
+            'Ваше поле:\nown\nПоле соперника:\nenemy\nКорабли расставлены. Ожидаем соперника.',
         )
         assert messages_by_chat[1] == (
             20,
-            'Ваше поле:\nown\nПоле соперника:\nenemy\n\nСоперник готов. Отправьте "авто" для расстановки кораблей.',
+            'Ваше поле:\nown\nПоле соперника:\nenemy\nСоперник готов. Отправьте "авто" для расстановки кораблей.',
         )
         assert messages_by_chat[2] == (
             20,
@@ -594,7 +594,7 @@ def test_router_joke_format(monkeypatch):
         )
         await router.router_text(update, context)
         msg_self = send_message.call_args_list[1].args[1]
-        assert 'Слушай анекдот по этому поводу:\nJOKE\n\n Следующим ходит B.' in msg_self
+        assert '\n\nСлушай анекдот по этому поводу:\nJOKE\n\nСледующим ходит B.' in msg_self
 
     asyncio.run(run_test())
 

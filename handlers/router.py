@@ -75,9 +75,7 @@ async def _send_state(
 
     own = render_board_own(match.boards[player_key])
     enemy = render_board_enemy(match.boards[enemy_key])
-    board_text = (
-        f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}\n\n{message}"
-    )
+    board_text = f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}\n{message}"
 
     board_msg = await context.bot.send_message(
         chat_id,
@@ -117,7 +115,7 @@ async def _send_state_board_test(
                 # Preserve owner information by copying the full cell value
                 merged[r][c] = cell
     board = Board(grid=merged, highlight=getattr(match, "last_highlight", []).copy())
-    board_text = f"Ваше поле:\n{render_board_own(board)}\n\n{message}"
+    board_text = f"Ваше поле:\n{render_board_own(board)}\n{message}"
 
     new_id = None
     if board_id:
@@ -159,8 +157,25 @@ def _phrase_or_joke(match, player_key: str, phrases: list[str]) -> str:
         start = shots["joke_start"] = random.randint(1, 10)
     count = shots.get("move_count", 0)
     if count >= start and (count - start) % 10 == 0:
-        return f"Слушай анекдот по этому поводу:\n{random_joke()}\n\n"
-    return f"{random_phrase(phrases)} "
+        return f"Слушай анекдот по этому поводу:\n{random_joke()}"
+    return random_phrase(phrases)
+
+
+def _compose_move_message(
+    result_line: str, humor: str | None, next_line: str | None
+) -> str:
+    """Format move summary with optional humor and next-turn line."""
+
+    lines: list[str] = [result_line.strip()]
+    humor_text = (humor or "").strip()
+    if humor_text:
+        lines.append("")
+        lines.append(humor_text)
+    if next_line:
+        if humor_text:
+            lines.append("")
+        lines.append(next_line.strip())
+    return "\n".join(lines)
 
 
 async def _handle_board_test_two(
@@ -225,65 +240,90 @@ async def _handle_board_test_two(
 
     if result == MISS:
         match.turn = enemy_key
-        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
-        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_MISS)
-        result_self = (
-            f"Ваш ход: {coord_str} — Мимо. {phrase_self} Следующим ходит соперник."
+        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS).strip()
+        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_MISS).strip()
+        result_self = _compose_move_message(
+            f"Ваш ход: {coord_str} — Мимо.",
+            phrase_self,
+            "Следующим ходит соперник.",
         )
-        result_enemy = (
-            f"Ход игрока {player_label}: {coord_str} — Соперник промахнулся. {phrase_enemy}"
-            " Следующим ходит соперник."
+        result_enemy = _compose_move_message(
+            f"Ход игрока {player_label}: {coord_str} — Соперник промахнулся.",
+            phrase_enemy,
+            "Следующим ходит соперник.",
         )
     elif result == HIT:
         match.turn = player_key
-        phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
-        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_HIT)
-        result_self = (
-            f"Ваш ход: {coord_str} — Ранил. {phrase_self} Следующим ходите вы."
+        phrase_self = _phrase_or_joke(match, player_key, SELF_HIT).strip()
+        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_HIT).strip()
+        result_self = _compose_move_message(
+            f"Ваш ход: {coord_str} — Ранил.",
+            phrase_self,
+            "Следующим ходите вы.",
         )
-        result_enemy = (
-            f"Ход игрока {player_label}: {coord_str} — Соперник ранил ваш корабль. {phrase_enemy}"
-            " Следующим ходит соперник."
+        result_enemy = _compose_move_message(
+            f"Ход игрока {player_label}: {coord_str} — Соперник ранил ваш корабль.",
+            phrase_enemy,
+            "Следующим ходит соперник.",
         )
     elif result == REPEAT:
         match.turn = player_key
-        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
-        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_MISS)
-        result_self = (
-            f"Ваш ход: {coord_str} — Клетка уже обстреляна. {phrase_self} Следующим ходите вы."
+        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS).strip()
+        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_MISS).strip()
+        result_self = _compose_move_message(
+            f"Ваш ход: {coord_str} — Клетка уже обстреляна.",
+            phrase_self,
+            "Следующим ходите вы.",
         )
-        result_enemy = (
-            f"Ход игрока {player_label}: {coord_str} — Соперник стрелял по уже обстрелянной клетке."
-            f" {phrase_enemy} Следующим ходит соперник."
+        result_enemy = _compose_move_message(
+            f"Ход игрока {player_label}: {coord_str} — Соперник стрелял по уже обстрелянной клетке.",
+            phrase_enemy,
+            "Следующим ходит соперник.",
         )
     elif result == KILL:
-        phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
-        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_KILL)
+        phrase_self = _phrase_or_joke(match, player_key, SELF_KILL).strip()
+        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_KILL).strip()
+        result_line_self = (
+            f"Ваш ход: {coord_str} — Корабль соперника уничтожен!"
+        )
+        result_line_enemy = (
+            f"Ход игрока {player_label}: {coord_str} — Соперник уничтожил ваш корабль."
+        )
         if match.boards[enemy_key].alive_cells == 0:
             storage.finish(match, player_key)
-            result_self = (
-                f"Ваш ход: {coord_str} — Корабль соперника уничтожен! {phrase_self}"
-                " Вы победили!🏆"
+            result_self = _compose_move_message(
+                result_line_self,
+                phrase_self,
+                "Вы победили!🏆",
             )
-            result_enemy = (
-                f"Ход игрока {player_label}: {coord_str} — Соперник уничтожил ваш корабль. {phrase_enemy}"
-                " Все ваши корабли уничтожены. Игрок A победил!"
+            result_enemy = _compose_move_message(
+                result_line_enemy,
+                phrase_enemy,
+                "Все ваши корабли уничтожены. Игрок A победил!",
             )
         else:
             match.turn = player_key
-            result_self = (
-                f"Ваш ход: {coord_str} — Корабль соперника уничтожен! {phrase_self}"
-                " Следующим ходите вы."
+            result_self = _compose_move_message(
+                result_line_self,
+                phrase_self,
+                "Следующим ходите вы.",
             )
-            result_enemy = (
-                f"Ход игрока {player_label}: {coord_str} — Соперник уничтожил ваш корабль. {phrase_enemy}"
-                " Следующим ходит соперник."
+            result_enemy = _compose_move_message(
+                result_line_enemy,
+                phrase_enemy,
+                "Следующим ходит соперник.",
             )
     else:
         match.turn = enemy_key
-        result_self = f"Ваш ход: {coord_str} — Ошибка. Следующим ходит соперник."
-        result_enemy = (
-            f"Ход игрока {player_label}: {coord_str} — Техническая ошибка. Следующим ходит соперник."
+        result_self = _compose_move_message(
+            f"Ваш ход: {coord_str} — Ошибка.",
+            None,
+            "Следующим ходит соперник.",
+        )
+        result_enemy = _compose_move_message(
+            f"Ход игрока {player_label}: {coord_str} — Техническая ошибка.",
+            None,
+            "Следующим ходит соперник.",
         )
 
     storage.save_match(match)
@@ -501,72 +541,98 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         match.turn = enemy_key
         next_player = enemy_key
         next_label = getattr(match.players[next_player], 'name', '') or next_player
-        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
-        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_MISS)
-        next_phrase_self = f" Следующим ходит {next_label}."
-        next_phrase_enemy = f" Следующим ходит {next_label}."
-        result_self = f"Ваш ход: {coord_str} — Мимо. {phrase_self}{next_phrase_self}"
-        result_enemy = (
-            f"Ход игрока {player_label}: {coord_str} — Соперник промахнулся. {phrase_enemy}{next_phrase_enemy}"
+        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS).strip()
+        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_MISS).strip()
+        result_self = _compose_move_message(
+            f"Ваш ход: {coord_str} — Мимо.",
+            phrase_self,
+            f"Следующим ходит {next_label}.",
+        )
+        result_enemy = _compose_move_message(
+            f"Ход игрока {player_label}: {coord_str} — Соперник промахнулся.",
+            phrase_enemy,
+            f"Следующим ходит {next_label}.",
         )
         error = storage.save_match(match)
     elif result == HIT:
         next_player = player_key
         next_label = getattr(match.players[next_player], 'name', '') or next_player
-        phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
-        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_HIT)
-        next_phrase_self = f" Следующим ходит {next_label}."
-        next_phrase_enemy = f" Следующим ходит {next_label}."
-        result_self = f"Ваш ход: {coord_str} — Ранил. {phrase_self}{next_phrase_self}"
-        result_enemy = (
-            f"Ход игрока {player_label}: {coord_str} — Соперник ранил ваш корабль. {phrase_enemy}{next_phrase_enemy}"
+        phrase_self = _phrase_or_joke(match, player_key, SELF_HIT).strip()
+        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_HIT).strip()
+        result_self = _compose_move_message(
+            f"Ваш ход: {coord_str} — Ранил.",
+            phrase_self,
+            f"Следующим ходит {next_label}.",
+        )
+        result_enemy = _compose_move_message(
+            f"Ход игрока {player_label}: {coord_str} — Соперник ранил ваш корабль.",
+            phrase_enemy,
+            f"Следующим ходит {next_label}.",
         )
         error = storage.save_match(match)
     elif result == REPEAT:
         next_player = player_key
         next_label = getattr(match.players[next_player], 'name', '') or next_player
-        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
-        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_MISS)
-        next_phrase_self = f" Следующим ходит {next_label}."
-        next_phrase_enemy = f" Следующим ходит {next_label}."
-        result_self = (
-            f"Ваш ход: {coord_str} — Клетка уже обстреляна. {phrase_self}{next_phrase_self}"
+        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS).strip()
+        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_MISS).strip()
+        result_self = _compose_move_message(
+            f"Ваш ход: {coord_str} — Клетка уже обстреляна.",
+            phrase_self,
+            f"Следующим ходит {next_label}.",
         )
-        result_enemy = (
-            f"Ход игрока {player_label}: {coord_str} — Соперник стрелял по уже обстрелянной клетке. {phrase_enemy}{next_phrase_enemy}"
+        result_enemy = _compose_move_message(
+            f"Ход игрока {player_label}: {coord_str} — Соперник стрелял по уже обстрелянной клетке.",
+            phrase_enemy,
+            f"Следующим ходит {next_label}.",
         )
         error = storage.save_match(match)
     elif result == KILL:
-        phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
-        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_KILL)
+        phrase_self = _phrase_or_joke(match, player_key, SELF_KILL).strip()
+        phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_KILL).strip()
+        result_line_self = f"Ваш ход: {coord_str} — Корабль соперника уничтожен!"
+        result_line_enemy = (
+            f"Ход игрока {player_label}: {coord_str} — Соперник уничтожил ваш корабль."
+        )
         if match.boards[enemy_key].alive_cells == 0:
             eliminated.append(enemy_key)
-            result_self = (
-                f"Ваш ход: {coord_str} — Корабль соперника уничтожен! {phrase_self}Вы победили!🏆"
+            result_self = _compose_move_message(
+                result_line_self,
+                phrase_self,
+                "Вы победили!🏆",
             )
-            result_enemy = (
-                f"Ход игрока {player_label}: {coord_str} — Соперник уничтожил ваш корабль. {phrase_enemy}Все ваши корабли уничтожены. Игрок {player_label} победил!"
+            result_enemy = _compose_move_message(
+                result_line_enemy,
+                phrase_enemy,
+                f"Все ваши корабли уничтожены. Игрок {player_label} победил!",
             )
             error = storage.save_match(match)
         else:
             next_player = player_key
             next_label = getattr(match.players[next_player], 'name', '') or next_player
-            next_phrase_self = f" Следующим ходит {next_label}."
-            next_phrase_enemy = f" Следующим ходит {next_label}."
-            result_self = (
-                f"Ваш ход: {coord_str} — Корабль соперника уничтожен! {phrase_self}{next_phrase_self}"
+            result_self = _compose_move_message(
+                result_line_self,
+                phrase_self,
+                f"Следующим ходит {next_label}.",
             )
-            result_enemy = (
-                f"Ход игрока {player_label}: {coord_str} — Соперник уничтожил ваш корабль. {phrase_enemy}{next_phrase_enemy}"
+            result_enemy = _compose_move_message(
+                result_line_enemy,
+                phrase_enemy,
+                f"Следующим ходит {next_label}.",
             )
             error = storage.save_match(match)
     else:
         next_player = enemy_key
         next_label = getattr(match.players[next_player], 'name', '') or next_player
-        next_phrase_self = f" Следующим ходит {next_label}."
-        next_phrase_enemy = f" Следующим ходит {next_label}."
-        result_self = f"Ваш ход: {coord_str} — Ошибка.{next_phrase_self}"
-        result_enemy = f"Ход игрока {player_label}: {coord_str} — Техническая ошибка.{next_phrase_enemy}"
+        result_self = _compose_move_message(
+            f"Ваш ход: {coord_str} — Ошибка.",
+            None,
+            f"Следующим ходит {next_label}.",
+        )
+        result_enemy = _compose_move_message(
+            f"Ход игрока {player_label}: {coord_str} — Техническая ошибка.",
+            None,
+            f"Следующим ходит {next_label}.",
+        )
 
     logger.info(
         "Post-shot state | context=%s",
