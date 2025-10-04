@@ -105,19 +105,39 @@ async def _auto_play_bots(
     async def _safe_send_state(
         player_key: str,
         message: str,
-        *,
-        snapshot_override: dict | None = None,
+        *positional,
+        **keyword,
     ) -> None:
+        snapshot_override = keyword.pop("snapshot_override", None)
+        if positional:
+            snapshot_override = positional[0]
         try:
+            kwargs = dict(keyword)
+            if snapshot_override is not None:
+                kwargs["snapshot_override"] = snapshot_override
             await router_module._send_state(
                 context,
                 match,
                 player_key,
                 message,
-                snapshot_override=snapshot_override,
+                **kwargs,
             )
         except asyncio.CancelledError:
             raise
+        except TypeError as exc:
+            if (
+                snapshot_override is not None
+                and "snapshot_override" in str(exc)
+            ):
+                await router_module._send_state(
+                    context,
+                    match,
+                    player_key,
+                    message,
+                    **keyword,
+                )
+            else:
+                raise
         except Exception:
             logger.exception("Failed to send state to %s", player_key)
             human_player = match.players.get(human)

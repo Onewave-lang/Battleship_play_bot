@@ -9,8 +9,6 @@ from logic.render import (
     LAST_MOVE_SUNK_SYMBOL,
     format_cell,
     CELL_WIDTH,
-    COL_HEADERS,
-    HEADER_PREFIX,
 )
 from logic.parser import ROWS
 from logic.battle import apply_shot, KILL
@@ -125,9 +123,9 @@ def test_render_axis_labels():
     own_lines = _extract_lines(render_board_own(board))
     enemy_lines = _extract_lines(render_board_enemy(board))
 
-    expected_header = HEADER_PREFIX + COL_HEADERS
+    expected_header = ''.join(format_cell(letter) for letter in ROWS).strip()
     for lines in (own_lines, enemy_lines):
-        header = lines[0]
+        header = lines[0].split('|', 1)[1].strip()
         assert header == expected_header
         assert len(lines[0]) == len(lines[1])
         row_labels = [line.split('|', 1)[0].strip() for line in lines[1:]]

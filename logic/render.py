@@ -16,9 +16,8 @@ from wcwidth import wcswidth
 CELL_WIDTH = 2
 
 # text symbols for board rendering
-
 EMPTY_SYMBOL = "‧"
-MISS_SYMBOL = "•"
+MISS_SYMBOL = "x"
 SHIP_SYMBOL = "▢"
 HIT_SYMBOL = "■"
 SUNK_SYMBOL = "▩"
@@ -82,7 +81,7 @@ def _resolve_cell(v: Union[int, Tuple[int, str]]) -> Tuple[int, str | None]:
 
 
 def render_board_own(board: Board) -> str:
-    header = HEADER_PREFIX + COL_HEADERS
+    header = format_cell("") + "|" + " " + COL_HEADERS
     lines = [header]
     highlight = set(board.highlight)
     for r_idx, row in enumerate(board.grid):
@@ -116,7 +115,7 @@ def render_board_own(board: Board) -> str:
 
 
 def render_board_enemy(board: Board) -> str:
-    header = HEADER_PREFIX + COL_HEADERS
+    header = format_cell("") + "|" + " " + COL_HEADERS
     lines = [header]
     highlight = set(board.highlight)
     for r_idx, row in enumerate(board.grid):
