@@ -7,7 +7,14 @@ from logic.parser import ROWS
 from wcwidth import wcswidth
 
 # fixed-width layout for board cells
-CELL_WIDTH = 2
+#
+# Emoji symbols that we use for hits, misses and ships can have a display
+# width larger than the standard ASCII characters.  When Telegram renders the
+# board, these wide symbols tend to stretch a cell beyond the intended column
+# boundaries, which breaks the rectangular shape of the grid.  By increasing
+# the cell width padding we make sure every cell reserves enough horizontal
+# space so that even wide emoji fit without affecting neighbouring columns.
+CELL_WIDTH = 3
 
 # text symbols for board rendering
 EMPTY_SYMBOL = "·"

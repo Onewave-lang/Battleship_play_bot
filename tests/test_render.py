@@ -4,6 +4,7 @@ from logic.render import (
     SHIP_SYMBOL,
     HIT_SYMBOL,
     SUNK_SYMBOL,
+    format_cell,
 )
 from logic.parser import ROWS
 from logic.battle import apply_shot, KILL
@@ -117,7 +118,7 @@ def test_render_axis_labels():
     own_lines = _extract_lines(render_board_own(board))
     enemy_lines = _extract_lines(render_board_enemy(board))
 
-    expected_header = ' '.join(ROWS)
+    expected_header = ''.join(format_cell(letter) for letter in ROWS).strip()
     for lines in (own_lines, enemy_lines):
         header = lines[0].split('|', 1)[1].strip()
         assert header == expected_header
