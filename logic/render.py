@@ -14,7 +14,8 @@ from wcwidth import wcswidth
 # boundaries, which breaks the rectangular shape of the grid.  By increasing
 # the cell width padding we make sure every cell reserves enough horizontal
 # space so that even wide emoji fit without affecting neighbouring columns.
-CELL_WIDTH = 3
+# An even width keeps left/right padding symmetric for double-width emoji.
+CELL_WIDTH = 4
 
 # text symbols for board rendering
 EMPTY_SYMBOL = "·"
