@@ -410,7 +410,7 @@ async def board(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     own = render_board_own(match.boards[player_key])
     enemy = render_board_enemy(match.boards[enemy_key])
     await update.message.reply_text(
-        f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}",
+        f"Поле соперника:\n{enemy}\nВаше поле:\n{own}",
         parse_mode='HTML',
     )
 
