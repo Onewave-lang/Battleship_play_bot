@@ -59,77 +59,54 @@ def _cell_state(cell):
     return cell[0] if isinstance(cell, (list, tuple)) else cell
 
 
-# Delay after sending the board and before sending/editing the result text.
-# Can be tuned with the ``STATE_DELAY`` environment variable.
-STATE_DELAY = float(os.getenv("STATE_DELAY", "0.2"))
-
-
 async def _send_state(
     context: ContextTypes.DEFAULT_TYPE,
     match,
     player_key: str,
     message: str,
 ) -> None:
-    """Send boards first, then a separate text message with the result."""
+    """Send the board and the textual result as a single message."""
     enemy_key = "B" if player_key == "A" else "A"
     chat_id = match.players[player_key].chat_id
     msgs = match.messages.setdefault(player_key, {})
 
     board_id = msgs.get("board")
-    text_id = msgs.get("text")
 
     own = render_board_own(match.boards[player_key])
     enemy = render_board_enemy(match.boards[enemy_key])
-    # send a fresh board message and remove the old one
-    board_text = f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}"
+    board_text = (
+        f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}\n\n{message}"
+    )
+
+    new_id = None
     if board_id:
         try:
-            await context.bot.delete_message(chat_id, board_id)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            pass
-    board_msg = await context.bot.send_message(
-        chat_id,
-        board_text,
-        parse_mode="HTML",
-    )
-    msgs["board"] = board_msg.message_id
-
-    await asyncio.sleep(STATE_DELAY)
-
-    # update text message with result
-    if text_id:
-        try:
-            await context.bot.edit_message_text(
+            edited = await context.bot.edit_message_text(
                 chat_id=chat_id,
-                message_id=text_id,
-                text=message,
+                message_id=board_id,
+                text=board_text,
                 parse_mode="HTML",
             )
+            new_id = getattr(edited, "message_id", board_id)
         except asyncio.CancelledError:
             raise
         except Exception:
             try:
-                await context.bot.delete_message(chat_id, text_id)
+                await context.bot.delete_message(chat_id, board_id)
             except asyncio.CancelledError:
                 raise
             except Exception:
                 pass
-            text_msg = await context.bot.send_message(
-                chat_id,
-                message,
-                parse_mode="HTML",
-            )
-            text_id = text_msg.message_id
-    else:
-        text_msg = await context.bot.send_message(
+    if new_id is None:
+        board_msg = await context.bot.send_message(
             chat_id,
-            message,
+            board_text,
             parse_mode="HTML",
         )
-        text_id = text_msg.message_id
-    msgs["text"] = text_id
+        new_id = board_msg.message_id
+
+    msgs["board"] = new_id
+    msgs.pop("text", None)
 
     storage.save_match(match)
 
@@ -146,7 +123,6 @@ async def _send_state_board_test(
     msgs = match.messages.setdefault(player_key, {})
 
     board_id = msgs.get("board")
-    text_id = msgs.get("text")
 
     merged = [row[:] for row in match.history]
     own_grid = match.boards[player_key].grid
@@ -157,54 +133,37 @@ async def _send_state_board_test(
                 # Preserve owner information by copying the full cell value
                 merged[r][c] = cell
     board = Board(grid=merged, highlight=getattr(match, "last_highlight", []).copy())
-    board_text = f"Ваше поле:\n{render_board_own(board)}"
+    board_text = f"Ваше поле:\n{render_board_own(board)}\n\n{message}"
+
+    new_id = None
     if board_id:
         try:
-            await context.bot.delete_message(chat_id, board_id)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            pass
-    board_msg = await context.bot.send_message(
-        chat_id,
-        board_text,
-        parse_mode="HTML",
-    )
-    msgs["board"] = board_msg.message_id
-
-    await asyncio.sleep(STATE_DELAY)
-
-    if text_id:
-        try:
-            await context.bot.edit_message_text(
+            edited = await context.bot.edit_message_text(
                 chat_id=chat_id,
-                message_id=text_id,
-                text=message,
+                message_id=board_id,
+                text=board_text,
                 parse_mode="HTML",
             )
+            new_id = getattr(edited, "message_id", board_id)
         except asyncio.CancelledError:
             raise
         except Exception:
             try:
-                await context.bot.delete_message(chat_id, text_id)
+                await context.bot.delete_message(chat_id, board_id)
             except asyncio.CancelledError:
                 raise
             except Exception:
                 pass
-            text_msg = await context.bot.send_message(
-                chat_id,
-                message,
-                parse_mode="HTML",
-            )
-            text_id = text_msg.message_id
-    else:
-        text_msg = await context.bot.send_message(
+    if new_id is None:
+        board_msg = await context.bot.send_message(
             chat_id,
-            message,
+            board_text,
             parse_mode="HTML",
         )
-        text_id = text_msg.message_id
-    msgs["text"] = text_id
+        new_id = board_msg.message_id
+
+    msgs["board"] = new_id
+    msgs.pop("text", None)
 
     storage.save_match(match)
 
