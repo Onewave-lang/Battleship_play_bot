@@ -77,6 +77,6 @@ def test_router_message_order(tmp_path, monkeypatch):
 
     asyncio.run(play_moves())
 
-    expected = ['board_send', 'board_edit']
+    expected = ['board_send', 'board_send']
     assert bot.logs[1] == expected
     assert bot.logs[2] == expected

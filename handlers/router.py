@@ -30,6 +30,9 @@ from logic.phrases import (
 logger = logging.getLogger(__name__)
 
 
+STATE_DELAY = float(os.getenv("STATE_DELAY", "0"))
+
+
 def _log_router_skip(
     reason: str,
     *,
@@ -70,42 +73,23 @@ async def _send_state(
     chat_id = match.players[player_key].chat_id
     msgs = match.messages.setdefault(player_key, {})
 
-    board_id = msgs.get("board")
-
     own = render_board_own(match.boards[player_key])
     enemy = render_board_enemy(match.boards[enemy_key])
     board_text = (
         f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}\n\n{message}"
     )
 
-    new_id = None
-    if board_id:
-        try:
-            edited = await context.bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=board_id,
-                text=board_text,
-                parse_mode="HTML",
-            )
-            new_id = getattr(edited, "message_id", board_id)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            try:
-                await context.bot.delete_message(chat_id, board_id)
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                pass
-    if new_id is None:
-        board_msg = await context.bot.send_message(
-            chat_id,
-            board_text,
-            parse_mode="HTML",
-        )
-        new_id = board_msg.message_id
+    board_msg = await context.bot.send_message(
+        chat_id,
+        board_text,
+        parse_mode="HTML",
+    )
+
+    new_id = board_msg.message_id
 
     msgs["board"] = new_id
+    board_hist = msgs.setdefault("board_history", [])
+    board_hist.append(new_id)
     msgs.pop("text", None)
 
     storage.save_match(match)
