@@ -9,7 +9,11 @@ from handlers.commands import newgame, send_invite_link
 def test_newgame_message_sequence(monkeypatch):
     async def run_test():
         match = SimpleNamespace(match_id='m1')
-        monkeypatch.setattr(storage, 'create_match', lambda user_id, chat_id: match)
+        monkeypatch.setattr(
+            storage,
+            'create_match',
+            lambda user_id, chat_id, name=None: match,
+        )
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid: None)
 
         reply_text = AsyncMock()
@@ -20,7 +24,7 @@ def test_newgame_message_sequence(monkeypatch):
             effective_chat=SimpleNamespace(id=1),
         )
         bot = SimpleNamespace(get_me=AsyncMock(return_value=SimpleNamespace(username='TestBot')))
-        context = SimpleNamespace(bot=bot)
+        context = SimpleNamespace(bot=bot, user_data={'player_name': 'Игрок'})
 
         await newgame(update, context)
 
@@ -48,7 +52,7 @@ def test_send_invite_link(monkeypatch):
         )
         update = SimpleNamespace(callback_query=query, effective_chat=SimpleNamespace(id=1))
         bot = SimpleNamespace(get_me=AsyncMock(return_value=SimpleNamespace(username='TestBot')))
-        context = SimpleNamespace(bot=bot)
+        context = SimpleNamespace(bot=bot, user_data={'player_name': 'Игрок'})
 
         await send_invite_link(update, context)
 
@@ -69,7 +73,7 @@ def test_newgame_existing_match_prompts(monkeypatch):
             effective_user=SimpleNamespace(id=1),
             effective_chat=SimpleNamespace(id=1),
         )
-        context = SimpleNamespace()
+        context = SimpleNamespace(user_data={'player_name': 'Игрок'})
         await newgame(update, context)
         assert reply_text.call_args_list == [
             call('У вас уже есть незавершенный матч. Завершить его и начать новый?', reply_markup=ANY)

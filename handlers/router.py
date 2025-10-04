@@ -13,7 +13,14 @@ from logic.battle import apply_shot, MISS, HIT, KILL, REPEAT
 from logic.battle_test import apply_shot_multi
 from logic.render import render_board_own, render_board_enemy
 from models import Board
-from handlers.commands import newgame
+from handlers.commands import (
+    newgame,
+    get_name_state,
+    store_player_name,
+    finalize_pending_join,
+    NAME_HINT_NEWGAME,
+    NAME_HINT_AUTO,
+)
 from .board_test import board_test, board_test_two
 from logic.phrases import (
     ENEMY_HIT,
@@ -355,6 +362,34 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     text_raw = update.message.text
     text = text_raw.strip()
     text_lower = text.lower()
+    state = get_name_state(context)
+    if state.get("waiting"):
+        if not text:
+            await update.message.reply_text('Имя не может быть пустым. Попробуйте ещё раз.')
+            return
+        if text.startswith('/'):
+            await update.message.reply_text('Введите имя без команд. Например: Иван.')
+            return
+        hint = state.get("hint", NAME_HINT_NEWGAME)
+        pending = state.get("pending")
+        cleaned = store_player_name(context, text)
+        if pending and pending.get("action") == "join":
+            match_id = pending.get("match_id")
+            if match_id:
+                success = await finalize_pending_join(update, context, match_id)
+                if success:
+                    return
+            await update.message.reply_text('Не удалось присоединиться к матчу. Попробуйте снова перейти по ссылке приглашения.')
+            return
+        if hint == NAME_HINT_AUTO:
+            await update.message.reply_text(
+                f'Имя сохранено: {cleaned}. Отправьте "авто" для расстановки кораблей.'
+            )
+        else:
+            await update.message.reply_text(
+                f'Имя сохранено: {cleaned}. Используйте /newgame, чтобы создать матч.'
+            )
+        return
     if text_lower == 'начать новую игру':
         await newgame(update, context)
         return
@@ -393,13 +428,15 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             board = random_board()
             board.owner = player_key
             storage.save_board(match, player_key, board)
+            current_player = match.players.get(player_key)
+            player_label = getattr(current_player, 'name', '') or f'Игрок {player_key}'
             if match.status == 'playing':
                 message_self = (
                     'Корабли расставлены. Бой начинается! '
                     + ('Ваш ход.' if match.turn == player_key else 'Ход соперника.')
                 )
                 message_enemy = (
-                    'Соперник готов. Бой начинается! '
+                    f'{player_label} готов. Бой начинается! '
                     + ('Ваш ход.' if match.turn == enemy_key else 'Ход соперника.')
                 )
                 await _send_state(
@@ -424,7 +461,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             else:
                 message_self = 'Корабли расставлены. Ожидаем соперника.'
                 message_enemy = (
-                    'Соперник готов. Отправьте "авто" для расстановки кораблей.'
+                    f'{player_label} готов. Отправьте "авто" для расстановки кораблей.'
                 )
                 await _send_state(
                     context,

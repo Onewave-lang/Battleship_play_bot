@@ -30,6 +30,7 @@ class Board:
 class Player:
     user_id: int
     chat_id: int
+    name: str = ""
     ready: bool = False
 
 
@@ -71,10 +72,14 @@ class Match:
     )
 
     @staticmethod
-    def new(a_user_id: int, a_chat_id: int) -> 'Match':
+    def new(a_user_id: int, a_chat_id: int, a_name: str = "") -> 'Match':
         match_id = uuid.uuid4().hex
         match = Match(match_id=match_id)
-        match.players["A"] = Player(user_id=a_user_id, chat_id=a_chat_id)
+        match.players["A"] = Player(
+            user_id=a_user_id,
+            chat_id=a_chat_id,
+            name=a_name.strip(),
+        )
         for k in ("A", "B", "C"):
             match.boards[k] = Board(owner=k)
         match.history = [[0] * 10 for _ in range(10)]
