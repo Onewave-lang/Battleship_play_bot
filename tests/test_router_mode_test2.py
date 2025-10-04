@@ -59,4 +59,4 @@ def test_mode_test2_autoplace_sends_single_board(tmp_path, monkeypatch):
 
     asyncio.run(router.router_text(update, context))
 
-    assert bot.logs[1] == ['board_send', 'text_send']
+    assert bot.logs[1] == ['board_send']
