@@ -1,4 +1,4 @@
-from logic.render import render_board_own, render_board_enemy
+from logic.render import render_board_own, render_board_enemy, SHIP_SYMBOL
 from logic.parser import ROWS
 from logic.battle import apply_shot, KILL
 from models import Board, Ship
@@ -10,7 +10,7 @@ def test_render_board_own_renders_ship_symbol():
     b = Board(owner='A')
     b.grid[0][0] = 1
     own = render_board_own(b)
-    assert '■' in own
+    assert SHIP_SYMBOL in own
 
 
 def test_render_board_enemy_marks_hit():
