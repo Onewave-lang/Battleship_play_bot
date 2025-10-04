@@ -256,18 +256,98 @@ def test_shared_chat_board_preserves_all_ships(monkeypatch):
         assert len(send_state_calls) == 2
         assert send_state_calls == [('A', True, True), ('B', True, True)]
         assert len(rendered) == len(history_snapshots) == 2
-        # After each move the rendered board should keep both players' ships visible.
+        # After each move the rendered board should expose the shared history while
+        # keeping intact enemy ships hidden.
         first_player, first_board = rendered[0]
         assert first_player == 'A'
         assert first_board[0][0] == 2  # miss from the first shot
-        assert first_board[0][2] == 1  # enemy ship remains visible
+        assert first_board[0][2] == 0  # enemy ship remains hidden until revealed
         assert first_board[2][2] == 1  # own ship still visible before the kill
 
         second_player, second_board = rendered[1]
         assert second_player == 'B'
         assert second_board[0][0] == 2
-        assert second_board[0][2] == 1
+        assert second_board[0][2] == 1  # own fleet stays visible
         assert second_board[2][2] == 4  # kill stays highlighted on subsequent snapshot
+
+    asyncio.run(run_test())
+
+
+def test_shared_chat_snapshot_hides_intact_enemy_ships(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            players={
+                'A': SimpleNamespace(chat_id=1),
+                'B': SimpleNamespace(chat_id=1),
+            },
+            boards={'A': Board15(), 'B': Board15()},
+            history=_new_grid(15),
+            messages={'A': {}, 'B': {}},
+            snapshots=[],
+            last_highlight=[],
+            turn='A',
+        )
+
+        match.boards['A'].ships = [Ship(cells=[(2, 2)])]
+        match.boards['A'].grid[2][2] = 3
+
+        ship_b_killed = Ship(cells=[(0, 2)])
+        ship_b_alive = Ship(cells=[(1, 1)])
+        match.boards['B'].ships = [ship_b_killed, ship_b_alive]
+        match.boards['B'].grid[0][2] = 4
+        match.boards['B'].grid[1][1] = 1
+
+        _set_cell_state(match.history, 0, 2, 4, 'B')
+        _set_cell_state(match.history, 2, 2, 3, 'A')
+
+        snapshot = record_snapshot(match, actor='A', coord=(0, 2))
+
+        captured: dict[str, list[list[int]]] = {}
+
+        def fake_render_board(state, player_key=None):
+            captured[player_key] = [row[:] for row in state.board]
+            return BytesIO(b'img')
+
+        monkeypatch.setattr(router, 'render_board', fake_render_board)
+
+        context = SimpleNamespace(
+            bot=SimpleNamespace(
+                send_photo=AsyncMock(return_value=SimpleNamespace(message_id=1)),
+                edit_message_media=AsyncMock(),
+                edit_message_text=AsyncMock(),
+                send_message=AsyncMock(),
+            ),
+            bot_data={},
+            chat_data={},
+        )
+
+        await router._send_state(
+            context,
+            match,
+            'A',
+            'msg',
+            snapshot_override=snapshot,
+            include_all_ships=True,
+        )
+        await router._send_state(
+            context,
+            match,
+            'B',
+            'msg',
+            snapshot_override=snapshot,
+            include_all_ships=True,
+        )
+
+        board_a = captured['A']
+        board_b = captured['B']
+
+        assert board_a[0][2] == 4  # killed enemy segment is visible to everyone
+        assert board_a[1][1] == 0  # intact enemy ship remains hidden
+        assert board_a[2][2] == 3  # shared history retains damage to own ship
+
+        assert board_b[0][2] == 4  # killed ship still visible on owner's board
+        assert board_b[1][1] == 1  # owner continues to see intact ships
+        assert board_b[2][2] == 3  # damage to opponent remains visible via history
 
     asyncio.run(run_test())
 

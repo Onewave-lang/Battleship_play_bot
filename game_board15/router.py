@@ -69,13 +69,20 @@ async def _send_state(
         for owner_key, grid in board_sources.items():
             if not grid:
                 continue
+            is_recipient_board = owner_key == player_key
             for r in range(min(len(grid), 15)):
                 row = grid[r]
                 for c in range(min(len(row), 15)):
                     if row[c] != 1:
                         continue
-                    if merged_states[r][c] in {0, 1}:
-                        merged_states[r][c] = 1
+                    history_state = merged_states[r][c]
+                    if history_state not in {0, 1}:
+                        if owners[r][c] is None:
+                            owners[r][c] = owner_key
+                        continue
+                    if not (is_recipient_board and reveal_ships):
+                        continue
+                    merged_states[r][c] = 1
                     owners[r][c] = owner_key
     if reveal_ships:
         if snapshot and player_key in snapshot.get("boards", {}):
