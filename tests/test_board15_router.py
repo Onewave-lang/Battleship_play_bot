@@ -17,7 +17,7 @@ sys.modules.setdefault('PIL', pil)
 
 from game_board15 import router, storage
 from game_board15.models import Board15, Ship
-from game_board15.utils import _get_cell_state, _get_cell_owner
+from game_board15.utils import _get_cell_state, _get_cell_owner, _set_cell_state
 
 
 def test_router_auto_sends_boards(monkeypatch):
@@ -218,6 +218,75 @@ def test_router_text_fallback_stamps_cell(monkeypatch, scenario, expected_state,
         await router.router_text(update, context)
 
         assert send_state_calls > 0
+
+    asyncio.run(run_test())
+
+
+def test_router_text_rejects_repeat_before_apply_shot(monkeypatch):
+    async def run_test():
+        coord = (2, 2)
+        board_self = Board15()
+        board_enemy_b = Board15()
+        board_enemy_c = Board15()
+        board_enemy_b.grid[coord[0]][coord[1]] = 2
+        match = SimpleNamespace(
+            status="playing",
+            players={
+                "A": SimpleNamespace(user_id=1, chat_id=10, name="A"),
+                "B": SimpleNamespace(user_id=2, chat_id=20, name="B"),
+                "C": SimpleNamespace(user_id=3, chat_id=30, name="C"),
+            },
+            boards={
+                "A": board_self,
+                "B": board_enemy_b,
+                "C": board_enemy_c,
+            },
+            turn="A",
+            shots={
+                "A": {},
+                "B": {},
+                "C": {},
+            },
+            messages={
+                "A": {},
+                "B": {},
+                "C": {},
+            },
+            history=_new_grid(15),
+            last_highlight=[],
+            snapshots=[{"history": "initial"}],
+        )
+        _set_cell_state(match.history, coord[0], coord[1], 2)
+
+        monkeypatch.setattr(storage, "find_match_by_user", lambda uid, chat_id=None: match)
+        monkeypatch.setattr(storage, "save_match", lambda m: None)
+        monkeypatch.setattr(router.parser, "parse_coord", lambda text: coord)
+
+        apply_mock = Mock(return_value=router.battle.MISS)
+        monkeypatch.setattr(router.battle, "apply_shot", apply_mock)
+        record_mock = Mock()
+        monkeypatch.setattr(router, "record_snapshot", record_mock)
+
+        reply = AsyncMock()
+        update = SimpleNamespace(
+            message=SimpleNamespace(text="c3", reply_text=reply),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
+        context = SimpleNamespace(
+            bot=SimpleNamespace(send_message=AsyncMock()),
+            chat_data={},
+            bot_data={},
+        )
+
+        await router.router_text(update, context)
+
+        reply.assert_awaited_once_with('Эта клетка уже обстреляна')
+        apply_mock.assert_not_called()
+        record_mock.assert_not_called()
+        assert _get_cell_state(match.history[coord[0]][coord[1]]) == 2
+        assert board_enemy_c.grid[coord[0]][coord[1]] == 0
+        assert len(match.snapshots) == 1
 
     asyncio.run(run_test())
 
