@@ -124,7 +124,7 @@ async def _send_state(
         return
     state.message_id = msg.message_id
     msgs["board"] = msg.message_id
-    msgs["text"] = msg.message_id
+    msgs.pop("text", None)
     board_hist = msgs.setdefault("board_history", [])
     text_hist = msgs.setdefault("text_history", [])
     if msgs.get("history_active"):

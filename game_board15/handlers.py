@@ -122,7 +122,7 @@ async def _auto_play_bots(
                     msgs = match.messages.setdefault(human, {})
                     hist = msgs.setdefault("text_history", [])
                     hist.append(msg.message_id)
-                    msgs["text"] = msg.message_id
+                    msgs.setdefault("service_messages", []).append(msg.message_id)
                 except asyncio.CancelledError:
                     raise
                 except Exception:

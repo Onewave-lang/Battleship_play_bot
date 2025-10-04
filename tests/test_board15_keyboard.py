@@ -27,7 +27,7 @@ def test_send_state_records_history(monkeypatch):
         assert bot.send_photo.await_count == 1
         assert bot.send_message.await_count == 0
         assert match.messages["A"]["board"] == 51
-        assert match.messages["A"]["text"] == 51
+        assert "text" not in match.messages["A"]
         assert match.messages["A"]["board_history"] == [51]
         assert match.messages["A"]["text_history"] == [51]
     asyncio.run(run_test())
@@ -56,7 +56,7 @@ def test_send_state_appends_history(monkeypatch):
         assert bot.send_photo.await_count == 2
         assert bot.send_message.await_count == 0
         assert match.messages["A"]["board"] == 13
-        assert match.messages["A"]["text"] == 13
+        assert "text" not in match.messages["A"]
         assert match.messages["A"]["board_history"] == [11, 13]
         assert match.messages["A"]["text_history"] == [11, 13]
     asyncio.run(run_test())
