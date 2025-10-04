@@ -3,7 +3,6 @@ from logic.parser import ROWS
 from logic.battle import apply_shot, KILL
 from models import Board, Ship
 from tests.utils import _new_grid, _state
-from constants import BOMB
 
 
 def test_render_board_own_renders_ship_symbol():
@@ -28,20 +27,20 @@ def test_render_last_move_symbols():
     b.grid[0][0] = [2, 'A']
     b.highlight = [(0, 0)]
     own = render_board_own(b)
-    assert "<b>x</b>" in own
+    assert "❌" in own
     b.highlight = []
     own = render_board_own(b)
-    assert "<b>x</b>" not in own
+    assert "❌" not in own
     assert 'x' in own
 
     # hit highlight
     b.grid[1][1] = [3, 'B']
     b.highlight = [(1, 1)]
     enemy = render_board_enemy(b)
-    assert "<b>■</b>" in enemy
+    assert "🟥" in enemy
     b.highlight = []
     enemy = render_board_enemy(b)
-    assert "<b>■</b>" not in enemy and '■' in enemy
+    assert "🟥" not in enemy and '■' in enemy
 
     # kill highlight
     b.grid[2][2] = [4, 'B']
@@ -50,20 +49,18 @@ def test_render_last_move_symbols():
     # highlight the kill cell
     b.highlight = [(2, 2)]
     enemy = render_board_enemy(b)
-    assert enemy.count(BOMB) == 1
-    assert enemy.count('<b>') == 1
+    assert enemy.count('🟥') == 1
 
     # highlight the contour cell
     b.highlight = [(2, 3)]
     enemy = render_board_enemy(b)
-    assert BOMB not in enemy
-    assert enemy.count('x') >= 1
-    assert enemy.count('<b>') >= 1
+    assert '🟥' not in enemy
+    assert enemy.count('❌') == 1
 
     # no highlight
     b.highlight = []
     enemy = render_board_enemy(b)
-    assert BOMB not in enemy and '<b>' not in enemy
+    assert '🟥' not in enemy and '❌' not in enemy
     assert '▓' in enemy
     assert 'x' in enemy
 
