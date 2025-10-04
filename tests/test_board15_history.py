@@ -396,7 +396,7 @@ def test_shared_chat_snapshot_shows_all_intact_ships_in_shared_view(monkeypatch)
     asyncio.run(run_test())
 
 
-def test_personal_view_hides_intact_enemy_ships(monkeypatch):
+def test_personal_view_preserves_intact_enemy_ships(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
             players={
@@ -418,6 +418,23 @@ def test_personal_view_hides_intact_enemy_ships(monkeypatch):
         match.boards['B'].grid[1][1] = 1
 
         captured: dict[str, list[list[int]]] = {}
+
+        snapshot = {
+            'history': _new_grid(15),
+            'last_highlight': [],
+            'boards': {
+                'A': {
+                    'grid': [row[:] for row in match.boards['A'].grid],
+                    'ships': [],
+                    'alive_cells': 20,
+                },
+                'B': {
+                    'grid': [row[:] for row in match.boards['B'].grid],
+                    'ships': [],
+                    'alive_cells': 20,
+                },
+            },
+        }
 
         def fake_render_board(state, player_key=None):
             captured[player_key] = [row[:] for row in state.board]
@@ -442,6 +459,7 @@ def test_personal_view_hides_intact_enemy_ships(monkeypatch):
             'A',
             'msg',
             include_all_ships=False,
+            snapshot_override=snapshot,
         )
         await router._send_state(
             context,
@@ -449,15 +467,16 @@ def test_personal_view_hides_intact_enemy_ships(monkeypatch):
             'B',
             'msg',
             include_all_ships=False,
+            snapshot_override=snapshot,
         )
 
         board_a = captured['A']
         board_b = captured['B']
 
         assert board_a[2][2] == 1  # player keeps visibility on own fleet
-        assert board_a[1][1] == 0  # enemy fleet remains hidden in personal view
+        assert board_a[1][1] == 1  # snapshot keeps enemy fleet visible in personal view
         assert board_b[1][1] == 1  # enemy retains view of their own fleet
-        assert board_b[2][2] == 0  # opponent ships stay hidden without shared view
+        assert board_b[2][2] == 1  # snapshot keeps opponent fleet visible in personal view
 
     asyncio.run(run_test())
 

@@ -177,12 +177,6 @@ async def _send_state(
                 merged_states[r][c] = 1
                 owners[r][c] = player_key
 
-    if not include_all_ships:
-        for r in range(15):
-            for c in range(15):
-                if owners[r][c] and owners[r][c] != player_key and merged_states[r][c] == 1:
-                    merged_states[r][c] = 0
-                    owners[r][c] = None
     state.board = merged_states
     state.owners = owners
     state.player_key = player_key
