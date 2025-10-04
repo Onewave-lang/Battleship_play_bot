@@ -135,6 +135,65 @@ def test_router_text_handles_latin_coords_board_test_two(monkeypatch):
     asyncio.run(run_test())
 
 
+def test_router_text_auto_board_test_two_matches_standard_flow(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            status="placing",
+            players={
+                "A": SimpleNamespace(user_id=1, chat_id=10, ready=False, name="Player A"),
+                "B": SimpleNamespace(user_id=0, chat_id=10, ready=True, name="Bot"),
+            },
+            boards={
+                "A": SimpleNamespace(highlight=[]),
+                "B": SimpleNamespace(highlight=[]),
+            },
+            turn="A",
+            shots={
+                "A": {"history": [], "last_result": None, "move_count": 0, "joke_start": 10},
+                "B": {"history": [], "last_result": None, "move_count": 0, "joke_start": 10},
+            },
+            messages={"_flags": {"mode_test2": True}},
+        )
+
+        monkeypatch.setattr(storage, "find_match_by_user", lambda uid, chat_id=None: match)
+
+        board_instance = SimpleNamespace(owner=None)
+        monkeypatch.setattr(router, "random_board", lambda: board_instance)
+
+        def fake_save_board(match_obj, player_key, board):
+            match_obj.players[player_key].ready = True
+            match_obj.boards[player_key] = board
+            match_obj.status = "playing"
+            match_obj.turn = player_key
+
+        monkeypatch.setattr(storage, "save_board", fake_save_board)
+
+        send_state = AsyncMock()
+        monkeypatch.setattr(router, "_send_state", send_state)
+
+        context = SimpleNamespace(
+            bot=SimpleNamespace(send_message=AsyncMock(), delete_message=AsyncMock())
+        )
+        update = SimpleNamespace(
+            message=SimpleNamespace(text="авто", reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
+
+        await router.router_text(update, context)
+
+        update.message.reply_text.assert_not_awaited()
+        assert match.status == "playing"
+        assert match.turn == "A"
+        assert match.messages["_flags"]["mode_test2"] is True
+        assert send_state.await_args_list == [
+            call(context, match, "A", "Корабли расставлены. Бой начинается! Ваш ход."),
+            call(context, match, "B", "Соперник готов. Бой начинается! Ход соперника."),
+        ]
+
+    asyncio.run(run_test())
+
+
 def test_router_test_mode_skips_commands(monkeypatch):
     async def run_test():
         match = SimpleNamespace(

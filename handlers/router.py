@@ -253,8 +253,7 @@ async def _handle_board_test_two(
     enemy_key = "B"
 
     if match.status != "playing":
-        await update.message.reply_text("Матч ещё не начался.")
-        return True
+        return False
 
     if match.turn != player_key:
         await _send_state(context, match, player_key, "Сейчас ход соперника.")

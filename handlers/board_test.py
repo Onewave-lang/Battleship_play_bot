@@ -276,12 +276,22 @@ async def _auto_play_bot(
         except Exception:
             logger.exception("Failed to send message to chat %s", chat_id_)
 
+    game_started = False
+
     while True:
         refreshed = storage.get_match(match.match_id)
         if refreshed is not None:
             match = refreshed
-        if match.status != "playing" or bot not in match.players:
+        if bot not in match.players:
             break
+        if match.status == "finished":
+            break
+        if not game_started:
+            if match.status != "playing":
+                await asyncio.sleep(0.5)
+                continue
+            game_started = True
+            continue
         if match.boards[human].alive_cells <= 0:
             break
         if match.turn != bot:
@@ -415,14 +425,10 @@ async def board_test_two(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     user = update.effective_user
     match = storage.create_match(user.id, chat.id)
     match.players["B"] = Player(user_id=0, chat_id=chat.id)
-    match.players["A"].ready = True
     match.players["B"].ready = True
-    match.status = "playing"
+    match.status = "placing"
     match.turn = "A"
 
-    board_a = placement.random_board()
-    board_a.owner = "A"
-    match.boards["A"] = board_a
     board_b = placement.random_board()
     board_b.owner = "B"
     match.boards["B"] = board_b
@@ -432,17 +438,11 @@ async def board_test_two(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     storage.save_match(match)
 
-    from . import router as router_module
-
     await message.reply_text(
-        "Тестовый матч начат. Вы — игрок A; бот будет ходить автоматически."
+        'Тестовый матч начат. Отправьте "авто" для расстановки кораблей.'
     )
-
-    await router_module._send_state(
-        context,
-        match,
-        "A",
-        "Выберите клетку или введите ход текстом.",
+    await message.reply_text(
+        "Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры."
     )
 
     asyncio.create_task(
@@ -452,6 +452,6 @@ async def board_test_two(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             chat.id,
             human="A",
             bot="B",
-            delay=3,
+            delay=2,
         )
     )
