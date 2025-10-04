@@ -127,6 +127,7 @@ def test_render_axis_labels():
     for lines in (own_lines, enemy_lines):
         header = lines[0].split('|', 1)[1].strip()
         assert header == expected_header
+        assert len(lines[0]) == len(lines[1])
         row_labels = [line.split('|', 1)[0].strip() for line in lines[1:]]
         assert row_labels == [str(i) for i in range(1, 11)]
 

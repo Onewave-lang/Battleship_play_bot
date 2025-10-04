@@ -62,6 +62,7 @@ def format_cell(symbol: str) -> str:
 
 
 COL_HEADERS = ''.join(format_cell(letter) for letter in ROWS)
+HEADER_PREFIX = format_cell("") + "| "
 
 
 def _render_line(cells: List[str]) -> str:
