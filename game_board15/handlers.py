@@ -20,12 +20,16 @@ from logic.phrases import (
     SELF_KILL,
     SELF_MISS,
 )
-from .utils import _phrase_or_joke, _get_cell_state, _get_cell_owner, _set_cell_state
+from .utils import (
+    _phrase_or_joke,
+    _get_cell_state,
+    _get_cell_owner,
+    _set_cell_state,
+    record_snapshot,
+)
 import random
 import asyncio
 import logging
-import copy
-from types import SimpleNamespace
 
 WELCOME_TEXT = 'Выберите способ приглашения соперников:'
 
@@ -98,11 +102,18 @@ async def _auto_play_bots(
     logger = logging.getLogger(__name__)
 
     async def _safe_send_state(
-        player_key: str, message: str, render_match: object | None = None
+        player_key: str,
+        message: str,
+        *,
+        snapshot_override: dict | None = None,
     ) -> None:
         try:
             await router_module._send_state(
-                context, render_match or match, player_key, message
+                context,
+                match,
+                player_key,
+                message,
+                snapshot_override=snapshot_override,
             )
         except asyncio.CancelledError:
             raise
@@ -268,6 +279,8 @@ async def _auto_play_bots(
             next_player = current
         match.turn = next_player
 
+        snapshot = record_snapshot(match, actor=current, coord=coord)
+
         parts_self: list[str] = []
         watch_parts: list[str] = []
         enemy_msgs: dict[str, str] = {}
@@ -308,31 +321,6 @@ async def _auto_play_bots(
 
         storage.save_match(match)
 
-        history_snapshot = [
-            [cell[:] if isinstance(cell, list) else cell for cell in row]
-            for row in match.history
-        ]
-        board_snapshots: dict[str, SimpleNamespace] = {}
-        for key, board_view in match.boards.items():
-            board_snapshots[key] = SimpleNamespace(
-                grid=[row[:] for row in board_view.grid],
-                ships=board_view.ships,
-                alive_cells=board_view.alive_cells,
-                highlight=list(board_view.highlight),
-            )
-        render_match = SimpleNamespace(
-            match_id=match.match_id,
-            status=match.status,
-            created_at=getattr(match, "created_at", None),
-            players=match.players,
-            turn=match.turn,
-            boards=board_snapshots,
-            history=history_snapshot,
-            last_highlight=list(match.last_highlight),
-            shots=copy.deepcopy(match.shots),
-            messages=match.messages,
-        )
-
         for player_key, msg_body in enemy_msgs.items():
             if match.players[player_key].user_id != 0:
                 next_phrase = f" Следующим ходит {next_name}."
@@ -345,7 +333,11 @@ async def _auto_play_bots(
                     msg_text = (
                         f"Ход игрока {player_label}: {coord_str} - {body} {phrase_self}{next_phrase}"
                     )
-                await _safe_send_state(player_key, msg_text, render_match)
+                await _safe_send_state(
+                    player_key,
+                    msg_text,
+                    snapshot_override=snapshot,
+                )
 
         finished = False
         for enemy in eliminated:
