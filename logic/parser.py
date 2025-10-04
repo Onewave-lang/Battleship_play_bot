@@ -2,12 +2,35 @@ from __future__ import annotations
 import re
 from typing import Optional, Tuple
 
-# Columns on the board use Cyrillic letters in user-facing messages, while we
-# still accept latin input for convenience. ``ROWS`` keeps the Cyrillic
-# representation and ``LATIN`` mirrors it with latin characters so that we can
-# normalise incoming coordinates.
-ROWS = 'абвгдежзик'
-LATIN = 'abcdefghik'
+# Columns on the board use Cyrillic letters in user-facing messages.  For
+# convenience we accept transliterated latin input as well. ``TRANSLIT`` maps
+# single latin characters to their Cyrillic counterparts according to the
+# classic "абвгдежзик" → "abvgdejzik" correspondence, while ``LEGACY_LATIN``
+# keeps supporting the previous sequential ``a..k`` mapping so that old users'
+# muscle memory continues to work.
+ROWS = "абвгдежзик"
+
+TRANSLIT = {
+    "a": "а",
+    "b": "б",
+    "v": "в",
+    "g": "г",
+    "d": "д",
+    "e": "е",
+    "j": "ж",
+    "z": "з",
+    "i": "и",
+    "k": "к",
+}
+
+LEGACY_LATIN = {
+    "c": "в",
+    "d": "г",
+    "e": "д",
+    "f": "е",
+    "g": "ж",
+    "h": "з",
+}
 
 
 def normalize(cell: str) -> str:
@@ -22,8 +45,9 @@ def parse_coord(cell: str) -> Optional[Tuple[int, int]]:
         return None
     letter = cell[0]
     rest = cell[1:]
-    if letter in LATIN:
-        letter = ROWS[LATIN.index(letter)]
+    letter = TRANSLIT.get(letter, letter)
+    if letter not in ROWS:
+        letter = LEGACY_LATIN.get(letter, letter)
     if letter not in ROWS:
         return None
     try:
