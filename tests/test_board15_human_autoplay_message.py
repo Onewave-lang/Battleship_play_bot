@@ -37,7 +37,7 @@ def test_human_shot_no_autoplay_and_message(monkeypatch):
 
         send_calls = []
 
-        async def fake_send_state(context, match_, player_key, message):
+        async def fake_send_state(context, match_, player_key, message, *, reveal_ships=True):
             send_calls.append((player_key, message))
 
         monkeypatch.setattr(router, '_send_state', fake_send_state)
@@ -114,7 +114,7 @@ def test_human_board_highlight_before_bot_move(monkeypatch):
 
         events: list[dict[str, object]] = []
 
-        async def fake_send_state(context, match_obj, player_key, message):
+        async def fake_send_state(context, match_obj, player_key, message, *, reveal_ships=True):
             history = getattr(match_obj, 'history', [])
             history_state = [
                 [_state(cell) for cell in row]

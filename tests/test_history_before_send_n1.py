@@ -44,7 +44,7 @@ def test_board15_router_updates_history_before_send_n1(monkeypatch):
 
         captured = {}
 
-        async def fake_send_state(context, match_obj, player_key, message):
+        async def fake_send_state(context, match_obj, player_key, message, *, reveal_ships=True):
             captured["cell"] = match_obj.history[0][13][0]
             captured["saved"] = saved
 
@@ -98,7 +98,7 @@ def test_router_updates_board_before_send(monkeypatch):
 
         captured = {}
 
-        async def fake_send_state(context, match_obj, player_key, message):
+        async def fake_send_state(context, match_obj, player_key, message, *, reveal_ships=True):
             captured["cell"] = match_obj.boards["B"].grid[0][0]
             captured["saved"] = saved
 

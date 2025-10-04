@@ -30,7 +30,16 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
-async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str, message: str) -> None:
+async def _send_state(
+    context: ContextTypes.DEFAULT_TYPE,
+    match,
+    player_key: str,
+    message: str,
+    *,
+    reveal_ships: bool = True,
+    snapshot_override: dict | None = None,
+    include_all_ships: bool = False,
+) -> None:
     """Render and send main board image followed by text message."""
 
     chat_id = match.players[player_key].chat_id
@@ -40,26 +49,49 @@ async def _send_state(context: ContextTypes.DEFAULT_TYPE, match, player_key: str
         state = Board15State(chat_id=chat_id)
         states[chat_id] = state
 
-    snapshot = match.snapshots[-1] if getattr(match, "snapshots", []) else None
+    snapshot = snapshot_override
+    if snapshot is None:
+        snapshot = match.snapshots[-1] if getattr(match, "snapshots", []) else None
     history_source = snapshot.get("history") if snapshot else None
     if not history_source:
         history_source = match.history
     merged_states = [[_get_cell_state(cell) for cell in row] for row in history_source]
     owners = [[_get_cell_owner(cell) for cell in row] for row in history_source]
-    if snapshot and player_key in snapshot.get("boards", {}):
-        own_grid = snapshot["boards"][player_key]["grid"]
-    else:
-        own_grid = match.boards[player_key].grid
-    for r in range(15):
-        for c in range(15):
-            cell = own_grid[r][c]
-            if _get_cell_state(cell) != 1:
+    if include_all_ships:
+        board_sources: dict[str, list[list[int]]] = {}
+        if snapshot:
+            board_sources = {
+                key: board_data.get("grid", [])
+                for key, board_data in snapshot.get("boards", {}).items()
+            }
+        else:
+            board_sources = {key: board.grid for key, board in match.boards.items()}
+        for owner_key, grid in board_sources.items():
+            if not grid:
                 continue
-            history_state = merged_states[r][c]
-            if history_state in {2, 5}:
-                continue
-            merged_states[r][c] = 1
-            owners[r][c] = player_key
+            for r in range(min(len(grid), 15)):
+                row = grid[r]
+                for c in range(min(len(row), 15)):
+                    if row[c] != 1:
+                        continue
+                    if merged_states[r][c] in {0, 1}:
+                        merged_states[r][c] = 1
+                    owners[r][c] = owner_key
+    if reveal_ships:
+        if snapshot and player_key in snapshot.get("boards", {}):
+            own_grid = snapshot["boards"][player_key]["grid"]
+        else:
+            own_grid = match.boards[player_key].grid
+        for r in range(15):
+            for c in range(15):
+                cell = own_grid[r][c]
+                if _get_cell_state(cell) != 1:
+                    continue
+                history_state = merged_states[r][c]
+                if history_state in {2, 5}:
+                    continue
+                merged_states[r][c] = 1
+                owners[r][c] = player_key
     state.board = merged_states
     state.owners = owners
     state.player_key = player_key
@@ -347,7 +379,10 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     record_snapshot(match, actor=player_key, coord=coord)
     next_obj = match.players.get(next_player)
     next_name = getattr(next_obj, 'name', '') or next_player
-    same_chat = len({p.chat_id for p in match.players.values()}) == 1
+    chat_counts: dict[int, int] = {}
+    for participant in match.players.values():
+        chat_counts[participant.chat_id] = chat_counts.get(participant.chat_id, 0) + 1
+    same_chat = len(chat_counts) == 1
     if enemy_msgs and not same_chat:
         for enemy, (res_enemy, msg_body_enemy) in enemy_msgs.items():
             if match.players[enemy].user_id != 0:
@@ -375,15 +410,62 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     body_self = msg_body.rstrip()
     if not body_self.endswith(('.', '!', '?')):
         body_self += '.'
-    if same_chat or single_user:
-        result_self = (
-            f"Ход игрока {player_label}: {coord_str} - {body_self} {phrase_self} Следующим ходит {next_name}."
+    shared_text = (
+        f"Ход игрока {player_label}: {coord_str} - {body_self} {phrase_self} Следующим ходит {next_name}."
+    )
+    personal_text = (
+        f"Ваш ход: {coord_str} - {body_self} {phrase_self} Следующим ходит {next_name}."
+    )
+    if same_chat:
+        latest_snapshot = match.snapshots[-1] if getattr(match, "snapshots", []) else None
+        await _send_state(
+            context,
+            match,
+            player_key,
+            shared_text,
+            snapshot_override=latest_snapshot,
+            include_all_ships=True,
         )
-        view_key = player_key
+        private_receivers = [
+            key
+            for key, participant in match.players.items()
+            if chat_counts.get(participant.chat_id, 0) == 1 and participant.user_id != 0
+        ]
+        for key in private_receivers:
+            if key == player_key:
+                await _send_state(
+                    context,
+                    match,
+                    key,
+                    personal_text,
+                    reveal_ships=True,
+                )
+            elif key in enemy_msgs:
+                _, msg_body_enemy = enemy_msgs[key]
+                next_phrase = f" Следующим ходит {next_name}."
+                await _send_state(
+                    context,
+                    match,
+                    key,
+                    f"Ход игрока {player_label}: {coord_str} - {msg_body_enemy}{next_phrase}",
+                    reveal_ships=True,
+                )
+            elif key in others:
+                next_phrase = f" Следующим ходит {next_name}."
+                watch_body = msg_watch.rstrip()
+                if not watch_body.endswith((".", "!", "?")):
+                    watch_body += "."
+                await _send_state(
+                    context,
+                    match,
+                    key,
+                    f"Ход игрока {player_label}: {coord_str} - {watch_body} {phrase_self}{next_phrase}",
+                    reveal_ships=True,
+                )
+    elif single_user:
+        await _send_state(context, match, player_key, shared_text)
     else:
-        result_self = f"Ваш ход: {coord_str} - {body_self} {phrase_self} Следующим ходит {next_name}."
-        view_key = player_key
-    await _send_state(context, match, view_key, result_self)
+        await _send_state(context, match, player_key, personal_text)
 
     storage.save_match(match)
 
