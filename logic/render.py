@@ -16,7 +16,7 @@ from wcwidth import wcswidth
 CELL_WIDTH = 2
 
 # text symbols for board rendering
-EMPTY_SYMBOL = "‧"
+EMPTY_SYMBOL = "·"
 MISS_SYMBOL = "x"
 SHIP_SYMBOL = "▢"
 HIT_SYMBOL = "■"
