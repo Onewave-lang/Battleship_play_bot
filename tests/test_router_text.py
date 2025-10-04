@@ -164,6 +164,63 @@ def test_router_text_handles_latin_coords_board_test_two(monkeypatch):
     asyncio.run(run_test())
 
 
+def test_handle_board_test_two_hit_message_second_person(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            status="playing",
+            players={
+                "A": SimpleNamespace(user_id=1, chat_id=10, name="Player A"),
+                "B": SimpleNamespace(user_id=2, chat_id=20, name="Player B"),
+            },
+            boards={
+                "A": SimpleNamespace(highlight=[]),
+                "B": SimpleNamespace(highlight=[], alive_cells=5),
+            },
+            turn="A",
+            shots={
+                "A": {"history": [], "last_result": None, "move_count": 0, "joke_start": 10},
+                "B": {"history": [], "last_result": None, "move_count": 0, "joke_start": 10},
+            },
+            messages={"_flags": {"mode_test2": True}},
+        )
+
+        monkeypatch.setattr(storage, "find_match_by_user", lambda uid, chat_id=None: match)
+        monkeypatch.setattr(router, "parse_coord", lambda text: (0, 0))
+        monkeypatch.setattr(router, "format_coord", lambda coord: "a1")
+        monkeypatch.setattr(router, "random_phrase", lambda phrases: phrases[0])
+        monkeypatch.setattr(router, "random_joke", lambda: "JOKE")
+        monkeypatch.setattr(storage, "save_match", lambda m: None)
+
+        apply_calls: list[tuple[object, tuple[int, int]]] = []
+
+        def fake_apply(board, coord):
+            apply_calls.append((board, coord))
+            return router.HIT
+
+        monkeypatch.setattr(router, "apply_shot", fake_apply)
+
+        send_state = AsyncMock()
+        monkeypatch.setattr(router, "_send_state", send_state)
+
+        context = SimpleNamespace(bot=SimpleNamespace())
+        update = SimpleNamespace(
+            message=SimpleNamespace(text="a1", reply_text=AsyncMock()),
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=10),
+        )
+
+        await router.router_text(update, context)
+
+        assert apply_calls == [(match.boards["B"], (0, 0))]
+        assert match.turn == "A"
+        assert send_state.await_count >= 1
+        messages = [call.args[3] for call in send_state.await_args_list]
+        player_message = next(msg for msg in messages if msg.startswith("Ваш ход:"))
+        assert player_message.endswith("Следующим ходите вы.")
+
+    asyncio.run(run_test())
+
+
 def test_router_text_auto_board_test_two_matches_standard_flow(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
@@ -196,6 +253,7 @@ def test_router_text_auto_board_test_two_matches_standard_flow(monkeypatch):
             match_obj.turn = player_key
 
         monkeypatch.setattr(storage, "save_board", fake_save_board)
+        monkeypatch.setattr(storage, "save_match", lambda m: None)
 
         send_state = AsyncMock()
         monkeypatch.setattr(router, "_send_state", send_state)
@@ -217,8 +275,10 @@ def test_router_text_auto_board_test_two_matches_standard_flow(monkeypatch):
         assert match.messages["_flags"]["mode_test2"] is True
         assert send_state.await_args_list == [
             call(context, match, "A", "Корабли расставлены. Бой начинается! Ваш ход."),
-            call(context, match, "B", "Соперник готов. Бой начинается! Ход соперника."),
         ]
+        assert match.messages["B"]["last_bot_message"] == (
+            "Соперник готов. Бой начинается! Ход соперника."
+        )
 
     asyncio.run(run_test())
 
@@ -278,10 +338,13 @@ def test_router_invalid_cell_shows_board(monkeypatch):
             effective_chat=SimpleNamespace(id=10),
         )
         await router.router_text(update, context)
-        assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML'),
-            call(10, 'Не понял клетку. Пример: е5 или д10.', parse_mode='HTML'),
-        ]
+        assert len(send_message.call_args_list) == 1
+        msg_call = send_message.call_args_list[0]
+        assert msg_call.args[0] == 10
+        assert msg_call.kwargs.get('parse_mode') == 'HTML'
+        assert msg_call.args[1] == (
+            'Ваше поле:\nown\nПоле соперника:\nenemy\n\nНе понял клетку. Пример: е5 или д10.'
+        )
     asyncio.run(run_test())
 
 
@@ -310,10 +373,13 @@ def test_router_wrong_turn_shows_board(monkeypatch):
             effective_chat=SimpleNamespace(id=10),
         )
         await router.router_text(update, context)
-        assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML'),
-            call(10, 'Сейчас ход соперника.', parse_mode='HTML'),
-        ]
+        assert len(send_message.call_args_list) == 1
+        msg_call = send_message.call_args_list[0]
+        assert msg_call.args[0] == 10
+        assert msg_call.kwargs.get('parse_mode') == 'HTML'
+        assert msg_call.args[1] == (
+            'Ваше поле:\nown\nПоле соперника:\nenemy\n\nСейчас ход соперника.'
+        )
     asyncio.run(run_test())
 
 
@@ -350,12 +416,17 @@ def test_router_auto_shows_board(monkeypatch):
             effective_chat=SimpleNamespace(id=10),
         )
         await router.router_text(update, context)
-        assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML'),
-            call(10, 'Корабли расставлены. Бой начинается! Ваш ход.', parse_mode='HTML'),
-            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML'),
-            call(20, 'Соперник готов. Бой начинается! Ход соперника.', parse_mode='HTML'),
-        ]
+        calls = send_message.call_args_list
+        assert len(calls) == 2
+        for call_args in calls:
+            assert call_args.kwargs.get('parse_mode') == 'HTML'
+        messages_by_chat = {c.args[0]: c.args[1] for c in calls}
+        assert messages_by_chat[10] == (
+            'Ваше поле:\nown\nПоле соперника:\nenemy\n\nКорабли расставлены. Бой начинается! Ваш ход.'
+        )
+        assert messages_by_chat[20] == (
+            'Ваше поле:\nown\nПоле соперника:\nenemy\n\nСоперник готов. Бой начинается! Ход соперника.'
+        )
     asyncio.run(run_test())
 
 
@@ -394,13 +465,24 @@ def test_router_auto_waits_and_sends_instruction(monkeypatch):
             effective_chat=SimpleNamespace(id=10),
         )
         await router.router_text(update, context)
-        assert send_message.call_args_list == [
-            call(10, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML'),
-            call(10, 'Корабли расставлены. Ожидаем соперника.', parse_mode='HTML'),
-            call(20, 'Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML'),
-            call(20, 'Соперник готов. Отправьте "авто" для расстановки кораблей.', parse_mode='HTML'),
-            call(20, 'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.'),
-        ]
+        calls = send_message.call_args_list
+        assert len(calls) == 3
+        assert calls[0].kwargs.get('parse_mode') == 'HTML'
+        assert calls[1].kwargs.get('parse_mode') == 'HTML'
+        assert calls[2].kwargs == {}
+        messages_by_chat = [(c.args[0], c.args[1]) for c in calls]
+        assert messages_by_chat[0] == (
+            10,
+            'Ваше поле:\nown\nПоле соперника:\nenemy\n\nКорабли расставлены. Ожидаем соперника.',
+        )
+        assert messages_by_chat[1] == (
+            20,
+            'Ваше поле:\nown\nПоле соперника:\nenemy\n\nСоперник готов. Отправьте "авто" для расстановки кораблей.',
+        )
+        assert messages_by_chat[2] == (
+            20,
+            'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
+        )
 
     asyncio.run(run_test())
 
@@ -438,9 +520,12 @@ def test_router_kill_message(monkeypatch):
         )
         await router.router_text(update, context)
         calls = send_message.call_args_list
-        assert len(calls) == 4
-        msg_self = calls[1].args[1]
-        msg_enemy = calls[3].args[1]
+        assert len(calls) == 2
+        for call_args in calls:
+            assert call_args.kwargs.get('parse_mode') == 'HTML'
+        messages_by_chat = {c.args[0]: c.args[1] for c in calls}
+        msg_self = messages_by_chat[10]
+        msg_enemy = messages_by_chat[20]
         coord_str = router.format_coord((0, 0))
         assert f'Ваш ход: {coord_str} — Корабль соперника уничтожен!' in msg_self
         assert any(p in msg_self for p in phrases.SELF_KILL)
