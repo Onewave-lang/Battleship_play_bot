@@ -122,7 +122,16 @@ def test_auto_play_bots_notifies_human(monkeypatch):
 
         calls: list[tuple[str, str]] = []
 
-        async def fake_send_state(context, match_, player_key, message, *, reveal_ships=True):
+        async def fake_send_state(
+            context,
+            match_,
+            player_key,
+            message,
+            *,
+            reveal_ships=True,
+            snapshot_override=None,
+            include_all_ships=False,
+        ):
             calls.append((player_key, message))
 
         monkeypatch.setattr(router, '_send_state', fake_send_state)
@@ -246,7 +255,16 @@ def test_auto_play_bots_reports_hits(monkeypatch):
 
         calls: list[tuple[str, str]] = []
 
-        async def fake_send_state(context, match_, player_key, message, *, reveal_ships=True):
+        async def fake_send_state(
+            context,
+            match_,
+            player_key,
+            message,
+            *,
+            reveal_ships=True,
+            snapshot_override=None,
+            include_all_ships=False,
+        ):
             calls.append((player_key, message))
 
             await asyncio.sleep(0)
@@ -275,6 +293,60 @@ def test_auto_play_bots_reports_hits(monkeypatch):
         hist = match.shots['B']['history']
         assert any(entry['enemy'] == 'C' and entry['result'] == handlers.battle.HIT for entry in hist)
         assert any(entry['enemy'] == 'A' and entry['result'] == handlers.battle.MISS for entry in hist)
+
+    asyncio.run(run())
+
+
+def test_auto_play_bots_records_snapshots(monkeypatch):
+    async def run():
+        match = Match15.new(1, 1, 'A')
+        match.players['B'] = Player(user_id=0, chat_id=0, name='B')
+        match.status = 'playing'
+        match.turn = 'B'
+        match.history = _new_grid(15)
+
+        captured: dict[str, object] = {}
+
+        async def fake_send_state(
+            context,
+            match_,
+            player_key,
+            message,
+            *,
+            reveal_ships=True,
+            snapshot_override=None,
+            include_all_ships=False,
+        ):
+            captured['snapshot'] = snapshot_override
+            await asyncio.sleep(0)
+
+        monkeypatch.setattr(router, '_send_state', fake_send_state)
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(storage, 'get_match', lambda mid: match)
+        monkeypatch.setattr(storage, 'finish', lambda m, w: None)
+        monkeypatch.setattr(handlers.battle, 'apply_shot', lambda board, coord: handlers.battle.MISS)
+        monkeypatch.setattr(handlers.random, 'choice', lambda seq: seq[0])
+
+        orig_sleep = asyncio.sleep
+
+        async def fast_sleep(t):
+            await orig_sleep(0)
+
+        monkeypatch.setattr(asyncio, 'sleep', fast_sleep)
+
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
+
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(
+                handlers._auto_play_bots(match, context, 1, delay=0),
+                timeout=0.01,
+            )
+
+        assert len(match.snapshots) >= 1
+        snapshot = match.snapshots[-1]
+        assert snapshot['actor'] == 'B'
+        assert snapshot['coord'] == (0, 0)
+        assert captured.get('snapshot') is snapshot
 
     asyncio.run(run())
 
