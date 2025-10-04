@@ -5,11 +5,14 @@ from logic.render import (
     HIT_SYMBOL,
     SUNK_SYMBOL,
     format_cell,
+    CELL_WIDTH,
+    THIN_SPACE,
 )
 from logic.parser import ROWS
 from logic.battle import apply_shot, KILL
 from models import Board, Ship
 from tests.utils import _new_grid, _state
+from wcwidth import wcswidth
 
 
 def test_render_board_own_renders_ship_symbol():
@@ -124,3 +127,12 @@ def test_render_axis_labels():
         assert header == expected_header
         row_labels = [line.split('|', 1)[0].strip() for line in lines[1:]]
         assert row_labels == [str(i) for i in range(1, 11)]
+
+
+def test_format_cell_keeps_visual_width():
+    single = format_cell('x')
+    double = format_cell('💣')
+
+    assert wcswidth(single) == CELL_WIDTH
+    assert wcswidth(double) == CELL_WIDTH
+    assert THIN_SPACE in double
