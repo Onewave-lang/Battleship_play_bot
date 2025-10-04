@@ -474,6 +474,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     result = apply_shot(match.boards[enemy_key], coord)
     match.shots[player_key]['history'].append(text)
     match.shots[player_key]['last_result'] = result
+    match.shots[player_key]['last_coord'] = coord
     for k in ('A', 'B'):
         shots = match.shots.setdefault(k, {})
         shots.setdefault('move_count', 0)
