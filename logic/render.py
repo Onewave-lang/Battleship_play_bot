@@ -11,11 +11,12 @@ from wcwidth import wcswidth
 # Emoji symbols that we use for hits, misses and ships can have a display
 # width larger than the standard ASCII characters.  When Telegram renders the
 # board, these wide symbols tend to stretch a cell beyond the intended column
-# boundaries, which breaks the rectangular shape of the grid.  By increasing
-# the cell width padding we make sure every cell reserves enough horizontal
-# space so that even wide emoji fit without affecting neighbouring columns.
-# An even width keeps left/right padding symmetric for double-width emoji.
-CELL_WIDTH = 4
+# boundaries, which breaks the rectangular shape of the grid.  With a compact
+# ``CELL_WIDTH`` of three characters we stay within narrow screens, and when a
+# symbol consumes two visual columns we rely on a thin-space shim to keep it
+# visually centred.
+CELL_WIDTH = 3
+THIN_SPACE = "\u200A"
 
 # text symbols for board rendering
 EMPTY_SYMBOL = "·"
@@ -37,9 +38,20 @@ def format_cell(symbol: str) -> str:
     pad = CELL_WIDTH - wcswidth(visible)
     if pad < 0:
         pad = 0
-    pad_left = (pad + 1) // 2
+    pad_left = pad // 2
     pad_right = pad - pad_left
-    return (" " * pad_left) + symbol + (" " * pad_right)
+    thin_left = ""
+    thin_right = ""
+    if pad % 2 == 1:
+        if pad_left < pad_right and pad_right:
+            pad_right -= 1
+            thin_left = THIN_SPACE
+        elif pad_left > pad_right and pad_left:
+            pad_left -= 1
+            thin_right = THIN_SPACE
+        else:
+            thin_right = THIN_SPACE
+    return (" " * pad_left) + thin_left + symbol + thin_right + (" " * pad_right)
 
 
 COL_HEADERS = ''.join(format_cell(letter) for letter in ROWS)
