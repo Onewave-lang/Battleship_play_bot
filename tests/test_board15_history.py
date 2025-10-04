@@ -144,6 +144,50 @@ def test_multiple_hits_recorded(monkeypatch):
     asyncio.run(run_test())
 
 
+def test_send_state_repairs_snapshot_grid(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            players={'A': SimpleNamespace(chat_id=1)},
+            boards={'A': Board15()},
+            history=_new_grid(15),
+            messages={'A': {}},
+            snapshots=[],
+            last_highlight=[],
+            turn='A',
+        )
+
+        ship = Ship(cells=[(0, 0)])
+        match.boards['A'].ships = [ship]
+        match.boards['A'].grid[0][0] = 1
+        match.boards['A'].alive_cells = len(ship.cells)
+
+        snapshot = record_snapshot(match, actor=None, coord=None)
+        snapshot['boards']['A']['grid'][0][0] = 0
+
+        captured = {}
+
+        def fake_render_board(state, player_key=None):
+            captured['board'] = [row[:] for row in state.board]
+            return BytesIO(b'img')
+
+        monkeypatch.setattr(router, 'render_board', fake_render_board)
+
+        context = SimpleNamespace(
+            bot=SimpleNamespace(
+                send_photo=AsyncMock(return_value=SimpleNamespace(message_id=1)),
+            ),
+            bot_data={},
+            chat_data={},
+        )
+
+        await router._send_state(context, match, 'A', 'msg')
+
+        assert captured['board'][0][0] == 1
+        assert snapshot['boards']['A']['grid'][0][0] == 1
+
+    asyncio.run(run_test())
+
+
 def test_shared_chat_board_preserves_all_ships(monkeypatch):
     async def run_test():
         shared_chat = 555

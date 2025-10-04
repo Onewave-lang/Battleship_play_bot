@@ -1,4 +1,5 @@
 from __future__ import annotations
+import copy
 import logging
 import random
 import asyncio
@@ -88,6 +89,58 @@ async def _send_state(
     if reveal_ships:
         if snapshot and player_key in snapshot.get("boards", {}):
             own_grid = snapshot["boards"][player_key]["grid"]
+            live_grid = match.boards[player_key].grid
+            mismatch_found = False
+            max_rows = min(len(live_grid), len(own_grid))
+            for r in range(max_rows):
+                live_row = live_grid[r]
+                snapshot_row = own_grid[r]
+                max_cols = min(len(live_row), len(snapshot_row))
+                for c in range(max_cols):
+                    if live_row[c] == 1 and snapshot_row[c] != 1:
+                        logger.warning(
+                            "Snapshot grid missing ship cell for player %s at (%s, %s); refreshing",
+                            player_key,
+                            r,
+                            c,
+                        )
+                        mismatch_found = True
+                        break
+                if mismatch_found:
+                    break
+                if len(live_row) > max_cols:
+                    for c in range(max_cols, len(live_row)):
+                        if live_row[c] == 1:
+                            logger.warning(
+                                "Snapshot grid missing ship cell for player %s at (%s, %s); refreshing",
+                                player_key,
+                                r,
+                                c,
+                            )
+                            mismatch_found = True
+                            break
+                if mismatch_found:
+                    break
+            if not mismatch_found and len(live_grid) > max_rows:
+                for r in range(max_rows, len(live_grid)):
+                    row = live_grid[r]
+                    for c, value in enumerate(row):
+                        if value == 1:
+                            logger.warning(
+                                "Snapshot grid missing ship cell for player %s at (%s, %s); refreshing",
+                                player_key,
+                                r,
+                                c,
+                            )
+                            mismatch_found = True
+                            break
+                    if mismatch_found:
+                        break
+            if mismatch_found:
+                fresh_grid = copy.deepcopy(live_grid)
+                own_grid = fresh_grid
+                if snapshot:
+                    snapshot["boards"][player_key]["grid"] = fresh_grid
         else:
             own_grid = match.boards[player_key].grid
         for r in range(15):
