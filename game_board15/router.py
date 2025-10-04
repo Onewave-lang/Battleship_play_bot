@@ -249,6 +249,14 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.message.reply_text('Сейчас ход другого игрока.')
         return
 
+    enemy_cell_states = {
+        enemy: _get_cell_state(match.boards[enemy].grid[r][c])
+        for enemy in enemy_keys
+    }
+    if any(state in {2, 3, 4, 5} for state in enemy_cell_states.values()):
+        await update.message.reply_text('Эта клетка уже обстреляна')
+        return
+
     results = {}
     repeat = False
     for enemy in enemy_keys:
