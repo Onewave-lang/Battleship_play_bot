@@ -239,7 +239,7 @@ async def _handle_board_test_two(
         phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
         phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_HIT)
         result_self = (
-            f"Ваш ход: {coord_str} — Ранил. {phrase_self} Следующим ходит игрок A."
+            f"Ваш ход: {coord_str} — Ранил. {phrase_self} Следующим ходите вы."
         )
         result_enemy = (
             f"Ход игрока {player_label}: {coord_str} — Соперник ранил ваш корабль. {phrase_enemy}"
@@ -250,7 +250,7 @@ async def _handle_board_test_two(
         phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
         phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_MISS)
         result_self = (
-            f"Ваш ход: {coord_str} — Клетка уже обстреляна. {phrase_self} Следующим ходит игрок A."
+            f"Ваш ход: {coord_str} — Клетка уже обстреляна. {phrase_self} Следующим ходите вы."
         )
         result_enemy = (
             f"Ход игрока {player_label}: {coord_str} — Соперник стрелял по уже обстрелянной клетке."
@@ -273,7 +273,7 @@ async def _handle_board_test_two(
             match.turn = player_key
             result_self = (
                 f"Ваш ход: {coord_str} — Корабль соперника уничтожен! {phrase_self}"
-                " Следующим ходит игрок A."
+                " Следующим ходите вы."
             )
             result_enemy = (
                 f"Ход игрока {player_label}: {coord_str} — Соперник уничтожил ваш корабль. {phrase_enemy}"
