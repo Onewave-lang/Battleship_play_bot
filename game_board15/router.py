@@ -1,8 +1,8 @@
 from __future__ import annotations
-import copy
 import logging
 import random
 import asyncio
+import inspect
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -59,90 +59,84 @@ async def _send_state(
         history_source = match.history
     merged_states = [[_get_cell_state(cell) for cell in row] for row in history_source]
     owners = [[_get_cell_owner(cell) for cell in row] for row in history_source]
-    if include_all_ships:
-        board_sources: dict[str, list[list[int]]] = {}
+
+    def _grid_value(grid: list[list[int]], r: int, c: int) -> int:
+        if r < len(grid):
+            row = grid[r]
+            if c < len(row):
+                return _get_cell_state(row[c])
+        return 0
+
+    def _copy_grid(grid: list[list[int]]) -> list[list[int]]:
+        return [row.copy() for row in grid]
+
+    board_sources: dict[str, list[list[int]]] = {}
+    snapshot_boards = snapshot.get("boards", {}) if snapshot else {}
+    if snapshot:
+        boards_section = snapshot.setdefault("boards", {})
+    else:
+        boards_section = {}
+
+    for owner_key, board in match.boards.items():
+        live_grid = board.grid
         if snapshot:
-            board_sources = {
-                key: board_data.get("grid", [])
-                for key, board_data in snapshot.get("boards", {}).items()
-            }
+            board_entry = boards_section.setdefault(owner_key, {})
+            snapshot_grid = board_entry.get("grid")
+            mismatch_coord: tuple[int | None, int | None] | None = None
+            if snapshot_grid is None:
+                mismatch_coord = (None, None)
+            else:
+                for rr in range(15):
+                    for cc in range(15):
+                        if _grid_value(live_grid, rr, cc) == 1 and _grid_value(
+                            snapshot_grid, rr, cc
+                        ) != 1:
+                            mismatch_coord = (rr, cc)
+                            break
+                    if mismatch_coord:
+                        break
+            if mismatch_coord:
+                rr, cc = mismatch_coord
+                if rr is not None and cc is not None:
+                    logger.warning(
+                        "Snapshot grid mismatch for player %s at (%s, %s); refreshing",
+                        owner_key,
+                        rr,
+                        cc,
+                    )
+                else:
+                    logger.warning(
+                        "Snapshot grid missing ship data for player %s; refreshing",
+                        owner_key,
+                    )
+                fresh_grid = _copy_grid(live_grid)
+                board_entry["grid"] = fresh_grid
+                snapshot_grid = fresh_grid
+            board_sources[owner_key] = board_entry.get("grid", [])
         else:
-            board_sources = {key: board.grid for key, board in match.boards.items()}
-        for owner_key, grid in board_sources.items():
-            if not grid:
-                continue
-            is_recipient_board = owner_key == player_key
-            for r in range(min(len(grid), 15)):
-                row = grid[r]
-                for c in range(min(len(row), 15)):
-                    if row[c] != 1:
-                        continue
-                    history_state = merged_states[r][c]
-                    if history_state not in {0, 1}:
-                        if owners[r][c] is None:
-                            owners[r][c] = owner_key
-                        continue
-                    if not (is_recipient_board and reveal_ships):
-                        continue
+            board_sources[owner_key] = live_grid
+
+    for owner_key, board_data in snapshot_boards.items():
+        if owner_key not in board_sources:
+            board_sources[owner_key] = board_data.get("grid", [])
+
+    for owner_key, grid in board_sources.items():
+        if not grid:
+            continue
+        for r in range(min(len(grid), 15)):
+            row = grid[r]
+            for c in range(min(len(row), 15)):
+                cell_state = _get_cell_state(row[c])
+                if cell_state != 1:
+                    if owners[r][c] is None and cell_state in {3, 4, 5}:
+                        owners[r][c] = owner_key
+                    continue
+                if merged_states[r][c] == 0:
                     merged_states[r][c] = 1
+                if owners[r][c] is None:
                     owners[r][c] = owner_key
     if reveal_ships:
-        if snapshot and player_key in snapshot.get("boards", {}):
-            own_grid = snapshot["boards"][player_key]["grid"]
-            live_grid = match.boards[player_key].grid
-            mismatch_found = False
-            max_rows = min(len(live_grid), len(own_grid))
-            for r in range(max_rows):
-                live_row = live_grid[r]
-                snapshot_row = own_grid[r]
-                max_cols = min(len(live_row), len(snapshot_row))
-                for c in range(max_cols):
-                    if live_row[c] == 1 and snapshot_row[c] != 1:
-                        logger.warning(
-                            "Snapshot grid missing ship cell for player %s at (%s, %s); refreshing",
-                            player_key,
-                            r,
-                            c,
-                        )
-                        mismatch_found = True
-                        break
-                if mismatch_found:
-                    break
-                if len(live_row) > max_cols:
-                    for c in range(max_cols, len(live_row)):
-                        if live_row[c] == 1:
-                            logger.warning(
-                                "Snapshot grid missing ship cell for player %s at (%s, %s); refreshing",
-                                player_key,
-                                r,
-                                c,
-                            )
-                            mismatch_found = True
-                            break
-                if mismatch_found:
-                    break
-            if not mismatch_found and len(live_grid) > max_rows:
-                for r in range(max_rows, len(live_grid)):
-                    row = live_grid[r]
-                    for c, value in enumerate(row):
-                        if value == 1:
-                            logger.warning(
-                                "Snapshot grid missing ship cell for player %s at (%s, %s); refreshing",
-                                player_key,
-                                r,
-                                c,
-                            )
-                            mismatch_found = True
-                            break
-                    if mismatch_found:
-                        break
-            if mismatch_found:
-                fresh_grid = copy.deepcopy(live_grid)
-                own_grid = fresh_grid
-                if snapshot:
-                    snapshot["boards"][player_key]["grid"] = fresh_grid
-        else:
-            own_grid = match.boards[player_key].grid
+        own_grid = board_sources.get(player_key, match.boards[player_key].grid)
         for r in range(15):
             for c in range(15):
                 cell = own_grid[r][c]
@@ -162,6 +156,12 @@ async def _send_state(
                     )
                 merged_states[r][c] = 1
                 owners[r][c] = player_key
+
+    for r in range(15):
+        for c in range(15):
+            if owners[r][c] and owners[r][c] != player_key and merged_states[r][c] == 1:
+                merged_states[r][c] = 0
+                owners[r][c] = None
     state.board = merged_states
     state.owners = owners
     state.player_key = player_key
@@ -450,21 +450,28 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     body_self = msg_body.rstrip()
     if not body_self.endswith(('.', '!', '?')):
         body_self += '.'
+    save_before_send = any(res == battle.KILL for res in results.values())
     shared_text = (
         f"Ход игрока {player_label}: {coord_str} - {body_self} {phrase_self} Следующим ходит {next_name}."
     )
     personal_text = (
         f"Ваш ход: {coord_str} - {body_self} {phrase_self} Следующим ходит {next_name}."
     )
+    if save_before_send:
+        storage.save_match(match)
     if same_chat:
-        latest_snapshot = match.snapshots[-1] if getattr(match, "snapshots", []) else None
+        include_kwargs: dict[str, object] = {}
+        try:
+            if "include_all_ships" in inspect.signature(_send_state).parameters:
+                include_kwargs["include_all_ships"] = True
+        except (TypeError, ValueError):
+            include_kwargs = {}
         await _send_state(
             context,
             match,
             player_key,
             shared_text,
-            snapshot_override=latest_snapshot,
-            include_all_ships=True,
+            **include_kwargs,
         )
         private_receivers = [
             key
@@ -507,7 +514,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     else:
         await _send_state(context, match, player_key, personal_text)
 
-    storage.save_match(match)
+    if not save_before_send:
+        storage.save_match(match)
 
     for enemy in eliminated:
         enemy_label = getattr(match.players[enemy], "name", "") or enemy

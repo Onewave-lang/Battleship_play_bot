@@ -145,3 +145,78 @@ def test_send_state_prefers_latest_snapshot(monkeypatch):
     assert captured["board"][0][1] == 2
     assert captured["owners"][0][1] == "B"
     assert captured["highlight"] == [(0, 1)]
+
+
+def test_send_state_hides_intact_enemy_ships(monkeypatch):
+    match = Match15.new(1, 111, "Alpha")
+    match.players["B"] = Player(user_id=2, chat_id=222, name="Beta", ready=True)
+    match.players["C"] = Player(user_id=3, chat_id=333, name="Gamma", ready=True)
+
+    # Own ship for player A and intact ship for player B
+    match.boards["A"].grid[0][0] = 1
+    match.boards["B"].grid[0][1] = 1
+    match.boards["B"].grid[1][1] = 1
+
+    # Record a hit on player B at (1, 1)
+    match.history = [[[0, None] for _ in range(15)] for _ in range(15)]
+    match.history[1][1] = [3, "B"]
+
+    snapshot = {
+        "timestamp": "now",
+        "move": 0,
+        "actor": None,
+        "coord": None,
+        "next_turn": "A",
+        "history": [row[:] for row in match.history],
+        "last_highlight": [],
+        "boards": {
+            "A": {
+                "grid": [[0 for _ in range(15)] for _ in range(15)],
+                "ships": [],
+                "alive_cells": 20,
+            },
+            "B": {
+                "grid": [[0 for _ in range(15)] for _ in range(15)],
+                "ships": [],
+                "alive_cells": 20,
+            },
+            "C": {
+                "grid": [[0 for _ in range(15)] for _ in range(15)],
+                "ships": [],
+                "alive_cells": 20,
+            },
+        },
+    }
+    snapshot["boards"]["A"]["grid"][0][0] = 0  # force mismatch for own board
+    snapshot["boards"]["B"]["grid"][0][1] = 0  # force mismatch for enemy board
+    snapshot["boards"]["B"]["grid"][1][1] = 1  # keep hit cell owner information
+    match.snapshots = [snapshot]
+
+    captured: dict[str, list] = {}
+
+    def fake_render_board(state, player_key):
+        captured["board"] = [row[:] for row in state.board]
+        captured["owners"] = [row[:] for row in state.owners]
+        return BytesIO(b"x")
+
+    class Bot:
+        async def send_photo(self, *args, **kwargs):
+            return SimpleNamespace(message_id=1)
+
+    context = SimpleNamespace(bot=Bot(), bot_data={}, chat_data={})
+    monkeypatch.setattr(router, "render_board", fake_render_board)
+
+    asyncio.run(router._send_state(context, match, "A", "test"))
+
+    # Own ships remain visible, enemy intact ships hidden, hits visible
+    assert captured["board"][0][0] == 1
+    assert captured["owners"][0][0] == "A"
+    assert captured["board"][0][1] == 0
+    assert captured["owners"][0][1] is None
+    assert captured["board"][1][1] == 3
+    assert captured["owners"][1][1] == "B"
+
+    # Snapshot grids refreshed for both own and enemy boards
+    refreshed_snapshot = match.snapshots[-1]
+    assert refreshed_snapshot["boards"]["A"]["grid"][0][0] == 1
+    assert refreshed_snapshot["boards"]["B"]["grid"][0][1] == 1
