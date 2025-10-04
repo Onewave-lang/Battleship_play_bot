@@ -6,7 +6,6 @@ from logic.render import (
     SUNK_SYMBOL,
     format_cell,
     CELL_WIDTH,
-    THIN_SPACE,
 )
 from logic.parser import ROWS
 from logic.battle import apply_shot, KILL
@@ -135,4 +134,5 @@ def test_format_cell_keeps_visual_width():
 
     assert wcswidth(single) == CELL_WIDTH
     assert wcswidth(double) == CELL_WIDTH
-    assert THIN_SPACE in double
+    assert double.endswith(' ')
+    assert not double.startswith(' ')
