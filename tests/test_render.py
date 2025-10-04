@@ -4,6 +4,9 @@ from logic.render import (
     SHIP_SYMBOL,
     HIT_SYMBOL,
     SUNK_SYMBOL,
+    LAST_MOVE_MISS_SYMBOL,
+    LAST_MOVE_HIT_SYMBOL,
+    LAST_MOVE_SUNK_SYMBOL,
     format_cell,
     CELL_WIDTH,
 )
@@ -37,20 +40,20 @@ def test_render_last_move_symbols():
     b.grid[0][0] = [2, 'A']
     b.highlight = [(0, 0)]
     own = render_board_own(b)
-    assert "❌" in own
+    assert LAST_MOVE_MISS_SYMBOL in own
     b.highlight = []
     own = render_board_own(b)
-    assert "❌" not in own
+    assert LAST_MOVE_MISS_SYMBOL not in own
     assert 'x' in own
 
     # hit highlight
     b.grid[1][1] = [3, 'B']
     b.highlight = [(1, 1)]
     enemy = render_board_enemy(b)
-    assert "🟥" in enemy
+    assert LAST_MOVE_HIT_SYMBOL in enemy
     b.highlight = []
     enemy = render_board_enemy(b)
-    assert "🟥" not in enemy and HIT_SYMBOL in enemy
+    assert LAST_MOVE_HIT_SYMBOL not in enemy and HIT_SYMBOL in enemy
 
     # kill highlight
     b.grid[2][2] = [4, 'B']
@@ -59,18 +62,18 @@ def test_render_last_move_symbols():
     # highlight the kill cell
     b.highlight = [(2, 2)]
     enemy = render_board_enemy(b)
-    assert enemy.count('💣') == 1
+    assert enemy.count(LAST_MOVE_SUNK_SYMBOL) == 1
 
     # highlight the contour cell
     b.highlight = [(2, 3)]
     enemy = render_board_enemy(b)
-    assert '💣' not in enemy and '🟥' not in enemy
-    assert enemy.count('❌') == 1
+    assert LAST_MOVE_SUNK_SYMBOL not in enemy and LAST_MOVE_HIT_SYMBOL not in enemy
+    assert enemy.count(LAST_MOVE_MISS_SYMBOL) == 1
 
     # no highlight
     b.highlight = []
     enemy = render_board_enemy(b)
-    assert '🟥' not in enemy and '❌' not in enemy
+    assert LAST_MOVE_HIT_SYMBOL not in enemy and LAST_MOVE_MISS_SYMBOL not in enemy
     assert SUNK_SYMBOL in enemy
     assert 'x' in enemy
 
@@ -134,5 +137,5 @@ def test_format_cell_keeps_visual_width():
 
     assert wcswidth(single) == CELL_WIDTH
     assert wcswidth(double) == CELL_WIDTH
-    assert double.endswith(' ')
-    assert not double.startswith(' ')
+    assert single.startswith(' ')
+    assert not single.endswith(' ')

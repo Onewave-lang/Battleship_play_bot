@@ -12,28 +12,28 @@ from wcwidth import wcswidth
 # width larger than the standard ASCII characters.  When Telegram renders the
 # board, these wide symbols tend to stretch a cell beyond the intended column
 # boundaries, which breaks the rectangular shape of the grid.  With a compact
-# ``CELL_WIDTH`` of three characters we stay within narrow screens.
-CELL_WIDTH = 3
+# ``CELL_WIDTH`` of two characters we stay within narrow screens.
+CELL_WIDTH = 2
 
 # text symbols for board rendering
 EMPTY_SYMBOL = "·"
 MISS_SYMBOL = "x"
-SHIP_SYMBOL = "🔲"
-HIT_SYMBOL = "⬛️"
-SUNK_SYMBOL = "⬛️"
-LAST_MOVE_MISS_SYMBOL = "❌"
-LAST_MOVE_HIT_SYMBOL = "🟥"
-LAST_MOVE_SUNK_SYMBOL = "💣"
+SHIP_SYMBOL = "▢"
+HIT_SYMBOL = "■"
+SUNK_SYMBOL = "▩"
+LAST_MOVE_MISS_SYMBOL = "✖"
+LAST_MOVE_HIT_SYMBOL = "▣"
+LAST_MOVE_SUNK_SYMBOL = "▣"
 
-# text symbols for board rendering -  RESERVE OPTION
+# text symbols for board rendering - PREVIOUS SET
 # EMPTY_SYMBOL = "·"
 # MISS_SYMBOL = "x"
-# SHIP_SYMBOL = "◻"
-# HIT_SYMBOL = "◼"
-# SUNK_SYMBOL = "▩"
-# LAST_MOVE_MISS_SYMBOL = "✖"
-# LAST_MOVE_HIT_SYMBOL = "▣"
-# LAST_MOVE_SUNK_SYMBOL = "🔥"
+# SHIP_SYMBOL = "🔲"
+# HIT_SYMBOL = "⬛️"
+# SUNK_SYMBOL = "⬛️"
+# LAST_MOVE_MISS_SYMBOL = "❌"
+# LAST_MOVE_HIT_SYMBOL = "🟥"
+# LAST_MOVE_SUNK_SYMBOL = "💣"
 
 def format_cell(symbol: str) -> str:
     """Pad cell contents so that the board remains aligned.
@@ -43,18 +43,21 @@ def format_cell(symbol: str) -> str:
     spaces to the right until the cell reaches ``CELL_WIDTH`` columns.
     """
     visible = re.sub(r"<[^>]+>", "", symbol)
-    padded = symbol
     width = wcswidth(visible)
     if width < 0:
         # fall back to treating the cell as already correct if width can't be
         # determined (``wcswidth`` returns ``-1`` for non-printable strings)
         return symbol
-    while width < CELL_WIDTH:
-        padded += " "
-        visible += " "
-        width = wcswidth(visible)
-        if width < 0:
-            break
+    if width >= CELL_WIDTH:
+        return symbol
+    slack = CELL_WIDTH - width
+    left_pad = (slack + 1) // 2
+    right_pad = slack - left_pad
+    visible = (" " * left_pad) + visible + (" " * right_pad)
+    padded = (" " * left_pad) + symbol + (" " * right_pad)
+    # ensure the padding did not break wcswidth; fall back if it did
+    if wcswidth(visible) != CELL_WIDTH:
+        return symbol
     return padded
 
 
