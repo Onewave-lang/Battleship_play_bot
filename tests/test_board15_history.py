@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 from game_board15 import handlers, router, storage
 from game_board15.battle import apply_shot, update_history, KILL, HIT, MISS
 from game_board15.models import Board15, Ship, Match15, Player
-from game_board15.utils import _get_cell_state, _get_cell_owner, _set_cell_state
+from game_board15.utils import _get_cell_state, _get_cell_owner, _set_cell_state, record_snapshot
 from tests.utils import _new_grid, _state
 
 
@@ -144,7 +144,7 @@ def test_multiple_hits_recorded(monkeypatch):
     asyncio.run(run_test())
 
 
-def test_shared_chat_board_hides_enemy_ships(monkeypatch):
+def test_shared_chat_board_preserves_all_ships(monkeypatch):
     async def run_test():
         shared_chat = 555
         match = Match15.new(1, shared_chat, "A")
@@ -191,8 +191,17 @@ def test_shared_chat_board_hides_enemy_ships(monkeypatch):
         send_state_calls: list[tuple[str, bool]] = []
         history_snapshots: list[list[list[int]]] = []
 
-        async def capture_send_state(context, match_obj, player_key, message, *, reveal_ships=True):
-            send_state_calls.append((player_key, reveal_ships))
+        async def capture_send_state(
+            context,
+            match_obj,
+            player_key,
+            message,
+            *,
+            reveal_ships=True,
+            snapshot_override=None,
+            include_all_ships=False,
+        ):
+            send_state_calls.append((player_key, reveal_ships, include_all_ships))
             history_snapshots.append(
                 [[_get_cell_state(cell) for cell in row] for row in match_obj.history]
             )
@@ -202,6 +211,8 @@ def test_shared_chat_board_hides_enemy_ships(monkeypatch):
                 player_key,
                 message,
                 reveal_ships=reveal_ships,
+                snapshot_override=snapshot_override,
+                include_all_ships=include_all_ships,
             )
 
         monkeypatch.setattr(router, '_send_state', capture_send_state)
@@ -243,20 +254,63 @@ def test_shared_chat_board_hides_enemy_ships(monkeypatch):
         await router.router_text(update_b, context)
 
         assert len(send_state_calls) == 2
-        assert send_state_calls == [('A', False), ('B', False)]
+        assert send_state_calls == [('A', True, True), ('B', True, True)]
         assert len(rendered) == len(history_snapshots) == 2
-        for idx, ((player_key, board), history_state) in enumerate(zip(rendered, history_snapshots)):
-            assert player_key in {'A', 'B'}
-            assert board == history_state
-            assert board[0][2] == 0
-            if idx == 0:
-                assert board[0][0] == 2
-                assert board[2][2] == 0
-            else:
-                assert board[0][0] == 2
-                assert board[2][2] == 4
+        # After each move the rendered board should keep both players' ships visible.
+        first_player, first_board = rendered[0]
+        assert first_player == 'A'
+        assert first_board[0][0] == 2  # miss from the first shot
+        assert first_board[0][2] == 1  # enemy ship remains visible
+        assert first_board[2][2] == 1  # own ship still visible before the kill
+
+        second_player, second_board = rendered[1]
+        assert second_player == 'B'
+        assert second_board[0][0] == 2
+        assert second_board[0][2] == 1
+        assert second_board[2][2] == 4  # kill stays highlighted on subsequent snapshot
 
     asyncio.run(run_test())
+
+
+def test_snapshot_sequence_preserves_ships_and_moves():
+    match = Match15.new(1, 100, "A")
+    match.players['B'] = Player(user_id=2, chat_id=100, name='B')
+    match.boards['B'] = Board15()
+    match.boards.pop('C', None)
+    match.history = _new_grid(15)
+    match.snapshots = []
+    match.last_highlight = []
+
+    ship_a = Ship(cells=[(1, 1)])
+    match.boards['A'].ships = [ship_a]
+    match.boards['A'].grid[1][1] = 1
+    ship_b = Ship(cells=[(0, 2)])
+    match.boards['B'].ships = [ship_b]
+    match.boards['B'].grid[0][2] = 1
+
+    first_snapshot = record_snapshot(match, actor=None, coord=None)
+    assert first_snapshot['boards']['A']['grid'][1][1] == 1
+    assert first_snapshot['boards']['B']['grid'][0][2] == 1
+    assert first_snapshot['history'][1][1][0] == 0
+
+    coord = (1, 1)
+    res = apply_shot(match.boards['A'], coord)
+    assert res == KILL
+    update_history(match.history, match.boards, coord, {'A': res, 'B': MISS})
+    match.last_highlight = match.boards['A'].highlight.copy()
+    match.turn = 'B'
+
+    second_snapshot = record_snapshot(match, actor='B', coord=coord)
+    assert second_snapshot['history'][1][1][0] == 4
+    assert second_snapshot['boards']['B']['grid'][0][2] == 1
+    assert tuple(coord) in second_snapshot['last_highlight']
+
+    # Mutate live state to ensure snapshots stay immutable
+    match.boards['A'].grid[1][1] = 0
+    match.history[1][1][0] = 0
+
+    assert match.snapshots[0]['boards']['A']['grid'][1][1] == 1
+    assert match.snapshots[1]['history'][1][1][0] == 4
 
 
 def test_kill_contour_preserves_previous_states():
@@ -673,7 +727,16 @@ def test_router_text_patches_history_on_noop_update(monkeypatch):
 
         calls: list[tuple[str, list[list[int]]]] = []
 
-        async def fake_send_state(ctx, match_obj, player_key, message, *, reveal_ships=True):
+        async def fake_send_state(
+            ctx,
+            match_obj,
+            player_key,
+            message,
+            *,
+            reveal_ships=True,
+            snapshot_override=None,
+            include_all_ships=False,
+        ):
             board_copy = [
                 [_get_cell_state(cell) for cell in row]
                 for row in match_obj.history
