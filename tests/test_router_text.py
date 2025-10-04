@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, call
 
 import storage
 from handlers import router
+from handlers import commands as commands_module
 from models import Board, Ship
 import logic.phrases as phrases
 
@@ -22,6 +23,34 @@ def test_router_text_board_test_two_not_registered(monkeypatch):
 
     assert "router_text" in callbacks
     assert "router_text_board_test_two" not in callbacks
+
+
+def test_choose_mode_mode_test3_requires_admin():
+    async def run_test():
+        original_admin = commands_module.ADMIN_ID
+        original_board15 = commands_module.BOARD15_TEST_ENABLED
+        commands_module.ADMIN_ID = 42
+        commands_module.BOARD15_TEST_ENABLED = True
+        try:
+            reply_text = AsyncMock()
+            query = SimpleNamespace(
+                data='mode_test3',
+                message=SimpleNamespace(reply_text=reply_text),
+                from_user=SimpleNamespace(id=1),
+                answer=AsyncMock(),
+            )
+            update = SimpleNamespace(callback_query=query)
+            context = SimpleNamespace()
+
+            await commands_module.choose_mode(update, context)
+
+            assert reply_text.call_count == 0
+            assert query.answer.await_count == 1
+        finally:
+            commands_module.ADMIN_ID = original_admin
+            commands_module.BOARD15_TEST_ENABLED = original_board15
+
+    asyncio.run(run_test())
 
 
 def test_router_text_handles_latin_coords_standard_match(monkeypatch):
