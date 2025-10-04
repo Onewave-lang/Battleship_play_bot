@@ -63,6 +63,7 @@ def format_cell(symbol: str) -> str:
 
 
 COL_HEADERS = ''.join(format_cell(letter) for letter in ROWS)
+HEADER_PREFIX = format_cell("") + "| "
 
 
 def _render_line(cells: List[str]) -> str:
@@ -81,7 +82,7 @@ def _resolve_cell(v: Union[int, Tuple[int, str]]) -> Tuple[int, str | None]:
 
 
 def render_board_own(board: Board) -> str:
-    header = format_cell("") + " " + COL_HEADERS
+    header = HEADER_PREFIX + COL_HEADERS
     lines = [header]
     highlight = set(board.highlight)
     for r_idx, row in enumerate(board.grid):
@@ -115,7 +116,7 @@ def render_board_own(board: Board) -> str:
 
 
 def render_board_enemy(board: Board) -> str:
-    header = format_cell("") + " " + COL_HEADERS
+    header = HEADER_PREFIX + COL_HEADERS
     lines = [header]
     highlight = set(board.highlight)
     for r_idx, row in enumerate(board.grid):
