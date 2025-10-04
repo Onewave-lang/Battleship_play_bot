@@ -393,7 +393,7 @@ def test_router_invalid_cell_shows_board(monkeypatch):
         assert msg_call.args[0] == 10
         assert msg_call.kwargs.get('parse_mode') == 'HTML'
         assert msg_call.args[1] == (
-            'Ваше поле:\nown\nПоле соперника:\nenemy\nНе понял клетку. Пример: е5 или д10.'
+            'Поле соперника:\nenemy\nВаше поле:\nown\nНе понял клетку. Пример: е5 или д10.'
         )
     asyncio.run(run_test())
 
@@ -428,7 +428,7 @@ def test_router_wrong_turn_shows_board(monkeypatch):
         assert msg_call.args[0] == 10
         assert msg_call.kwargs.get('parse_mode') == 'HTML'
         assert msg_call.args[1] == (
-            'Ваше поле:\nown\nПоле соперника:\nenemy\nСейчас ход соперника.'
+            'Поле соперника:\nenemy\nВаше поле:\nown\nСейчас ход соперника.'
         )
     asyncio.run(run_test())
 
@@ -472,10 +472,10 @@ def test_router_auto_shows_board(monkeypatch):
             assert call_args.kwargs.get('parse_mode') == 'HTML'
         messages_by_chat = {c.args[0]: c.args[1] for c in calls}
         assert messages_by_chat[10] == (
-            'Ваше поле:\nown\nПоле соперника:\nenemy\nКорабли расставлены. Бой начинается! Ваш ход.'
+            'Поле соперника:\nenemy\nВаше поле:\nown\nКорабли расставлены. Бой начинается! Ваш ход.'
         )
         assert messages_by_chat[20] == (
-            'Ваше поле:\nown\nПоле соперника:\nenemy\nИгрок A готов. Бой начинается! Ход соперника.'
+            'Поле соперника:\nenemy\nВаше поле:\nown\nИгрок A готов. Бой начинается! Ход соперника.'
         )
     asyncio.run(run_test())
 
@@ -523,11 +523,11 @@ def test_router_auto_waits_and_sends_instruction(monkeypatch):
         messages_by_chat = [(c.args[0], c.args[1]) for c in calls]
         assert messages_by_chat[0] == (
             10,
-            'Ваше поле:\nown\nПоле соперника:\nenemy\nКорабли расставлены. Ожидаем соперника.',
+            'Поле соперника:\nenemy\nВаше поле:\nown\nКорабли расставлены. Ожидаем соперника.',
         )
         assert messages_by_chat[1] == (
             20,
-            'Ваше поле:\nown\nПоле соперника:\nenemy\nИгрок A готов. Отправьте "авто" для расстановки кораблей.',
+            'Поле соперника:\nenemy\nВаше поле:\nown\nИгрок A готов. Отправьте "авто" для расстановки кораблей.',
         )
         assert messages_by_chat[2] == (
             20,

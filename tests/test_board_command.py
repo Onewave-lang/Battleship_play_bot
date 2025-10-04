@@ -29,7 +29,7 @@ def test_board_command_shows_fields(monkeypatch):
         await commands.board(update, None)
 
         assert reply_text.call_args_list == [
-            call('Ваше поле:\nown\nПоле соперника:\nenemy', parse_mode='HTML')
+            call('Поле соперника:\nenemy\nВаше поле:\nown', parse_mode='HTML')
         ]
 
     asyncio.run(run_test())

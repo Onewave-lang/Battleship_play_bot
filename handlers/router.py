@@ -82,7 +82,7 @@ async def _send_state(
 
     own = render_board_own(match.boards[player_key])
     enemy = render_board_enemy(match.boards[enemy_key])
-    board_text = f"Ваше поле:\n{own}\nПоле соперника:\n{enemy}\n{message}"
+    board_text = f"Поле соперника:\n{enemy}\nВаше поле:\n{own}\n{message}"
 
     board_msg = await context.bot.send_message(
         chat_id,
