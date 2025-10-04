@@ -25,6 +25,56 @@ def test_router_text_board_test_two_not_registered(monkeypatch):
     assert "router_text_board_test_two" not in callbacks
 
 
+def test_router_text_saves_name_and_prompts(monkeypatch):
+    async def run_test():
+        context = SimpleNamespace(bot=SimpleNamespace(), user_data={})
+        context.user_data['name_state'] = {
+            'waiting': True,
+            'hint': commands_module.NAME_HINT_NEWGAME,
+        }
+        message = SimpleNamespace(text='Иван', reply_text=AsyncMock(), reply_photo=AsyncMock())
+        update = SimpleNamespace(
+            message=message,
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=1),
+        )
+
+        await router.router_text(update, context)
+
+        assert context.user_data['player_name'] == 'Иван'
+        message.reply_text.assert_awaited_once()
+        assert message.reply_text.await_args_list[0] == call(
+            'Имя сохранено: Иван. Используйте /newgame, чтобы создать матч.'
+        )
+
+    asyncio.run(run_test())
+
+
+def test_router_text_name_triggers_join(monkeypatch):
+    async def run_test():
+        finalize = AsyncMock(return_value=True)
+        monkeypatch.setattr(router, 'finalize_pending_join', finalize)
+        context = SimpleNamespace(bot=SimpleNamespace(), user_data={})
+        context.user_data['name_state'] = {
+            'waiting': True,
+            'hint': commands_module.NAME_HINT_AUTO,
+            'pending': {'action': 'join', 'match_id': 'm1'},
+        }
+        message = SimpleNamespace(text='Bob', reply_text=AsyncMock(), reply_photo=AsyncMock())
+        update = SimpleNamespace(
+            message=message,
+            effective_user=SimpleNamespace(id=1),
+            effective_chat=SimpleNamespace(id=1),
+        )
+
+        await router.router_text(update, context)
+
+        finalize.assert_awaited_once_with(update, context, 'm1')
+        message.reply_text.assert_not_awaited()
+
+    asyncio.run(run_test())
+
+
 def test_choose_mode_mode_test3_requires_admin():
     async def run_test():
         original_admin = commands_module.ADMIN_ID
@@ -277,7 +327,7 @@ def test_router_text_auto_board_test_two_matches_standard_flow(monkeypatch):
             call(context, match, "A", "Корабли расставлены. Бой начинается! Ваш ход."),
         ]
         assert match.messages["B"]["last_bot_message"] == (
-            "Соперник готов. Бой начинается! Ход соперника."
+            "Player A готов. Бой начинается! Ход соперника."
         )
 
     asyncio.run(run_test())
@@ -425,7 +475,7 @@ def test_router_auto_shows_board(monkeypatch):
             'Ваше поле:\nown\nПоле соперника:\nenemy\nКорабли расставлены. Бой начинается! Ваш ход.'
         )
         assert messages_by_chat[20] == (
-            'Ваше поле:\nown\nПоле соперника:\nenemy\nСоперник готов. Бой начинается! Ход соперника.'
+            'Ваше поле:\nown\nПоле соперника:\nenemy\nИгрок A готов. Бой начинается! Ход соперника.'
         )
     asyncio.run(run_test())
 
@@ -477,7 +527,7 @@ def test_router_auto_waits_and_sends_instruction(monkeypatch):
         )
         assert messages_by_chat[1] == (
             20,
-            'Ваше поле:\nown\nПоле соперника:\nenemy\nСоперник готов. Отправьте "авто" для расстановки кораблей.',
+            'Ваше поле:\nown\nПоле соперника:\nenemy\nИгрок A готов. Отправьте "авто" для расстановки кораблей.',
         )
         assert messages_by_chat[2] == (
             20,

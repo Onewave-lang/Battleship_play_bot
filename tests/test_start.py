@@ -14,7 +14,7 @@ def test_start_shows_logo_and_menu(monkeypatch):
             effective_user=SimpleNamespace(id=1),
             effective_chat=SimpleNamespace(id=1),
         )
-        context = SimpleNamespace()
+        context = SimpleNamespace(user_data={})
 
         await start(update, context)
 
@@ -41,12 +41,10 @@ def test_choose_mode_two_players():
 
         await choose_mode(update, context)
 
-        expected = (
-            'Используйте /newgame чтобы создать матч. '
-            'Если вы переходили по ссылке-приглашению, отправьте её текст '
-            'вручную: /start inv_<id>.'
-        )
-        assert reply_text.call_args_list == [call(expected)]
+        assert reply_text.call_args_list == [
+            call('Перед началом игры напишите, как вас представить сопернику.'),
+            call('Введите имя одним сообщением (например: Иван).'),
+        ]
         assert query.answer.call_count == 1
 
     asyncio.run(run_test())

@@ -41,6 +41,116 @@ def welcome_photo():
         yield BytesIO(_WELCOME_PLACEHOLDER)
 
 
+NAME_KEY = "player_name"
+NAME_STATE_KEY = "name_state"
+NAME_HINT_NEWGAME = "newgame"
+NAME_HINT_AUTO = "auto"
+
+
+def _user_data(context: ContextTypes.DEFAULT_TYPE) -> dict:
+    data = getattr(context, "user_data", None)
+    if data is None:
+        data = {}
+        setattr(context, "user_data", data)
+    return data
+
+
+def get_player_name(context: ContextTypes.DEFAULT_TYPE) -> str:
+    return _user_data(context).get(NAME_KEY, "")
+
+
+def _name_state(context: ContextTypes.DEFAULT_TYPE) -> dict:
+    return _user_data(context).setdefault(NAME_STATE_KEY, {})
+
+
+def set_waiting_for_name(
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    hint: str,
+    pending: dict | None = None,
+) -> None:
+    state = _name_state(context)
+    state["waiting"] = True
+    state["hint"] = hint
+    if pending is not None:
+        state["pending"] = pending
+    else:
+        state.pop("pending", None)
+
+
+def is_waiting_for_name(context: ContextTypes.DEFAULT_TYPE) -> bool:
+    return bool(_name_state(context).get("waiting"))
+
+
+def get_name_state(context: ContextTypes.DEFAULT_TYPE) -> dict:
+    return _name_state(context)
+
+
+def store_player_name(context: ContextTypes.DEFAULT_TYPE, name: str) -> str:
+    cleaned = name.strip()
+    data = _user_data(context)
+    data[NAME_KEY] = cleaned
+    state = _name_state(context)
+    state["waiting"] = False
+    state.pop("pending", None)
+    state.pop("hint", None)
+    return cleaned
+
+
+async def _send_join_success(
+    context: ContextTypes.DEFAULT_TYPE,
+    match,
+    reply_photo,
+    reply_text,
+) -> None:
+    with welcome_photo() as img:
+        await reply_photo(img, caption='Добро пожаловать в игру!')
+    await reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки кораблей.')
+    await reply_text('Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.')
+
+    initiator = match.players.get('A')
+    joiner = match.players.get('B')
+    if not initiator or not joiner:
+        return
+
+    joiner_name = joiner.name or 'Соперник'
+    msg_a = f'Игрок {joiner_name} присоединился. '
+    if initiator.ready:
+        msg_a += 'Ожидаем его расстановку.'
+    else:
+        msg_a += 'Отправьте "авто" для расстановки кораблей.'
+    await context.bot.send_message(initiator.chat_id, msg_a)
+    if 'Отправьте "авто"' in msg_a:
+        await context.bot.send_message(
+            initiator.chat_id,
+            'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
+        )
+
+
+async def finalize_pending_join(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    match_id: str,
+) -> bool:
+    name = get_player_name(context)
+    match = storage.join_match(
+        match_id,
+        update.effective_user.id,
+        update.effective_chat.id,
+        name,
+    )
+    if match:
+        await _send_join_success(
+            context,
+            match,
+            update.message.reply_photo,
+            update.message.reply_text,
+        )
+        return True
+    await update.message.reply_text('Матч не найден или заполнен.')
+    return False
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     args = getattr(context, 'args', None)
     logger.info(
@@ -63,23 +173,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 reply_markup=keyboard,
             )
             return
-        match = storage.join_match(match_id, update.effective_user.id, update.effective_chat.id)
+        name = get_player_name(context)
+        if not name:
+            set_waiting_for_name(
+                context,
+                hint=NAME_HINT_AUTO,
+                pending={"action": "join", "match_id": match_id},
+            )
+            await update.message.reply_text(
+                'Перед присоединением к матчу напишите, как вас представить сопернику.'
+            )
+            await update.message.reply_text('Введите имя одним сообщением (например: Иван).')
+            return
+        match = storage.join_match(
+            match_id,
+            update.effective_user.id,
+            update.effective_chat.id,
+            name,
+        )
         if match:
-            with welcome_photo() as img:
-                await update.message.reply_photo(img, caption='Добро пожаловать в игру!')
-            await update.message.reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки кораблей.')
-            await update.message.reply_text('Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.')
-            msg_a = 'Соперник присоединился. '
-            if match.players['A'].ready:
-                msg_a += 'Ожидаем его расстановку.'
-            else:
-                msg_a += 'Отправьте "авто" для расстановки кораблей.'
-            await context.bot.send_message(match.players['A'].chat_id, msg_a)
-            if 'Отправьте "авто"' in msg_a:
-                await context.bot.send_message(
-                    match.players['A'].chat_id,
-                    'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
-                )
+            await _send_join_success(
+                context,
+                match,
+                update.message.reply_photo,
+                update.message.reply_text,
+            )
         else:
             existing = storage.get_match(match_id)
             reason = 'match not found'
@@ -148,6 +266,22 @@ async def newgame(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         update.effective_user.id,
         args,
     )
+    name = get_player_name(context)
+    state = get_name_state(context)
+    if not name:
+        if state.get('waiting'):
+            await update.message.reply_text('Сначала напишите ваше имя и отправьте его одним сообщением.')
+        else:
+            set_waiting_for_name(
+                context,
+                hint=NAME_HINT_NEWGAME,
+                pending=None,
+            )
+            await update.message.reply_text(
+                'Перед созданием матча напишите, как вас представить сопернику.'
+            )
+            await update.message.reply_text('Введите имя одним сообщением (например: Иван).')
+        return
     existing = storage.find_match_by_user(update.effective_user.id)
     if existing:
         keyboard = InlineKeyboardMarkup([
@@ -162,7 +296,11 @@ async def newgame(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
     await update.message.reply_text('Подождите, подготавливаем игровую среду...')
-    match = storage.create_match(update.effective_user.id, update.effective_chat.id)
+    match = storage.create_match(
+        update.effective_user.id,
+        update.effective_chat.id,
+        name,
+    )
     username = (await context.bot.get_me()).username
     await update.message.reply_text('Среда игры готова.')
     with welcome_photo() as img:
@@ -212,23 +350,31 @@ async def confirm_join(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         old_match = storage.get_match(old_id)
         if old_match:
             storage.close_match(old_match)
-        match = storage.join_match(new_id, query.from_user.id, query.message.chat.id)
+        name = get_player_name(context)
+        if not name:
+            set_waiting_for_name(
+                context,
+                hint=NAME_HINT_AUTO,
+                pending={"action": "join", "match_id": new_id},
+            )
+            await query.message.reply_text(
+                'Перед присоединением к новому матчу напишите, как вас представить сопернику.'
+            )
+            await query.message.reply_text('Введите имя одним сообщением (например: Иван).')
+            return
+        match = storage.join_match(
+            new_id,
+            query.from_user.id,
+            query.message.chat.id,
+            name,
+        )
         if match:
-            with welcome_photo() as img:
-                await query.message.reply_photo(img, caption='Добро пожаловать в игру!')
-            await query.message.reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки кораблей.')
-            await query.message.reply_text('Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.')
-            msg_a = 'Соперник присоединился. '
-            if match.players['A'].ready:
-                msg_a += 'Ожидаем его расстановку.'
-            else:
-                msg_a += 'Отправьте "авто" для расстановки кораблей.'
-            await context.bot.send_message(match.players['A'].chat_id, msg_a)
-            if 'Отправьте "авто"' in msg_a:
-                await context.bot.send_message(
-                    match.players['A'].chat_id,
-                    'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
-                )
+            await _send_join_success(
+                context,
+                match,
+                query.message.reply_photo,
+                query.message.reply_text,
+            )
         else:
             await query.message.reply_text('Матч не найден или заполнен.')
     else:
@@ -305,11 +451,23 @@ async def choose_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     query = update.callback_query
     await query.answer()
     if query.data == 'mode_2':
-        await query.message.reply_text(
-            'Используйте /newgame чтобы создать матч. '
-            'Если вы переходили по ссылке-приглашению, отправьте её текст '
-            'вручную: /start inv_<id>.'
-        )
+        name = get_player_name(context)
+        if name:
+            await query.message.reply_text(
+                'Используйте /newgame чтобы создать матч. '
+                'Если вы переходили по ссылке-приглашению, отправьте её текст '
+                'вручную: /start inv_<id>.'
+            )
+        else:
+            set_waiting_for_name(
+                context,
+                hint=NAME_HINT_NEWGAME,
+                pending=None,
+            )
+            await query.message.reply_text(
+                'Перед началом игры напишите, как вас представить сопернику.'
+            )
+            await query.message.reply_text('Введите имя одним сообщением (например: Иван).')
     elif query.data == 'mode_3':
         await query.message.reply_text('Используйте /board15 для игры втроем на поле 15×15.')
     elif query.data == 'mode_test2':

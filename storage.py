@@ -39,8 +39,8 @@ def _save_all(data: Dict[str, dict]) -> str | None:
     return None
 
 
-def create_match(a_user_id: int, a_chat_id: int) -> Match:
-    match = Match.new(a_user_id, a_chat_id)
+def create_match(a_user_id: int, a_chat_id: int, a_name: str = "") -> Match:
+    match = Match.new(a_user_id, a_chat_id, a_name)
     save_match(match)
     return match
 
@@ -80,7 +80,12 @@ def get_match(match_id: str) -> Match | None:
     return match
 
 
-def join_match(match_id: str, b_user_id: int, b_chat_id: int) -> Match | None:
+def join_match(
+    match_id: str,
+    b_user_id: int,
+    b_chat_id: int,
+    b_name: str = "",
+) -> Match | None:
     match = get_match(match_id)
     if (
         not match
@@ -89,7 +94,11 @@ def join_match(match_id: str, b_user_id: int, b_chat_id: int) -> Match | None:
     ):
         return None
     from models import Player
-    match.players['B'] = Player(user_id=b_user_id, chat_id=b_chat_id)
+    match.players['B'] = Player(
+        user_id=b_user_id,
+        chat_id=b_chat_id,
+        name=b_name.strip(),
+    )
     match.status = 'placing'
     save_match(match)
     return match

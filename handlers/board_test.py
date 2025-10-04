@@ -422,7 +422,10 @@ async def _auto_play_bot(
 async def board_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Start a three-player test match with two dummy opponents."""
 
-    match = storage.create_match(update.effective_user.id, update.effective_chat.id)
+    name = getattr(update.effective_user, "first_name", "") or getattr(
+        update.effective_user, "username", ""
+    )
+    match = storage.create_match(update.effective_user.id, update.effective_chat.id, name)
     match.players["B"] = Player(user_id=0, chat_id=update.effective_chat.id)
     match.players["C"] = Player(user_id=0, chat_id=update.effective_chat.id)
     match.status = "playing"
@@ -466,7 +469,8 @@ async def board_test_two(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     chat = update.effective_chat
     user = update.effective_user
-    match = storage.create_match(user.id, chat.id)
+    name = getattr(user, "first_name", "") or getattr(user, "username", "")
+    match = storage.create_match(user.id, chat.id, name)
     match.players["B"] = Player(user_id=0, chat_id=chat.id)
     match.players["B"].ready = True
     match.status = "placing"
