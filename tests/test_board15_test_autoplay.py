@@ -7,6 +7,7 @@ import pytest
 from game_board15 import handlers, storage, router
 from game_board15.models import Board15, Match15, Player, Ship
 from tests.utils import _new_grid
+from game_board15.utils import _get_cell_state
 
 
 def test_board15_test_autoplay(monkeypatch):
@@ -293,6 +294,82 @@ def test_auto_play_bots_reports_hits(monkeypatch):
         hist = match.shots['B']['history']
         assert any(entry['enemy'] == 'C' and entry['result'] == handlers.battle.HIT for entry in hist)
         assert any(entry['enemy'] == 'A' and entry['result'] == handlers.battle.MISS for entry in hist)
+
+    asyncio.run(run())
+
+
+def test_auto_play_bots_persists_previous_highlight(monkeypatch):
+    async def run():
+        match = Match15.new(1, 1, 'A')
+        match.players['A'].name = 'A'
+        match.players['B'] = Player(user_id=0, chat_id=1, name='B')
+        match.players['C'] = Player(user_id=0, chat_id=2, name='C')
+        match.status = 'playing'
+        match.turn = 'B'
+        match.history = _new_grid(15)
+        match.messages = {key: {} for key in match.players}
+        match.shots = {
+            key: {
+                'history': [],
+                'last_result': None,
+                'move_count': 0,
+                'joke_start': 1,
+                'last_coord': None,
+            }
+            for key in match.players
+        }
+
+        board_c = match.boards['C']
+        board_c.highlight = [(0, 0), (0, 1)]
+        for rr, cc in board_c.highlight:
+            board_c.grid[rr][cc] = 4
+        board_c.grid[1][0] = 5
+        board_c.grid[1][1] = 5
+
+        def fake_apply_shot(board, coord):
+            return handlers.battle.MISS
+
+        monkeypatch.setattr(handlers.battle, 'apply_shot', fake_apply_shot)
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(storage, 'get_match', lambda mid: match)
+        monkeypatch.setattr(storage, 'finish', lambda m, w: None)
+        monkeypatch.setattr(router, '_send_state', AsyncMock())
+        monkeypatch.setattr(handlers, '_phrase_or_joke', lambda *a, **k: '')
+        monkeypatch.setattr(handlers.random, 'choice', lambda seq: seq[0])
+        monkeypatch.setattr(handlers.random, 'randint', lambda a, b: a)
+        monkeypatch.setattr(handlers.parser, 'format_coord', lambda coord: 'a1')
+
+        orig_sleep = asyncio.sleep
+
+        async def fast_sleep(t):
+            await orig_sleep(0)
+
+        monkeypatch.setattr(asyncio, 'sleep', fast_sleep)
+
+        context = SimpleNamespace(
+            bot=SimpleNamespace(send_message=AsyncMock()),
+            bot_data={},
+            chat_data={},
+        )
+
+        task = asyncio.create_task(
+            handlers._auto_play_bots(match, context, 1, human='A', delay=0)
+        )
+
+        for _ in range(10):
+            await asyncio.sleep(0)
+            if _get_cell_state(match.history[0][0]) == 4:
+                break
+
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert _get_cell_state(match.history[0][0]) == 4
+        assert _get_cell_state(match.history[0][1]) == 4
+        assert _get_cell_state(match.history[1][0]) == 5
+        assert _get_cell_state(match.history[1][1]) == 5
+        assert all(cell not in board_c.highlight for cell in [(0, 0), (0, 1)])
 
     asyncio.run(run())
 
