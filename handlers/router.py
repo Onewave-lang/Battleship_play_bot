@@ -37,6 +37,9 @@ from logic.phrases import (
 logger = logging.getLogger(__name__)
 
 
+CHAT_PREFIXES = ("@", "!")
+
+
 STATE_DELAY = float(os.getenv("STATE_DELAY", "0"))
 
 
@@ -416,7 +419,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     player_key = 'A' if match.players['A'].user_id == user_id else 'B'
     enemy_key = 'B' if player_key == 'A' else 'A'
 
-    if text.startswith('@'):
+    if text.startswith(CHAT_PREFIXES):
         msg = text[1:].strip()
         for key, player in match.players.items():
             if key != player_key:
@@ -479,7 +482,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     )
                     await context.bot.send_message(
                         match.players[enemy_key].chat_id,
-                        'Используйте @ в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
+                        'Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
                     )
                 else:
                     match.messages.setdefault(enemy_key, {})['last_bot_message'] = (
@@ -758,7 +761,7 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
 
     player_key = 'A'
 
-    if text.startswith('@'):
+    if text.startswith(CHAT_PREFIXES):
         msg = text[1:].strip()
         for key, player in match.players.items():
             if key != player_key and player.user_id != 0:
