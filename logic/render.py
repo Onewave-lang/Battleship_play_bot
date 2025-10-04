@@ -74,7 +74,9 @@ def render_board_own(board: Board) -> str:
             if coord in highlight:
                 if cell_state in (2, 5):
                     sym = LAST_MOVE_MISS_SYMBOL
-                elif cell_state in (3, 4):
+                elif cell_state == 4:
+                    sym = LAST_MOVE_SUNK_SYMBOL
+                elif cell_state == 3:
                     sym = LAST_MOVE_HIT_SYMBOL
             cells.append(format_cell(sym))
         row_label = format_cell(str(r_idx + 1))
@@ -104,7 +106,9 @@ def render_board_enemy(board: Board) -> str:
             if coord in highlight:
                 if cell_state in (2, 5):
                     sym = LAST_MOVE_MISS_SYMBOL
-                elif cell_state in (3, 4):
+                elif cell_state == 4:
+                    sym = LAST_MOVE_SUNK_SYMBOL
+                elif cell_state == 3:
                     sym = LAST_MOVE_HIT_SYMBOL
             cells.append(format_cell(sym))
         row_label = format_cell(str(r_idx + 1))
