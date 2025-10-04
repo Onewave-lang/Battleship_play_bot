@@ -25,6 +25,7 @@ from .utils import (
     _get_cell_state,
     _get_cell_owner,
     _set_cell_state,
+    _persist_highlight_to_history,
     record_snapshot,
 )
 import random
@@ -234,12 +235,7 @@ async def _auto_play_bots(
             coord = random.choice(candidates)
         # Persist previous highlights before clearing them so that temporary
         # red marks become permanent dots on the history grid.
-        for b in match.boards.values():
-            if b.highlight:
-                for rr, cc in b.highlight:
-                    if _get_cell_state(match.history[rr][cc]) == 0:
-                        _set_cell_state(match.history, rr, cc, 2)
-            b.highlight = []
+        _persist_highlight_to_history(match)
         results = {}
         hit_any = False
         eliminated: list[str] = []

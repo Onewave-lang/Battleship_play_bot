@@ -51,6 +51,58 @@ def _set_cell_state(
         grid[r][c] = [value, owner] if owner is not None else value
 
 
+def _persist_highlight_to_history(match) -> None:
+    """Convert temporary highlights on boards into history marks."""
+
+    boards = getattr(match, "boards", {})
+    for owner_key, board in boards.items():
+        highlight = getattr(board, "highlight", None) or []
+        if not highlight:
+            continue
+        for rr, cc in highlight:
+            history_state = _get_cell_state(match.history[rr][cc])
+            if history_state != 0:
+                continue
+            board_state = _get_cell_state(board.grid[rr][cc])
+            if board_state == 1:
+                continue
+            if board_state == 3:
+                _set_cell_state(match.history, rr, cc, 3, owner_key)
+                continue
+            if board_state == 4:
+                _set_cell_state(match.history, rr, cc, 4, owner_key)
+                for dr in (-1, 0, 1):
+                    for dc in (-1, 0, 1):
+                        nr, nc = rr + dr, cc + dc
+                        if 0 <= nr < 15 and 0 <= nc < 15:
+                            if (
+                                _get_cell_state(match.history[nr][nc]) == 0
+                                and _get_cell_state(board.grid[nr][nc]) == 5
+                            ):
+                                _set_cell_state(
+                                    match.history,
+                                    nr,
+                                    nc,
+                                    5,
+                                    _get_cell_owner(match.history[nr][nc]),
+                                )
+                continue
+            if board_state == 5:
+                _set_cell_state(
+                    match.history,
+                    rr,
+                    cc,
+                    5,
+                    _get_cell_owner(match.history[rr][cc]),
+                )
+                continue
+            if all(
+                _get_cell_state(other.grid[rr][cc]) != 1 for other in boards.values()
+            ):
+                _set_cell_state(match.history, rr, cc, 2)
+        board.highlight = []
+
+
 def record_snapshot(match, *, actor: Optional[str], coord: Optional[Tuple[int, int]]) -> dict:
     """Record immutable snapshot of the current match state."""
 
@@ -106,5 +158,6 @@ __all__ = [
     "_get_cell_state",
     "_get_cell_owner",
     "_set_cell_state",
+    "_persist_highlight_to_history",
     "record_snapshot",
 ]
