@@ -37,6 +37,8 @@ async def _send_state(
     message: str,
     *,
     reveal_ships: bool = True,
+    snapshot_override: dict | None = None,
+    include_all_ships: bool = False,
 ) -> None:
     """Render and send main board image followed by text message."""
 
@@ -47,12 +49,34 @@ async def _send_state(
         state = Board15State(chat_id=chat_id)
         states[chat_id] = state
 
-    snapshot = match.snapshots[-1] if getattr(match, "snapshots", []) else None
+    snapshot = snapshot_override
+    if snapshot is None:
+        snapshot = match.snapshots[-1] if getattr(match, "snapshots", []) else None
     history_source = snapshot.get("history") if snapshot else None
     if not history_source:
         history_source = match.history
     merged_states = [[_get_cell_state(cell) for cell in row] for row in history_source]
     owners = [[_get_cell_owner(cell) for cell in row] for row in history_source]
+    if include_all_ships:
+        board_sources: dict[str, list[list[int]]] = {}
+        if snapshot:
+            board_sources = {
+                key: board_data.get("grid", [])
+                for key, board_data in snapshot.get("boards", {}).items()
+            }
+        else:
+            board_sources = {key: board.grid for key, board in match.boards.items()}
+        for owner_key, grid in board_sources.items():
+            if not grid:
+                continue
+            for r in range(min(len(grid), 15)):
+                row = grid[r]
+                for c in range(min(len(row), 15)):
+                    if row[c] != 1:
+                        continue
+                    if merged_states[r][c] in {0, 1}:
+                        merged_states[r][c] = 1
+                    owners[r][c] = owner_key
     if reveal_ships:
         if snapshot and player_key in snapshot.get("boards", {}):
             own_grid = snapshot["boards"][player_key]["grid"]
@@ -393,12 +417,14 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         f"Ваш ход: {coord_str} - {body_self} {phrase_self} Следующим ходит {next_name}."
     )
     if same_chat:
+        latest_snapshot = match.snapshots[-1] if getattr(match, "snapshots", []) else None
         await _send_state(
             context,
             match,
             player_key,
             shared_text,
-            reveal_ships=False,
+            snapshot_override=latest_snapshot,
+            include_all_ships=True,
         )
         private_receivers = [
             key
