@@ -17,7 +17,7 @@ CELL_WIDTH = 2
 
 # text symbols for board rendering
 EMPTY_SYMBOL = "·"
-MISS_SYMBOL = "x"
+MISS_SYMBOL = "•"
 SHIP_SYMBOL = "▢"
 HIT_SYMBOL = "■"
 SUNK_SYMBOL = "▩"
