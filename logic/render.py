@@ -5,8 +5,6 @@ import re
 from models import Board
 from logic.parser import ROWS
 from wcwidth import wcswidth
-from constants import BOMB
-
 
 # fixed-width layout for board cells
 CELL_WIDTH = 2
@@ -17,6 +15,8 @@ MISS_SYMBOL = "x"
 SHIP_SYMBOL = "□"
 HIT_SYMBOL = "■"
 SUNK_SYMBOL = "▓"
+LAST_MOVE_MISS_SYMBOL = "❌"
+LAST_MOVE_HIT_SYMBOL = "🟥"
 
 
 def format_cell(symbol: str) -> str:
@@ -72,10 +72,10 @@ def render_board_own(board: Board) -> str:
             else:
                 sym = EMPTY_SYMBOL
             if coord in highlight:
-                if cell_state == 4:
-                    sym = f"<b>{BOMB}</b>"
-                else:
-                    sym = f"<b>{sym}</b>"
+                if cell_state in (2, 5):
+                    sym = LAST_MOVE_MISS_SYMBOL
+                elif cell_state in (3, 4):
+                    sym = LAST_MOVE_HIT_SYMBOL
             cells.append(format_cell(sym))
         row_label = format_cell(str(r_idx + 1))
         lines.append(f"{row_label}| " + _render_line(cells))
@@ -102,10 +102,10 @@ def render_board_enemy(board: Board) -> str:
             else:
                 sym = EMPTY_SYMBOL
             if coord in highlight:
-                if cell_state == 4:
-                    sym = f"<b>{BOMB}</b>"
-                else:
-                    sym = f"<b>{sym}</b>"
+                if cell_state in (2, 5):
+                    sym = LAST_MOVE_MISS_SYMBOL
+                elif cell_state in (3, 4):
+                    sym = LAST_MOVE_HIT_SYMBOL
             cells.append(format_cell(sym))
         row_label = format_cell(str(r_idx + 1))
         lines.append(f"{row_label}| " + _render_line(cells))
