@@ -32,6 +32,23 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
+def _compose_move_message(
+    result_line: str, humor: str | None, next_line: str | None
+) -> str:
+    """Return formatted message with blank lines between sections."""
+
+    lines: list[str] = [result_line.strip()]
+    humor_text = (humor or "").strip()
+    if humor_text:
+        lines.append("")
+        lines.append(humor_text)
+    if next_line:
+        if humor_text:
+            lines.append("")
+        lines.append(next_line.strip())
+    return "\n".join(lines)
+
+
 async def _send_state(
     context: ContextTypes.DEFAULT_TYPE,
     match,
@@ -361,7 +378,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     watch_parts: list[str] = []
     # keep both the original result value and the message body for each enemy
     # so that the result (miss/hit/kill) is not lost for later processing
-    enemy_msgs: dict[str, tuple[str, str]] = {}
+    enemy_msgs: dict[str, tuple[int, str, str]] = {}
     targets: list[str] = []
     player_obj = match.players.get(player_key)
     player_label = getattr(player_obj, "name", "") or player_key
@@ -370,32 +387,40 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         enemy_obj = match.players.get(enemy)
         enemy_label = getattr(enemy_obj, "name", "") or enemy
         if res == battle.HIT:
-            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
+            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT).strip()
             parts_self.append(f"корабль игрока {enemy_label} ранен.")
             watch_parts.append(
                 f"игрок {player_label} поразил корабль игрока {enemy_label}."
             )
-            enemy_msgs[enemy] = (res, f"ваш корабль ранен. {phrase_enemy}")
+            enemy_msgs[enemy] = (
+                res,
+                f"Ход игрока {player_label}: {coord_str} - ваш корабль ранен.",
+                phrase_enemy,
+            )
             targets.append(enemy)
         elif res == battle.KILL:
-            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
+            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL).strip()
             parts_self.append(f"уничтожен корабль игрока {enemy_label}!")
             watch_parts.append(
                 f"игрок {player_label} поразил корабль игрока {enemy_label}."
             )
-            enemy_msgs[enemy] = (res, f"ваш корабль уничтожен. {phrase_enemy}")
+            enemy_msgs[enemy] = (
+                res,
+                f"Ход игрока {player_label}: {coord_str} - ваш корабль уничтожен.",
+                phrase_enemy,
+            )
             targets.append(enemy)
             if match.boards[enemy].alive_cells == 0:
                 eliminated.append(enemy)
 
     if any(res == battle.KILL for res in results.values()):
-        phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
+        phrase_self = _phrase_or_joke(match, player_key, SELF_KILL).strip()
     elif any(res == battle.HIT for res in results.values()):
-        phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
+        phrase_self = _phrase_or_joke(match, player_key, SELF_HIT).strip()
     elif any(res == battle.REPEAT for res in results.values()):
-        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
+        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS).strip()
     else:
-        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
+        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS).strip()
 
     msg_watch = ' '.join(watch_parts).strip() or 'мимо'
     others = [
@@ -425,38 +450,40 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         chat_counts[participant.chat_id] = chat_counts.get(participant.chat_id, 0) + 1
     same_chat = len(chat_counts) == 1
     if enemy_msgs and not same_chat:
-        for enemy, (res_enemy, msg_body_enemy) in enemy_msgs.items():
+        for enemy, (_, result_line_enemy, humor_enemy) in enemy_msgs.items():
             if match.players[enemy].user_id != 0:
-                next_phrase = f" Следующим ходит {next_name}."
-                await _send_state(
-                    context,
-                    match,
-                    enemy,
-                    f"Ход игрока {player_label}: {coord_str} - {msg_body_enemy}{next_phrase}",
+                message_enemy = _compose_move_message(
+                    result_line_enemy,
+                    humor_enemy,
+                    f"Следующим ходит {next_name}.",
                 )
+                await _send_state(context, match, enemy, message_enemy)
     if others and not same_chat:
         for other in others:
-            next_phrase = f" Следующим ходит {next_name}."
             if match.players[other].user_id != 0:
                 watch_body = msg_watch.rstrip()
                 if not watch_body.endswith(('.', '!', '?')):
                     watch_body += '.'
-                await _send_state(
-                    context,
-                    match,
-                    other,
-                    f"Ход игрока {player_label}: {coord_str} - {watch_body} {phrase_self}{next_phrase}",
+                watch_message = _compose_move_message(
+                    f"Ход игрока {player_label}: {coord_str} - {watch_body}",
+                    phrase_self,
+                    f"Следующим ходит {next_name}.",
                 )
+                await _send_state(context, match, other, watch_message)
     msg_body = ' '.join(parts_self) if parts_self else 'мимо'
     body_self = msg_body.rstrip()
     if not body_self.endswith(('.', '!', '?')):
         body_self += '.'
     save_before_send = any(res == battle.KILL for res in results.values())
-    shared_text = (
-        f"Ход игрока {player_label}: {coord_str} - {body_self} {phrase_self} Следующим ходит {next_name}."
+    shared_text = _compose_move_message(
+        f"Ход игрока {player_label}: {coord_str} - {body_self}",
+        phrase_self,
+        f"Следующим ходит {next_name}.",
     )
-    personal_text = (
-        f"Ваш ход: {coord_str} - {body_self} {phrase_self} Следующим ходит {next_name}."
+    personal_text = _compose_move_message(
+        f"Ваш ход: {coord_str} - {body_self}",
+        phrase_self,
+        f"Следующим ходит {next_name}.",
     )
     if save_before_send:
         storage.save_match(match)
@@ -489,25 +516,33 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     reveal_ships=True,
                 )
             elif key in enemy_msgs:
-                _, msg_body_enemy = enemy_msgs[key]
-                next_phrase = f" Следующим ходит {next_name}."
+                _, result_line_enemy, humor_enemy = enemy_msgs[key]
+                message_enemy = _compose_move_message(
+                    result_line_enemy,
+                    humor_enemy,
+                    f"Следующим ходит {next_name}.",
+                )
                 await _send_state(
                     context,
                     match,
                     key,
-                    f"Ход игрока {player_label}: {coord_str} - {msg_body_enemy}{next_phrase}",
+                    message_enemy,
                     reveal_ships=True,
                 )
             elif key in others:
-                next_phrase = f" Следующим ходит {next_name}."
                 watch_body = msg_watch.rstrip()
                 if not watch_body.endswith((".", "!", "?")):
                     watch_body += "."
+                watch_message = _compose_move_message(
+                    f"Ход игрока {player_label}: {coord_str} - {watch_body}",
+                    phrase_self,
+                    f"Следующим ходит {next_name}.",
+                )
                 await _send_state(
                     context,
                     match,
                     key,
-                    f"Ход игрока {player_label}: {coord_str} - {watch_body} {phrase_self}{next_phrase}",
+                    watch_message,
                     reveal_ships=True,
                 )
     elif single_user:
