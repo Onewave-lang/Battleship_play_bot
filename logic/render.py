@@ -15,6 +15,7 @@ CELL_WIDTH = 2
 EMPTY_SYMBOL = "·"
 MISS_SYMBOL = "x"
 HIT_SYMBOL = "■"
+SHIP_SYMBOL = "□"
 SUNK_SYMBOL = "▓"
 
 
@@ -59,7 +60,7 @@ def render_board_own(board: Board) -> str:
             coord = (r_idx, c_idx)
             cell_state, owner = _resolve_cell(v)
             if cell_state == 1:
-                sym = HIT_SYMBOL
+                sym = SHIP_SYMBOL
             elif cell_state == 2:
                 sym = MISS_SYMBOL
             elif cell_state == 3:
