@@ -23,15 +23,6 @@ TRANSLIT = {
     "k": "к",
 }
 
-LEGACY_LATIN = {
-    "c": "в",
-    "d": "г",
-    "e": "д",
-    "f": "е",
-    "g": "ж",
-    "h": "з",
-}
-
 
 def normalize(cell: str) -> str:
     cell = cell.strip().lower()
@@ -46,8 +37,6 @@ def parse_coord(cell: str) -> Optional[Tuple[int, int]]:
     letter = cell[0]
     rest = cell[1:]
     letter = TRANSLIT.get(letter, letter)
-    if letter not in ROWS:
-        letter = LEGACY_LATIN.get(letter, letter)
     if letter not in ROWS:
         return None
     try:
