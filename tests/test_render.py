@@ -1,4 +1,10 @@
-from logic.render import render_board_own, render_board_enemy, SHIP_SYMBOL, HIT_SYMBOL
+from logic.render import (
+    render_board_own,
+    render_board_enemy,
+    SHIP_SYMBOL,
+    HIT_SYMBOL,
+    SUNK_SYMBOL,
+)
 from logic.parser import ROWS
 from logic.battle import apply_shot, KILL
 from models import Board, Ship
@@ -17,7 +23,7 @@ def test_render_board_enemy_marks_hit():
     b = Board(owner='A')
     b.grid[0][0] = 3
     enemy = render_board_enemy(b)
-    assert '■' in enemy
+    assert HIT_SYMBOL in enemy
 
 
 def test_render_last_move_symbols():
@@ -41,7 +47,7 @@ def test_render_last_move_symbols():
     assert "🟥" in enemy
     b.highlight = []
     enemy = render_board_enemy(b)
-    assert "🟥" not in enemy and '■' in enemy
+    assert "🟥" not in enemy and HIT_SYMBOL in enemy
 
     # kill highlight
     b.grid[2][2] = [4, 'B']
@@ -50,19 +56,19 @@ def test_render_last_move_symbols():
     # highlight the kill cell
     b.highlight = [(2, 2)]
     enemy = render_board_enemy(b)
-    assert enemy.count('🟥') == 1
+    assert enemy.count('💣') == 1
 
     # highlight the contour cell
     b.highlight = [(2, 3)]
     enemy = render_board_enemy(b)
-    assert '🟥' not in enemy
+    assert '💣' not in enemy and '🟥' not in enemy
     assert enemy.count('❌') == 1
 
     # no highlight
     b.highlight = []
     enemy = render_board_enemy(b)
     assert '🟥' not in enemy and '❌' not in enemy
-    assert '▓' in enemy
+    assert SUNK_SYMBOL in enemy
     assert 'x' in enemy
 
 
