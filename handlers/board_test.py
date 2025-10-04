@@ -276,8 +276,6 @@ async def _auto_play_bot(
         except Exception:
             logger.exception("Failed to send message to chat %s", chat_id_)
 
-    coords = [(r, c) for r in range(10) for c in range(10)]
-
     while True:
         refreshed = storage.get_match(match.match_id)
         if refreshed is not None:
@@ -293,15 +291,15 @@ async def _auto_play_bot(
             await asyncio.sleep(delay)
 
         board = match.boards[human]
-        coord = None
-        for pt in coords:
-            r, c = pt
-            state = _cell_state(board.grid[r][c])
-            if state not in (2, 3, 4, 5):
-                coord = pt
-                break
-        if coord is None:
+        available_cells = [
+            (r, c)
+            for r, row in enumerate(board.grid)
+            for c, cell in enumerate(row)
+            if _cell_state(cell) not in (2, 3, 4, 5)
+        ]
+        if not available_cells:
             break
+        coord = random.choice(available_cells)
 
         for b in match.boards.values():
             b.highlight = []
@@ -454,6 +452,6 @@ async def board_test_two(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             chat.id,
             human="A",
             bot="B",
-            delay=2,
+            delay=3,
         )
     )
