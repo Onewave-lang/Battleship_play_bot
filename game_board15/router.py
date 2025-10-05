@@ -2,7 +2,6 @@ from __future__ import annotations
 import logging
 import random
 import asyncio
-import inspect
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -140,9 +139,21 @@ async def _send_state(
         if owner_key not in board_sources:
             board_sources[owner_key] = board_data.get("grid", [])
 
+    shared_view = any(
+        other_key != player_key
+        and getattr(other_player, "chat_id", None) == chat_id
+        for other_key, other_player in match.players.items()
+    )
+    reuse_snapshot_enemy_ships = not include_all_ships and not shared_view
+
     for owner_key, grid in board_sources.items():
         if not grid:
             continue
+        snapshot_grid = None
+        if snapshot:
+            owner_snapshot = snapshot_boards.get(owner_key)
+            if owner_snapshot:
+                snapshot_grid = owner_snapshot.get("grid")
         for r in range(min(len(grid), 15)):
             row = grid[r]
             for c in range(min(len(row), 15)):
@@ -151,6 +162,29 @@ async def _send_state(
                     if owners[r][c] is None and cell_state in {3, 4, 5}:
                         owners[r][c] = owner_key
                     continue
+                if owner_key != player_key:
+                    if include_all_ships:
+                        pass
+                    else:
+                        snapshot_cell_has_ship = (
+                            snapshot_grid is not None
+                            and _grid_value(snapshot_grid, r, c) == 1
+                        )
+                        if not (reuse_snapshot_enemy_ships and snapshot_cell_has_ship):
+                            logger.debug(
+                                "Hiding ship at (%s, %s) for viewer %s owned by %s; "
+                                "reuse_snapshot=%s snapshot_has_ship=%s include_all_ships=%s shared_view=%s",
+                                r,
+                                c,
+                                player_key,
+                                owner_key,
+                                reuse_snapshot_enemy_ships,
+                                snapshot_cell_has_ship,
+                                include_all_ships,
+                                shared_view,
+                            )
+                            continue
+                        cell_state = 1
                 if merged_states[r][c] == 0:
                     merged_states[r][c] = 1
                 if owners[r][c] is None:
@@ -177,12 +211,6 @@ async def _send_state(
                 merged_states[r][c] = 1
                 owners[r][c] = player_key
 
-    if not include_all_ships:
-        for r in range(15):
-            for c in range(15):
-                if owners[r][c] and owners[r][c] != player_key and merged_states[r][c] == 1:
-                    merged_states[r][c] = 0
-                    owners[r][c] = None
     state.board = merged_states
     state.owners = owners
     state.player_key = player_key
@@ -491,63 +519,40 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if save_before_send:
         storage.save_match(match)
     if same_chat:
-        include_kwargs: dict[str, object] = {}
-        try:
-            if "include_all_ships" in inspect.signature(_send_state).parameters:
-                include_kwargs["include_all_ships"] = True
-        except (TypeError, ValueError):
-            include_kwargs = {}
-        await _send_state(
-            context,
-            match,
-            player_key,
-            shared_text,
-            **include_kwargs,
+        watch_body = msg_watch.rstrip()
+        if not watch_body.endswith((".", "!", "?")):
+            watch_body += "."
+        watch_message = _compose_move_message(
+            f"Ход игрока {player_label}: {coord_str} - {watch_body}",
+            phrase_self,
+            f"Следующим ходит {next_name}.",
         )
-        private_receivers = [
-            key
-            for key, participant in match.players.items()
-            if chat_counts.get(participant.chat_id, 0) == 1 and participant.user_id != 0
-        ]
-        for key in private_receivers:
+        enemy_personal_texts: dict[str, str] = {}
+        for enemy, (_, result_line_enemy, humor_enemy) in enemy_msgs.items():
+            enemy_personal_texts[enemy] = _compose_move_message(
+                result_line_enemy,
+                humor_enemy,
+                f"Следующим ходит {next_name}.",
+            )
+
+        for key, participant in match.players.items():
             if key == player_key:
-                await _send_state(
-                    context,
-                    match,
-                    key,
-                    personal_text,
-                    reveal_ships=True,
-                )
-            elif key in enemy_msgs:
-                _, result_line_enemy, humor_enemy = enemy_msgs[key]
-                message_enemy = _compose_move_message(
-                    result_line_enemy,
-                    humor_enemy,
-                    f"Следующим ходит {next_name}.",
-                )
-                await _send_state(
-                    context,
-                    match,
-                    key,
-                    message_enemy,
-                    reveal_ships=True,
-                )
+                message_text = personal_text
+            elif key in enemy_personal_texts:
+                message_text = enemy_personal_texts[key]
             elif key in others:
-                watch_body = msg_watch.rstrip()
-                if not watch_body.endswith((".", "!", "?")):
-                    watch_body += "."
-                watch_message = _compose_move_message(
-                    f"Ход игрока {player_label}: {coord_str} - {watch_body}",
-                    phrase_self,
-                    f"Следующим ходит {next_name}.",
-                )
-                await _send_state(
-                    context,
-                    match,
-                    key,
-                    watch_message,
-                    reveal_ships=True,
-                )
+                message_text = watch_message
+            else:
+                message_text = shared_text
+
+            await _send_state(
+                context,
+                match,
+                key,
+                message_text,
+                reveal_ships=True,
+                include_all_ships=False,
+            )
     elif single_user:
         await _send_state(context, match, player_key, shared_text)
     else:

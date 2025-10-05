@@ -208,11 +208,11 @@ def test_send_state_hides_intact_enemy_ships(monkeypatch):
 
     asyncio.run(router._send_state(context, match, "A", "test"))
 
-    # Own ships remain visible, enemy intact ships hidden, hits visible
+    # Own ships remain visible, intact enemy ships preserved by snapshot, hits visible
     assert captured["board"][0][0] == 1
     assert captured["owners"][0][0] == "A"
-    assert captured["board"][0][1] == 0
-    assert captured["owners"][0][1] is None
+    assert captured["board"][0][1] == 1
+    assert captured["owners"][0][1] == "B"
     assert captured["board"][1][1] == 3
     assert captured["owners"][1][1] == "B"
 
