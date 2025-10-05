@@ -297,22 +297,39 @@ def test_shared_chat_board_hides_intact_enemy_ships(monkeypatch):
 
         await router.router_text(update_b, context)
 
-        assert len(send_state_calls) == 2
-        assert send_state_calls == [('A', True, False), ('B', True, False)]
-        assert len(rendered) == len(history_snapshots) == 2
-        # After each move the rendered board should expose the shared history while
-        # hiding intact enemy fleets from the shared chat view.
+        assert len(send_state_calls) == 4
+        assert send_state_calls == [
+            ('A', True, False),
+            ('B', True, False),
+            ('A', True, False),
+            ('B', True, False),
+        ]
+        assert len(rendered) == len(history_snapshots) == 4
+        # First move (player A fires) - each participant receives a tailored render.
         first_player, first_board = rendered[0]
         assert first_player == 'A'
         assert first_board[0][0] == 2  # miss from the first shot
-        assert first_board[0][2] == 0  # intact enemy ship remains hidden before being revealed
-        assert first_board[2][2] == 1  # own ship still visible before the kill
+        assert first_board[0][2] == 0  # intact enemy ship remains hidden in shared view
+        assert first_board[2][2] == 1  # own ship still visible prior to destruction
 
         second_player, second_board = rendered[1]
         assert second_player == 'B'
         assert second_board[0][0] == 2
-        assert second_board[0][2] == 1  # acting player continues to see their own fleet
-        assert second_board[2][2] == 4  # kill stays highlighted on subsequent snapshot
+        assert second_board[0][2] == 1  # defending player continues to see their own fleet
+        assert second_board[2][2] == 0  # enemy ship is hidden until revealed by damage
+
+        # Second move (player B fires) - renders again reflect each personal perspective.
+        third_player, third_board = rendered[2]
+        assert third_player == 'A'
+        assert third_board[0][0] == 2
+        assert third_board[0][2] == 0
+        assert third_board[2][2] == 4  # kill stays highlighted in the shared history
+
+        fourth_player, fourth_board = rendered[3]
+        assert fourth_player == 'B'
+        assert fourth_board[0][0] == 2
+        assert fourth_board[0][2] == 1
+        assert fourth_board[2][2] == 4
 
     asyncio.run(run_test())
 

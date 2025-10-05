@@ -519,56 +519,40 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if save_before_send:
         storage.save_match(match)
     if same_chat:
-        await _send_state(
-            context,
-            match,
-            player_key,
-            shared_text,
+        watch_body = msg_watch.rstrip()
+        if not watch_body.endswith((".", "!", "?")):
+            watch_body += "."
+        watch_message = _compose_move_message(
+            f"Ход игрока {player_label}: {coord_str} - {watch_body}",
+            phrase_self,
+            f"Следующим ходит {next_name}.",
         )
-        private_receivers = [
-            key
-            for key, participant in match.players.items()
-            if chat_counts.get(participant.chat_id, 0) == 1 and participant.user_id != 0
-        ]
-        for key in private_receivers:
+        enemy_personal_texts: dict[str, str] = {}
+        for enemy, (_, result_line_enemy, humor_enemy) in enemy_msgs.items():
+            enemy_personal_texts[enemy] = _compose_move_message(
+                result_line_enemy,
+                humor_enemy,
+                f"Следующим ходит {next_name}.",
+            )
+
+        for key, participant in match.players.items():
             if key == player_key:
-                await _send_state(
-                    context,
-                    match,
-                    key,
-                    personal_text,
-                    reveal_ships=True,
-                )
-            elif key in enemy_msgs:
-                _, result_line_enemy, humor_enemy = enemy_msgs[key]
-                message_enemy = _compose_move_message(
-                    result_line_enemy,
-                    humor_enemy,
-                    f"Следующим ходит {next_name}.",
-                )
-                await _send_state(
-                    context,
-                    match,
-                    key,
-                    message_enemy,
-                    reveal_ships=True,
-                )
+                message_text = personal_text
+            elif key in enemy_personal_texts:
+                message_text = enemy_personal_texts[key]
             elif key in others:
-                watch_body = msg_watch.rstrip()
-                if not watch_body.endswith((".", "!", "?")):
-                    watch_body += "."
-                watch_message = _compose_move_message(
-                    f"Ход игрока {player_label}: {coord_str} - {watch_body}",
-                    phrase_self,
-                    f"Следующим ходит {next_name}.",
-                )
-                await _send_state(
-                    context,
-                    match,
-                    key,
-                    watch_message,
-                    reveal_ships=True,
-                )
+                message_text = watch_message
+            else:
+                message_text = shared_text
+
+            await _send_state(
+                context,
+                match,
+                key,
+                message_text,
+                reveal_ships=True,
+                include_all_ships=False,
+            )
     elif single_user:
         await _send_state(context, match, player_key, shared_text)
     else:
