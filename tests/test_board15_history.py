@@ -188,7 +188,7 @@ def test_send_state_repairs_snapshot_grid(monkeypatch):
     asyncio.run(run_test())
 
 
-def test_shared_chat_board_preserves_all_ships(monkeypatch):
+def test_shared_chat_board_hides_intact_enemy_ships(monkeypatch):
     async def run_test():
         shared_chat = 555
         match = Match15.new(1, shared_chat, "A")
@@ -298,26 +298,26 @@ def test_shared_chat_board_preserves_all_ships(monkeypatch):
         await router.router_text(update_b, context)
 
         assert len(send_state_calls) == 2
-        assert send_state_calls == [('A', True, True), ('B', True, True)]
+        assert send_state_calls == [('A', True, False), ('B', True, False)]
         assert len(rendered) == len(history_snapshots) == 2
         # After each move the rendered board should expose the shared history while
-        # showing intact fleets for every player in the shared chat view.
+        # hiding intact enemy fleets from the shared chat view.
         first_player, first_board = rendered[0]
         assert first_player == 'A'
         assert first_board[0][0] == 2  # miss from the first shot
-        assert first_board[0][2] == 1  # intact enemy ship visible in shared chat view
+        assert first_board[0][2] == 0  # intact enemy ship remains hidden before being revealed
         assert first_board[2][2] == 1  # own ship still visible before the kill
 
         second_player, second_board = rendered[1]
         assert second_player == 'B'
         assert second_board[0][0] == 2
-        assert second_board[0][2] == 1  # own fleet stays visible
+        assert second_board[0][2] == 1  # acting player continues to see their own fleet
         assert second_board[2][2] == 4  # kill stays highlighted on subsequent snapshot
 
     asyncio.run(run_test())
 
 
-def test_shared_chat_snapshot_shows_all_intact_ships_in_shared_view(monkeypatch):
+def test_shared_chat_snapshot_hides_intact_enemy_ships(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
             players={
@@ -371,7 +371,7 @@ def test_shared_chat_snapshot_shows_all_intact_ships_in_shared_view(monkeypatch)
             'A',
             'msg',
             snapshot_override=snapshot,
-            include_all_ships=True,
+            include_all_ships=False,
         )
         await router._send_state(
             context,
@@ -379,14 +379,14 @@ def test_shared_chat_snapshot_shows_all_intact_ships_in_shared_view(monkeypatch)
             'B',
             'msg',
             snapshot_override=snapshot,
-            include_all_ships=True,
+            include_all_ships=False,
         )
 
         board_a = captured['A']
         board_b = captured['B']
 
         assert board_a[0][2] == 4  # killed enemy segment is visible to everyone
-        assert board_a[1][1] == 1  # intact enemy ship is visible in shared view
+        assert board_a[1][1] == 0  # intact enemy ship remains hidden in shared view
         assert board_a[2][2] == 3  # shared history retains damage to own ship
 
         assert board_b[0][2] == 4  # killed ship still visible on owner's board
