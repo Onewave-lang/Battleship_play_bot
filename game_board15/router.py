@@ -151,6 +151,8 @@ async def _send_state(
                     if owners[r][c] is None and cell_state in {3, 4, 5}:
                         owners[r][c] = owner_key
                     continue
+                if not include_all_ships and owner_key != player_key:
+                    continue
                 if merged_states[r][c] == 0:
                     merged_states[r][c] = 1
                 if owners[r][c] is None:
