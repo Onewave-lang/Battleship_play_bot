@@ -139,9 +139,21 @@ async def _send_state(
         if owner_key not in board_sources:
             board_sources[owner_key] = board_data.get("grid", [])
 
+    shared_view = any(
+        other_key != player_key
+        and getattr(other_player, "chat_id", None) == chat_id
+        for other_key, other_player in match.players.items()
+    )
+    reuse_snapshot_enemy_ships = not include_all_ships and not shared_view
+
     for owner_key, grid in board_sources.items():
         if not grid:
             continue
+        snapshot_grid = None
+        if snapshot:
+            owner_snapshot = snapshot_boards.get(owner_key)
+            if owner_snapshot:
+                snapshot_grid = owner_snapshot.get("grid")
         for r in range(min(len(grid), 15)):
             row = grid[r]
             for c in range(min(len(row), 15)):
@@ -150,8 +162,29 @@ async def _send_state(
                     if owners[r][c] is None and cell_state in {3, 4, 5}:
                         owners[r][c] = owner_key
                     continue
-                if not include_all_ships and owner_key != player_key:
-                    continue
+                if owner_key != player_key:
+                    if include_all_ships:
+                        pass
+                    else:
+                        snapshot_cell_has_ship = (
+                            snapshot_grid is not None
+                            and _grid_value(snapshot_grid, r, c) == 1
+                        )
+                        if not (reuse_snapshot_enemy_ships and snapshot_cell_has_ship):
+                            logger.debug(
+                                "Hiding ship at (%s, %s) for viewer %s owned by %s; "
+                                "reuse_snapshot=%s snapshot_has_ship=%s include_all_ships=%s shared_view=%s",
+                                r,
+                                c,
+                                player_key,
+                                owner_key,
+                                reuse_snapshot_enemy_ships,
+                                snapshot_cell_has_ship,
+                                include_all_ships,
+                                shared_view,
+                            )
+                            continue
+                        cell_state = 1
                 if merged_states[r][c] == 0:
                     merged_states[r][c] = 1
                 if owners[r][c] is None:

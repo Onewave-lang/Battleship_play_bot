@@ -396,7 +396,7 @@ def test_shared_chat_snapshot_hides_intact_enemy_ships(monkeypatch):
     asyncio.run(run_test())
 
 
-def test_personal_view_hides_intact_enemy_ships(monkeypatch):
+def test_personal_view_reuses_snapshot_enemy_ships(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
             players={
@@ -474,9 +474,13 @@ def test_personal_view_hides_intact_enemy_ships(monkeypatch):
         board_b = captured['B']
 
         assert board_a[2][2] == 1  # player keeps visibility on own fleet
-        assert board_a[1][1] == 0  # intact enemy ship remains hidden without shared view
+        assert (
+            board_a[1][1] == 1
+        )  # intact enemy ship recorded in snapshot stays visible for every viewer
         assert board_b[1][1] == 1  # enemy retains view of their own fleet
-        assert board_b[2][2] == 0  # opponent's intact ship is hidden in personal view
+        assert (
+            board_b[2][2] == 1
+        )  # previously recorded opponent ship remains visible when snapshot is reused
 
     asyncio.run(run_test())
 
