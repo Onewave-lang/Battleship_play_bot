@@ -2,7 +2,6 @@ from __future__ import annotations
 import logging
 import random
 import asyncio
-import inspect
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -487,18 +486,11 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if save_before_send:
         storage.save_match(match)
     if same_chat:
-        include_kwargs: dict[str, object] = {}
-        try:
-            if "include_all_ships" in inspect.signature(_send_state).parameters:
-                include_kwargs["include_all_ships"] = True
-        except (TypeError, ValueError):
-            include_kwargs = {}
         await _send_state(
             context,
             match,
             player_key,
             shared_text,
-            **include_kwargs,
         )
         private_receivers = [
             key
