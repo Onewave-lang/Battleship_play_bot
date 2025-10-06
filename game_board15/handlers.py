@@ -229,7 +229,7 @@ async def _auto_play_bots(
         board = match.boards[current]
         adj = _adjacent_mask(board.grid)
         enemies = [k for k in alive if k != current]
-        candidates = [
+        primary_candidates = [
             (r, c)
             for r in range(15)
             for c in range(15)
@@ -237,8 +237,30 @@ async def _auto_play_bots(
             and _get_cell_state(board.grid[r][c]) != 1
             and not adj[r][c]
         ]
-        if not candidates:
-            break
+        if primary_candidates:
+            candidates = primary_candidates
+        else:
+            fallback_candidates = [
+                (r, c)
+                for r in range(15)
+                for c in range(15)
+                if _get_cell_state(match.history[r][c]) == 0
+            ]
+            if not fallback_candidates:
+                logger.warning(
+                    "No available coordinates left for bot %s in match %s; closing",
+                    current,
+                    match.match_id,
+                )
+                storage.close_match(match)
+                for key, participant in match.players.items():
+                    if participant.user_id != 0:
+                        await _safe_send_message(
+                            participant.chat_id,
+                            "Матч завершён: отсутствуют доступные клетки для выстрелов.",
+                        )
+                break
+            candidates = fallback_candidates
         if len(enemies) == 1:
             enemy_board = match.boards[enemies[0]]
             target = next(
@@ -338,17 +360,30 @@ async def _auto_play_bots(
         storage.save_match(match)
 
         for player_key, msg_body in enemy_msgs.items():
-            if match.players[player_key].user_id != 0:
-                next_phrase = f" Следующим ходит {next_name}."
-                body = msg_body.rstrip()
-                if not body.endswith(('.', '!', '?')):
-                    body += '.'
-                if player_key == current:
-                    msg_text = f"Ваш ход: {coord_str} - {body} {phrase_self}{next_phrase}"
-                else:
-                    msg_text = (
-                        f"Ход игрока {player_label}: {coord_str} - {body} {phrase_self}{next_phrase}"
-                    )
+            participant = match.players[player_key]
+            if participant.user_id == 0:
+                continue
+            next_phrase = f" Следующим ходит {next_name}."
+            body = msg_body.rstrip()
+            if not body.endswith(('.', '!', '?')):
+                body += '.'
+            if player_key == current:
+                msg_text = f"Ваш ход: {coord_str} - {body} {phrase_self}{next_phrase}"
+            else:
+                msg_text = (
+                    f"Ход игрока {player_label}: {coord_str} - {body} {phrase_self}{next_phrase}"
+                )
+
+            if (
+                player_key == human
+                and current != human
+                and results.get(human) not in {battle.HIT, battle.KILL}
+            ):
+                continue
+
+            if player_key == human and current != human:
+                await _safe_send_message(participant.chat_id, msg_text)
+            else:
                 await _safe_send_state(
                     player_key,
                     msg_text,
