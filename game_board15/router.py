@@ -76,8 +76,9 @@ async def _send_state(
     history_source = snapshot.get("history") if snapshot else None
     if not history_source:
         history_source = match.history
-    merged_states = [[_get_cell_state(cell) for cell in row] for row in history_source]
+    history_states = [[_get_cell_state(cell) for cell in row] for row in history_source]
     owners = [[_get_cell_owner(cell) for cell in row] for row in history_source]
+    merged_states = [row.copy() for row in history_states]
 
     def _grid_value(grid: list[list[int]], r: int, c: int) -> int:
         if r < len(grid):
@@ -90,6 +91,7 @@ async def _send_state(
         return [row.copy() for row in grid]
 
     board_sources: dict[str, list[list[int]]] = {}
+    owner_snapshot_grids: dict[str, list[list[int]] | None] = {}
     snapshot_boards = snapshot.get("boards", {}) if snapshot else {}
     if snapshot:
         boards_section = snapshot.setdefault("boards", {})
@@ -132,12 +134,15 @@ async def _send_state(
                 board_entry["grid"] = fresh_grid
                 snapshot_grid = fresh_grid
             board_sources[owner_key] = board_entry.get("grid", [])
+            owner_snapshot_grids[owner_key] = snapshot_grid
         else:
             board_sources[owner_key] = live_grid
+            owner_snapshot_grids[owner_key] = None
 
     for owner_key, board_data in snapshot_boards.items():
         if owner_key not in board_sources:
             board_sources[owner_key] = board_data.get("grid", [])
+            owner_snapshot_grids[owner_key] = board_data.get("grid")
 
     shared_view = any(
         other_key != player_key
@@ -149,11 +154,6 @@ async def _send_state(
     for owner_key, grid in board_sources.items():
         if not grid:
             continue
-        snapshot_grid = None
-        if snapshot:
-            owner_snapshot = snapshot_boards.get(owner_key)
-            if owner_snapshot:
-                snapshot_grid = owner_snapshot.get("grid")
         for r in range(min(len(grid), 15)):
             row = grid[r]
             for c in range(min(len(row), 15)):
@@ -162,33 +162,49 @@ async def _send_state(
                     if owners[r][c] is None and cell_state in {3, 4, 5}:
                         owners[r][c] = owner_key
                     continue
-                if owner_key != player_key:
-                    if include_all_ships:
-                        pass
-                    else:
-                        snapshot_cell_has_ship = (
-                            snapshot_grid is not None
-                            and _grid_value(snapshot_grid, r, c) == 1
-                        )
-                        if not (reuse_snapshot_enemy_ships and snapshot_cell_has_ship):
-                            logger.debug(
-                                "Hiding ship at (%s, %s) for viewer %s owned by %s; "
-                                "reuse_snapshot=%s snapshot_has_ship=%s include_all_ships=%s shared_view=%s",
-                                r,
-                                c,
-                                player_key,
-                                owner_key,
-                                reuse_snapshot_enemy_ships,
-                                snapshot_cell_has_ship,
-                                include_all_ships,
-                                shared_view,
-                            )
-                            continue
-                        cell_state = 1
                 if merged_states[r][c] == 0:
                     merged_states[r][c] = 1
                 if owners[r][c] is None:
                     owners[r][c] = owner_key
+
+    view_board = [row.copy() for row in merged_states]
+    view_owners = [[owner for owner in row] for row in owners]
+
+    if not include_all_ships:
+        for r in range(15):
+            for c in range(15):
+                owner = view_owners[r][c]
+                if owner is None or owner == player_key:
+                    continue
+                if view_board[r][c] != 1:
+                    continue
+                history_state = history_states[r][c]
+                if history_state in {3, 4, 5}:
+                    continue
+                snapshot_grid = owner_snapshot_grids.get(owner)
+                snapshot_cell_has_ship = (
+                    snapshot_grid is not None
+                    and r < len(snapshot_grid)
+                    and c < len(snapshot_grid[r])
+                    and _get_cell_state(snapshot_grid[r][c]) == 1
+                )
+                if reuse_snapshot_enemy_ships and snapshot_cell_has_ship:
+                    continue
+                logger.debug(
+                    "Hiding ship at (%s, %s) for viewer %s owned by %s; "
+                    "reuse_snapshot=%s snapshot_has_ship=%s include_all_ships=%s shared_view=%s",
+                    r,
+                    c,
+                    player_key,
+                    owner,
+                    reuse_snapshot_enemy_ships,
+                    snapshot_cell_has_ship,
+                    include_all_ships,
+                    shared_view,
+                )
+                view_board[r][c] = 0
+                view_owners[r][c] = None
+
     if reveal_ships:
         own_grid = board_sources.get(player_key, match.boards[player_key].grid)
         for r in range(15):
@@ -208,11 +224,11 @@ async def _send_state(
                         r,
                         c,
                     )
-                merged_states[r][c] = 1
-                owners[r][c] = player_key
+                view_board[r][c] = 1
+                view_owners[r][c] = player_key
 
-    state.board = merged_states
-    state.owners = owners
+    state.board = view_board
+    state.owners = view_owners
     state.player_key = player_key
     if snapshot:
         state.highlight = [tuple(cell) for cell in snapshot.get("last_highlight", [])]
