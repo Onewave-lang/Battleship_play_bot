@@ -17,7 +17,7 @@ def test_send_state_board_test_uses_match_highlight(monkeypatch):
     async def run_test():
         board = Board()
         match = SimpleNamespace(
-            players={"A": SimpleNamespace(chat_id=1)},
+            players={"A": SimpleNamespace(user_id=1, chat_id=1)},
             messages={"A": {}},
             history=_new_grid(),
             boards={"A": board},

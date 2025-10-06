@@ -115,7 +115,11 @@ async def _send_state_board_test(
 ) -> None:
     """Send the shared board with global history to ``player_key``."""
 
-    chat_id = match.players[player_key].chat_id
+    player = match.players.get(player_key)
+    if not player or player.user_id == 0:
+        return
+
+    chat_id = player.chat_id
     msgs = match.messages.setdefault(player_key, {})
 
     board_id = msgs.get("board")
@@ -829,7 +833,7 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
 
     player_label = getattr(match.players[player_key], 'name', '') or player_key
     self_msgs: dict[str, str] = {}
-    enemy_msgs: dict[str, str] = {}
+    enemy_msgs: dict[str, tuple[str, str, str]] = {}
     for enemy, res in results.items():
         enemy_label = getattr(match.players[enemy], 'name', '') or enemy
         if res == MISS:
@@ -839,7 +843,9 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
                 f"{enemy_label}: мимо. {phrase_self}" if phrase_self else f"{enemy_label}: мимо."
             )
             enemy_msgs[enemy] = (
-                f"соперник промахнулся. {phrase_enemy}" if phrase_enemy else "соперник промахнулся."
+                res,
+                f"Ход игрока {player_label}: {coord_str} — соперник промахнулся.",
+                phrase_enemy,
             )
         elif res == HIT:
             phrase_self = _phrase_or_joke(match, player_key, SELF_HIT).strip()
@@ -848,7 +854,9 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
                 f"{enemy_label}: ранил. {phrase_self}" if phrase_self else f"{enemy_label}: ранил."
             )
             enemy_msgs[enemy] = (
-                f"ваш корабль ранен. {phrase_enemy}" if phrase_enemy else "ваш корабль ранен."
+                res,
+                f"Ход игрока {player_label}: {coord_str} — ваш корабль ранен.",
+                phrase_enemy,
             )
         elif res == KILL:
             phrase_self = _phrase_or_joke(match, player_key, SELF_KILL).strip()
@@ -857,7 +865,9 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
                 f"{enemy_label}: уничтожен! {phrase_self}" if phrase_self else f"{enemy_label}: уничтожен!"
             )
             enemy_msgs[enemy] = (
-                f"ваш корабль уничтожен. {phrase_enemy}" if phrase_enemy else "ваш корабль уничтожен."
+                res,
+                f"Ход игрока {player_label}: {coord_str} — ваш корабль уничтожен.",
+                phrase_enemy,
             )
             if (
                 match.boards[enemy].alive_cells == 0
@@ -876,7 +886,9 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
                 else f"{enemy_label}: клетка уже обстреляна."
             )
             enemy_msgs[enemy] = (
-                f"соперник стрелял по уже обстрелянной клетке. {phrase_enemy}" if phrase_enemy else "соперник стрелял по уже обстрелянной клетке."
+                res,
+                f"Ход игрока {player_label}: {coord_str} — соперник стрелял по уже обстрелянной клетке.",
+                phrase_enemy,
             )
 
     next_label = getattr(match.players[next_player], 'name', '') or next_player
@@ -895,14 +907,21 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
         "\n".join(self_lines),
     )
 
-    for enemy, body in enemy_msgs.items():
+    for enemy, (res, result_line_enemy, humor_enemy) in enemy_msgs.items():
+        if res not in (HIT, KILL):
+            continue
         if match.players[enemy].user_id != 0:
             next_phrase = f"Следующим ходит {next_label}."
+            message_enemy = _compose_move_message(
+                result_line_enemy,
+                humor_enemy,
+                next_phrase,
+            )
             await _send_state_board_test(
                 context,
                 match,
                 enemy,
-                f"Ход игрока {player_label}: {coord_str} — {body}\n{next_phrase}",
+                message_enemy,
             )
 
     alive_players = [k for k, b in match.boards.items() if b.alive_cells > 0 and k in match.players]
