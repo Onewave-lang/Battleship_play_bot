@@ -113,7 +113,7 @@ def test_auto_play_bots_skips_own_ship(monkeypatch):
     asyncio.run(run())
 
 
-def test_auto_play_bots_notifies_human_on_hit_without_board(monkeypatch):
+def test_auto_play_bots_notifies_human_on_hit_with_board(monkeypatch):
     async def run():
         match = Match15.new(1, 1, 'A')
         match.players['B'] = Player(user_id=0, chat_id=1, name='B')
@@ -165,10 +165,11 @@ def test_auto_play_bots_notifies_human_on_hit_without_board(monkeypatch):
         with pytest.raises(RuntimeError):
             await handlers._auto_play_bots(match, context, 1, delay=0)
 
-        assert all(player != 'A' for player, _ in state_calls)
-        context.bot.send_message.assert_called_once()
-        sent_text = context.bot.send_message.call_args[0][1]
-        assert 'Ход игрока B' in sent_text
+        assert any(player == 'A' for player, _ in state_calls)
+        human_messages = [msg for player, msg in state_calls if player == 'A']
+        assert human_messages, 'expected board update for human player'
+        assert any('Ход игрока B' in msg for msg in human_messages)
+        context.bot.send_message.assert_not_called()
 
     asyncio.run(run())
 
@@ -301,7 +302,10 @@ def test_auto_play_bots_reports_hits(monkeypatch):
                 timeout=0.01,
             )
 
-        assert all(player != 'A' for player, _ in calls)
+        assert any(player == 'A' for player, _ in calls)
+        human_views = [msg for player, msg in calls if player == 'A']
+        assert human_views, 'expected human to receive board updates'
+        assert any('Ход игрока B' in msg for msg in human_views)
         assert context.bot.send_message.call_count == 0
         hist = match.shots['B']['history']
         assert any(entry['enemy'] == 'C' and entry['result'] == handlers.battle.HIT for entry in hist)
