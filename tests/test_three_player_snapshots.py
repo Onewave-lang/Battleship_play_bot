@@ -3,11 +3,13 @@ from __future__ import annotations
 import asyncio
 from io import BytesIO
 from types import SimpleNamespace
+from collections import defaultdict
 
 import pytest
 
 from game_board15 import router, storage, placement, parser
 from game_board15.models import Match15, Player
+from game_board15.utils import record_snapshot
 
 
 class DummyBot:
@@ -220,3 +222,49 @@ def test_send_state_hides_intact_enemy_ships(monkeypatch):
     refreshed_snapshot = match.snapshots[-1]
     assert refreshed_snapshot["boards"]["A"]["grid"][0][0] == 1
     assert refreshed_snapshot["boards"]["B"]["grid"][0][1] == 1
+
+
+def test_owner_ships_survive_last_move_row_for_other_viewers(monkeypatch):
+    match = Match15.new(1, 111, "Alpha")
+    match.players["B"] = Player(user_id=2, chat_id=222, name="Beta", ready=True)
+    match.players["C"] = Player(user_id=3, chat_id=333, name="Gamma", ready=True)
+
+    # Beta has an intact horizontal ship on the last row
+    for c in range(3):
+        match.boards["B"].grid[14][c] = 1
+
+    # The previous turn targeted the same row but at a different column
+    match.history = [[[0, None] for _ in range(15)] for _ in range(15)]
+    match.history[14][4] = [2, None]
+    match.last_highlight = [(14, 4)]
+
+    record_snapshot(match, actor="A", coord=(14, 4))
+
+    captured = defaultdict(list)
+
+    def fake_render_board(state, player_key):
+        captured[player_key].append(
+            {
+                "board": [row[:] for row in state.board],
+                "owners": [row[:] for row in state.owners],
+            }
+        )
+        return BytesIO(b"x")
+
+    class Bot:
+        async def send_photo(self, *args, **kwargs):
+            return SimpleNamespace(message_id=1)
+
+    context = SimpleNamespace(bot=Bot(), bot_data={}, chat_data={})
+    monkeypatch.setattr(router, "render_board", fake_render_board)
+
+    asyncio.run(router._send_state(context, match, "C", "view for C"))
+    asyncio.run(router._send_state(context, match, "B", "view for B"))
+
+    assert captured["B"], "Owner should receive at least one board rendering"
+    owner_view = captured["B"][-1]
+    assert [owner_view["board"][14][i] for i in range(3)] == [1, 1, 1]
+    assert all(owner_view["owners"][14][i] == "B" for i in range(3))
+
+    last_snapshot = match.snapshots[-1]
+    assert all(last_snapshot["boards"]["B"]["grid"][14][i] == 1 for i in range(3))
