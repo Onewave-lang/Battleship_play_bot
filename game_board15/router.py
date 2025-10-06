@@ -104,6 +104,8 @@ async def _send_state(
             board_entry = boards_section.setdefault(owner_key, {})
             snapshot_grid = board_entry.get("grid")
             mismatch_coord: tuple[int | None, int | None] | None = None
+            prefer_snapshot = False
+            original_snapshot_grid = snapshot_grid
             if snapshot_grid is None:
                 mismatch_coord = (None, None)
             else:
@@ -115,25 +117,39 @@ async def _send_state(
                             break
                     if mismatch_coord:
                         break
-            if mismatch_coord:
-                rr, cc = mismatch_coord
-                if rr is not None and cc is not None:
-                    logger.warning(
-                        "Snapshot grid mismatch for player %s at (%s, %s); refreshing",
-                        owner_key,
-                        rr,
-                        cc,
+                if mismatch_coord:
+                    rr, cc = mismatch_coord
+                    snapshot_state = (
+                        _grid_value(original_snapshot_grid, rr, cc)
+                        if original_snapshot_grid is not None
+                        else 0
                     )
-                else:
-                    logger.warning(
-                        "Snapshot grid missing ship data for player %s; refreshing",
-                        owner_key,
-                    )
-                fresh_grid = _copy_grid(live_grid)
-                board_entry["grid"] = fresh_grid
-                snapshot_grid = fresh_grid
-            board_sources[owner_key] = board_entry.get("grid", [])
-            owner_snapshot_grids[owner_key] = snapshot_grid
+                    live_state = _grid_value(live_grid, rr, cc)
+                    if live_state == 0 and snapshot_state != 0:
+                        prefer_snapshot = True
+                    elif snapshot_state == 0 and live_state != 0:
+                        prefer_snapshot = False
+                    if rr is not None and cc is not None:
+                        logger.warning(
+                            "Snapshot grid mismatch for player %s at (%s, %s); refreshing",
+                            owner_key,
+                            rr,
+                            cc,
+                        )
+                    else:
+                        logger.warning(
+                            "Snapshot grid missing ship data for player %s; refreshing",
+                            owner_key,
+                        )
+                    fresh_grid = _copy_grid(live_grid)
+                    board_entry["grid"] = fresh_grid
+                    snapshot_grid = fresh_grid
+            if mismatch_coord and prefer_snapshot and original_snapshot_grid is not None:
+                board_sources[owner_key] = original_snapshot_grid
+                owner_snapshot_grids[owner_key] = original_snapshot_grid
+            else:
+                board_sources[owner_key] = board_entry.get("grid", [])
+                owner_snapshot_grids[owner_key] = snapshot_grid
         else:
             board_sources[owner_key] = live_grid
             owner_snapshot_grids[owner_key] = None
@@ -168,10 +184,11 @@ async def _send_state(
                     if cell_state in {3, 4, 5}:
                         combined_owners[r][c] = owner_key
                     continue
-                if cell_state == 1 and existing_state == 0:
-                    combined_board[r][c] = 1
-                if combined_owners[r][c] is None:
-                    combined_owners[r][c] = owner_key
+                if cell_state == 1:
+                    if existing_state == 0:
+                        combined_board[r][c] = 1
+                    if combined_owners[r][c] != owner_key:
+                        combined_owners[r][c] = owner_key
 
     view_board = [row.copy() for row in combined_board]
     view_owners = [[owner for owner in row] for row in combined_owners]
