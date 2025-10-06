@@ -374,15 +374,15 @@ async def _auto_play_bots(
                     f"Ход игрока {player_label}: {coord_str} - {body} {phrase_self}{next_phrase}"
                 )
 
-            if (
-                player_key == human
-                and current != human
-                and results.get(human) not in {battle.HIT, battle.KILL}
-            ):
-                continue
-
             if player_key == human and current != human:
-                await _safe_send_message(participant.chat_id, msg_text)
+                human_participant = match.players.get(human)
+                if not human_participant or human_participant.user_id == 0:
+                    continue
+                await _safe_send_state(
+                    player_key,
+                    msg_text,
+                    snapshot_override=snapshot,
+                )
             else:
                 await _safe_send_state(
                     player_key,
