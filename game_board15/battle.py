@@ -19,7 +19,7 @@ def mark_contour(board: Board15, cells: list[Tuple[int, int]]) -> None:
                     contour.add((nr, nc))
 
     for r, c in contour.difference(cells):
-        if board.grid[r][c] == 0:
+        if board.grid[r][c] in (0, 2):
             board.grid[r][c] = 5
 
 
