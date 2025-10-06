@@ -268,3 +268,48 @@ def test_owner_ships_survive_last_move_row_for_other_viewers(monkeypatch):
 
     last_snapshot = match.snapshots[-1]
     assert all(last_snapshot["boards"]["B"]["grid"][14][i] == 1 for i in range(3))
+
+
+def test_owner_ships_preserved_after_rendering_for_other_player(monkeypatch):
+    match = Match15.new(1, 111, "Alpha")
+    match.players["B"] = Player(user_id=2, chat_id=222, name="Beta", ready=True)
+    match.players["C"] = Player(user_id=3, chat_id=333, name="Gamma", ready=True)
+
+    for c in range(4):
+        match.boards["B"].grid[14][c] = 1
+
+    match.history = [[[0, None] for _ in range(15)] for _ in range(15)]
+    match.history[14][5] = [2, None]
+    match.last_highlight = [(14, 5)]
+
+    record_snapshot(match, actor="A", coord=(14, 5))
+
+    captured = defaultdict(list)
+
+    def fake_render_board(state, player_key):
+        captured[player_key].append(
+            {
+                "board": [row[:] for row in state.board],
+                "owners": [row[:] for row in state.owners],
+            }
+        )
+        return BytesIO(b"x")
+
+    class Bot:
+        async def send_photo(self, *args, **kwargs):
+            return SimpleNamespace(message_id=1)
+
+    context = SimpleNamespace(bot=Bot(), bot_data={}, chat_data={})
+    monkeypatch.setattr(router, "render_board", fake_render_board)
+
+    asyncio.run(router._send_state(context, match, "C", "view for C"))
+
+    assert captured["C"], "Spectator should receive a rendered board"
+    snapshot_after = match.snapshots[-1]
+    assert all(snapshot_after["boards"]["B"]["grid"][14][i] == 1 for i in range(4))
+
+    asyncio.run(router._send_state(context, match, "B", "view for B"))
+
+    owner_view = captured["B"][-1]
+    assert [owner_view["board"][14][i] for i in range(4)] == [1, 1, 1, 1]
+    assert all(owner_view["owners"][14][i] == "B" for i in range(4))

@@ -77,8 +77,8 @@ async def _send_state(
     if not history_source:
         history_source = match.history
     history_states = [[_get_cell_state(cell) for cell in row] for row in history_source]
-    owners = [[_get_cell_owner(cell) for cell in row] for row in history_source]
-    merged_states = [row.copy() for row in history_states]
+    combined_board = [row.copy() for row in history_states]
+    combined_owners = [[_get_cell_owner(cell) for cell in row] for row in history_source]
 
     def _grid_value(grid: list[list[int]], r: int, c: int) -> int:
         if r < len(grid):
@@ -158,17 +158,24 @@ async def _send_state(
             row = grid[r]
             for c in range(min(len(row), 15)):
                 cell_state = _get_cell_state(row[c])
-                if cell_state != 1:
-                    if owners[r][c] is None and cell_state in {3, 4, 5}:
-                        owners[r][c] = owner_key
+                if cell_state == 0:
                     continue
-                if merged_states[r][c] == 0:
-                    merged_states[r][c] = 1
-                if owners[r][c] is None:
-                    owners[r][c] = owner_key
+                existing_state = combined_board[r][c]
+                if cell_state != 1:
+                    if existing_state == 0 or (
+                        existing_state == 1 and cell_state in {3, 4, 5}
+                    ):
+                        combined_board[r][c] = cell_state
+                    if cell_state in {3, 4, 5}:
+                        combined_owners[r][c] = owner_key
+                    continue
+                if cell_state == 1 and existing_state == 0:
+                    combined_board[r][c] = 1
+                if combined_owners[r][c] is None:
+                    combined_owners[r][c] = owner_key
 
-    view_board = [row.copy() for row in merged_states]
-    view_owners = [[owner for owner in row] for row in owners]
+    view_board = [row.copy() for row in combined_board]
+    view_owners = [[owner for owner in row] for row in combined_owners]
 
     if not include_all_ships:
         for r in range(15):
@@ -212,8 +219,8 @@ async def _send_state(
                 cell = own_grid[r][c]
                 if _get_cell_state(cell) != 1:
                     continue
-                history_state = merged_states[r][c]
-                history_owner = owners[r][c]
+                history_state = combined_board[r][c]
+                history_owner = combined_owners[r][c]
                 if history_state in {3, 4} and history_owner == player_key:
                     continue
                 if history_state in {2, 5}:
