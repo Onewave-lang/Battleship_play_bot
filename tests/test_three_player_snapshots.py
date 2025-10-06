@@ -224,6 +224,41 @@ def test_send_state_hides_intact_enemy_ships(monkeypatch):
     assert refreshed_snapshot["boards"]["B"]["grid"][0][1] == 1
 
 
+def test_owner_segment_not_erased_by_stale_history_owner(monkeypatch):
+    match = Match15.new(1, 111, "Alpha")
+    match.players["B"] = Player(user_id=2, chat_id=222, name="Beta", ready=True)
+    match.players["C"] = Player(user_id=3, chat_id=333, name="Gamma", ready=True)
+
+    # Alpha has an intact ship segment, but history wrongly remembers another owner
+    match.boards["A"].grid[0][5] = 1
+    match.history = [[[0, None] for _ in range(15)] for _ in range(15)]
+    match.history[0][5] = [0, "B"]
+
+    record_snapshot(match, actor=None, coord=None)
+
+    captured: dict[str, list] = {}
+
+    def fake_render_board(state, player_key):
+        captured[player_key] = {
+            "board": [row[:] for row in state.board],
+            "owners": [row[:] for row in state.owners],
+        }
+        return BytesIO(b"x")
+
+    class Bot:
+        async def send_photo(self, *args, **kwargs):
+            return SimpleNamespace(message_id=1)
+
+    context = SimpleNamespace(bot=Bot(), bot_data={}, chat_data={})
+    monkeypatch.setattr(router, "render_board", fake_render_board)
+
+    asyncio.run(router._send_state(context, match, "A", "view for A"))
+
+    owner_view = captured["A"]
+    assert owner_view["board"][0][5] == 1
+    assert owner_view["owners"][0][5] == "A"
+
+
 def test_owner_ships_survive_last_move_row_for_other_viewers(monkeypatch):
     match = Match15.new(1, 111, "Alpha")
     match.players["B"] = Player(user_id=2, chat_id=222, name="Beta", ready=True)
