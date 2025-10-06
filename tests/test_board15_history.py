@@ -45,6 +45,30 @@ def test_hit_then_kill_updates_all_cells():
     assert _state(history[0][3]) == 4
 
 
+def test_kill_contour_does_not_hide_friendly_ship():
+    history = _new_grid(15)
+    boards = {'A': Board15(), 'B': Board15()}
+
+    friendly = Ship(cells=[(2, 1)])
+    boards['A'].ships = [friendly]
+    boards['A'].grid[2][1] = 1
+
+    enemy_ship = Ship(cells=[(3, 0), (4, 0)])
+    boards['B'].ships = [enemy_ship]
+    for r, c in enemy_ship.cells:
+        boards['B'].grid[r][c] = 1
+
+    res_hit = apply_shot(boards['B'], (3, 0))
+    assert res_hit == HIT
+    update_history(history, boards, (3, 0), {'B': res_hit})
+
+    res_kill = apply_shot(boards['B'], (4, 0))
+    assert res_kill == KILL
+    update_history(history, boards, (4, 0), {'B': res_kill})
+
+    assert _state(history[2][1]) == 0
+
+
 def test_hit_at_m1_updates_history_and_board(monkeypatch):
     async def run_test():
         match = SimpleNamespace(

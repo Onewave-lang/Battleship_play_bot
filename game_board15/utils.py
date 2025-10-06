@@ -88,6 +88,12 @@ def _persist_highlight_to_history(match) -> None:
                                 )
                 continue
             if board_state == 5:
+                if any(
+                    _get_cell_state(other.grid[rr][cc]) == 1
+                    for other_key, other in boards.items()
+                    if other_key != owner_key
+                ):
+                    continue
                 _set_cell_state(
                     match.history,
                     rr,
