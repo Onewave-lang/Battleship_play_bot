@@ -438,6 +438,11 @@ async def board_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     match.status = "playing"
     match.turn = "A"
 
+    flags = match.messages.setdefault("_flags", {})
+    flags["mode_test3"] = True
+    flags["mode_test3_admin_player"] = "A"
+    flags["mode_test3_admin_chat"] = update.effective_chat.id
+
     mask = [[0] * 10 for _ in range(10)]
     for key in ("A", "B", "C"):
         board = placement.random_board_global(mask)

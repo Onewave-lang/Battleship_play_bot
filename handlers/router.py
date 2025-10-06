@@ -116,8 +116,25 @@ async def _send_state_board_test(
     """Send the shared board with global history to ``player_key``."""
 
     player = match.players.get(player_key)
-    if not player or player.user_id == 0:
+    if not player:
         return
+
+    flags = {}
+    if isinstance(match.messages, dict):
+        flags = match.messages.get("_flags", {}) or {}
+
+    if player.user_id == 0:
+        return
+
+    if flags.get("mode_test3"):
+        admin_player = flags.get("mode_test3_admin_player", "A")
+        admin_chat_id = flags.get("mode_test3_admin_chat")
+        if (
+            player_key != admin_player
+            and admin_chat_id is not None
+            and player.chat_id == admin_chat_id
+        ):
+            return
 
     chat_id = player.chat_id
     msgs = match.messages.setdefault(player_key, {})

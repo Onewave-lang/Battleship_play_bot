@@ -102,3 +102,43 @@ def test_send_state_board_test_skips_bot(monkeypatch):
         bot.delete_message.assert_not_called()
 
     asyncio.run(run())
+
+
+def test_send_state_board_test_skips_admin_duplicates(monkeypatch):
+    async def run():
+        match = SimpleNamespace(
+            players={
+                "A": SimpleNamespace(user_id=1, chat_id=10),
+                "B": SimpleNamespace(user_id=2, chat_id=10),
+            },
+            messages={
+                "_flags": {
+                    "mode_test3": True,
+                    "mode_test3_admin_player": "A",
+                    "mode_test3_admin_chat": 10,
+                }
+            },
+            history=[[0] * 10 for _ in range(10)],
+            boards={
+                "A": SimpleNamespace(grid=_grid(), highlight=[]),
+                "B": SimpleNamespace(grid=_grid(), highlight=[]),
+            },
+            last_highlight=[],
+        )
+
+        bot = SimpleNamespace(
+            send_message=AsyncMock(),
+            edit_message_text=AsyncMock(),
+            delete_message=AsyncMock(),
+        )
+        context = SimpleNamespace(bot=bot)
+
+        monkeypatch.setattr(storage, "save_match", lambda m: None)
+
+        await router._send_state_board_test(context, match, "B", "any")
+
+        bot.send_message.assert_not_called()
+        bot.edit_message_text.assert_not_called()
+        bot.delete_message.assert_not_called()
+
+    asyncio.run(run())
