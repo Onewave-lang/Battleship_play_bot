@@ -15,7 +15,7 @@ pil.ImageDraw = types.SimpleNamespace()
 pil.ImageFont = types.SimpleNamespace()
 sys.modules.setdefault('PIL', pil)
 
-from game_board15 import router, storage
+from game_board15 import battle, router, storage
 from game_board15.models import Board15, Ship
 from game_board15.utils import _get_cell_state, _get_cell_owner, _set_cell_state
 
@@ -320,6 +320,72 @@ def test_last_highlight_persists_through_storage(monkeypatch, tmp_path):
     asyncio.run(router._send_state(context, reloaded, "A", "msg"))
 
     assert captured["highlight"] == [(3, 4)]
+
+
+def test_send_state_refreshes_snapshot_for_contour(monkeypatch):
+    async def run_test():
+        board_self = Board15()
+        board_enemy = Board15()
+        ship = Ship(cells=[(2, 2)])
+        board_enemy.ships = [ship]
+        ship.alive = False
+        board_enemy.grid[2][2] = 4
+        battle.mark_contour(board_enemy, ship.cells)
+        assert board_enemy.grid[1][1] == 5  # sanity check
+
+        snapshot = {
+            "history": _new_grid(15),
+            "boards": {
+                "B": {
+                    "grid": [[0] * 15 for _ in range(15)],
+                    "ships": [],
+                    "alive_cells": board_enemy.alive_cells,
+                }
+            },
+            "last_highlight": [],
+        }
+
+        match = SimpleNamespace(
+            players={
+                "A": SimpleNamespace(chat_id=10, name="A", user_id=1),
+                "B": SimpleNamespace(chat_id=20, name="B", user_id=2),
+            },
+            boards={"A": board_self, "B": board_enemy},
+            history=_new_grid(15),
+            messages={"A": {}, "B": {}},
+            last_highlight=[],
+            snapshots=[snapshot],
+            turn="A",
+        )
+
+        context = SimpleNamespace(
+            bot=SimpleNamespace(
+                send_photo=AsyncMock(return_value=SimpleNamespace(message_id=1)),
+                send_message=AsyncMock(),
+                edit_message_media=AsyncMock(),
+                edit_message_text=AsyncMock(),
+            ),
+            bot_data={},
+            chat_data={},
+        )
+
+        captured: dict[str, list[list[int]]] = {}
+
+        def fake_render_board(state, player_key=None):
+            captured["board"] = [row[:] for row in state.board]
+            return BytesIO(b"x")
+
+        monkeypatch.setattr(router, "render_board", fake_render_board)
+        monkeypatch.setattr(storage, "save_match", lambda m: None)
+
+        await router._send_state(
+            context, match, "A", "msg", snapshot_override=snapshot
+        )
+
+        assert captured["board"][1][1] == 5
+        assert snapshot["boards"]["B"]["grid"][1][1] == 5
+
+    asyncio.run(run_test())
 
 
 def test_kill_marks_all_cells_and_contour(monkeypatch):

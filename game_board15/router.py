@@ -109,9 +109,8 @@ async def _send_state(
             else:
                 for rr in range(15):
                     for cc in range(15):
-                        if _grid_value(live_grid, rr, cc) == 1 and _grid_value(
-                            snapshot_grid, rr, cc
-                        ) != 1:
+                        live_state = _grid_value(live_grid, rr, cc)
+                        if live_state != _grid_value(snapshot_grid, rr, cc):
                             mismatch_coord = (rr, cc)
                             break
                     if mismatch_coord:
