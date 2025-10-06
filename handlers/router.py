@@ -85,7 +85,11 @@ async def _send_state(
 
     own = render_board_own(match.boards[player_key])
     enemy = render_board_enemy(match.boards[enemy_key])
-    board_text = f"Поле соперника:\n{enemy}\nВаше поле:\n{own}\n{message}"
+    message = message.lstrip('\n')
+    if message:
+        board_text = f"Поле соперника:\n{enemy}\nВаше поле:\n{own}\n{message}"
+    else:
+        board_text = f"Поле соперника:\n{enemy}\nВаше поле:\n{own}"
 
     board_msg = await context.bot.send_message(
         chat_id,
@@ -125,7 +129,12 @@ async def _send_state_board_test(
                 # Preserve owner information by copying the full cell value
                 merged[r][c] = cell
     board = Board(grid=merged, highlight=getattr(match, "last_highlight", []).copy())
-    board_text = f"Ваше поле:\n{render_board_own(board)}\n{message}"
+    message = message.lstrip('\n')
+    board_body = render_board_own(board)
+    if message:
+        board_text = f"Ваше поле:\n{board_body}\n{message}"
+    else:
+        board_text = f"Ваше поле:\n{board_body}"
 
     new_id = None
     if board_id:
@@ -824,20 +833,32 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
     for enemy, res in results.items():
         enemy_label = getattr(match.players[enemy], 'name', '') or enemy
         if res == MISS:
-            phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
-            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-            self_msgs[enemy] = f"{enemy_label}: мимо. {phrase_self}"
-            enemy_msgs[enemy] = f"соперник промахнулся. {phrase_enemy}"
+            phrase_self = _phrase_or_joke(match, player_key, SELF_MISS).strip()
+            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS).strip()
+            self_msgs[enemy] = (
+                f"{enemy_label}: мимо. {phrase_self}" if phrase_self else f"{enemy_label}: мимо."
+            )
+            enemy_msgs[enemy] = (
+                f"соперник промахнулся. {phrase_enemy}" if phrase_enemy else "соперник промахнулся."
+            )
         elif res == HIT:
-            phrase_self = _phrase_or_joke(match, player_key, SELF_HIT)
-            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT)
-            self_msgs[enemy] = f"{enemy_label}: ранил. {phrase_self}"
-            enemy_msgs[enemy] = f"ваш корабль ранен. {phrase_enemy}"
+            phrase_self = _phrase_or_joke(match, player_key, SELF_HIT).strip()
+            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_HIT).strip()
+            self_msgs[enemy] = (
+                f"{enemy_label}: ранил. {phrase_self}" if phrase_self else f"{enemy_label}: ранил."
+            )
+            enemy_msgs[enemy] = (
+                f"ваш корабль ранен. {phrase_enemy}" if phrase_enemy else "ваш корабль ранен."
+            )
         elif res == KILL:
-            phrase_self = _phrase_or_joke(match, player_key, SELF_KILL)
-            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL)
-            self_msgs[enemy] = f"{enemy_label}: уничтожен! {phrase_self}"
-            enemy_msgs[enemy] = f"ваш корабль уничтожен. {phrase_enemy}"
+            phrase_self = _phrase_or_joke(match, player_key, SELF_KILL).strip()
+            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_KILL).strip()
+            self_msgs[enemy] = (
+                f"{enemy_label}: уничтожен! {phrase_self}" if phrase_self else f"{enemy_label}: уничтожен!"
+            )
+            enemy_msgs[enemy] = (
+                f"ваш корабль уничтожен. {phrase_enemy}" if phrase_enemy else "ваш корабль уничтожен."
+            )
             if (
                 match.boards[enemy].alive_cells == 0
                 and match.players[enemy].user_id != 0
@@ -847,11 +868,15 @@ async def router_text_board_test(update: Update, context: ContextTypes.DEFAULT_T
                     f"⛔ Игрок {enemy_label} выбыл (флот уничтожен)",
                 )
         elif res == REPEAT:
-            phrase_self = _phrase_or_joke(match, player_key, SELF_MISS)
-            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS)
-            self_msgs[enemy] = f"{enemy_label}: клетка уже обстреляна. {phrase_self}"
+            phrase_self = _phrase_or_joke(match, player_key, SELF_MISS).strip()
+            phrase_enemy = _phrase_or_joke(match, enemy, ENEMY_MISS).strip()
+            self_msgs[enemy] = (
+                f"{enemy_label}: клетка уже обстреляна. {phrase_self}"
+                if phrase_self
+                else f"{enemy_label}: клетка уже обстреляна."
+            )
             enemy_msgs[enemy] = (
-                f"соперник стрелял по уже обстрелянной клетке. {phrase_enemy}"
+                f"соперник стрелял по уже обстрелянной клетке. {phrase_enemy}" if phrase_enemy else "соперник стрелял по уже обстрелянной клетке."
             )
 
     next_label = getattr(match.players[next_player], 'name', '') or next_player
