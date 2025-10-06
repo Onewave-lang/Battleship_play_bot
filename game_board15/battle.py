@@ -78,7 +78,11 @@ def update_history(
                     for dc in (-1, 0, 1):
                         nr, nc = rr + dr, cc + dc
                         if 0 <= nr < 15 and 0 <= nc < 15:
-                            if _get_cell_state(history[nr][nc]) == 0:
+                            if _get_cell_state(history[nr][nc]) == 0 and all(
+                                _get_cell_state(other.grid[nr][nc]) != 1
+                                for other_key, other in boards.items()
+                                if other_key != key
+                            ):
                                 _set_cell_state(
                                     history,
                                     nr,
@@ -94,7 +98,5 @@ def update_history(
                 continue
             _set_cell_state(history, r, c, 3, key)
     elif all(res == MISS for res in results.values()):
-        if _get_cell_state(history[r][c]) == 0 and all(
-            _get_cell_state(boards[k].grid[r][c]) != 1 for k in results
-        ):
+        if _get_cell_state(history[r][c]) == 0:
             _set_cell_state(history, r, c, 2)
