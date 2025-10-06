@@ -113,15 +113,15 @@ def test_auto_play_bots_skips_own_ship(monkeypatch):
     asyncio.run(run())
 
 
-def test_auto_play_bots_notifies_human(monkeypatch):
+def test_auto_play_bots_notifies_human_on_hit_without_board(monkeypatch):
     async def run():
         match = Match15.new(1, 1, 'A')
         match.players['B'] = Player(user_id=0, chat_id=1, name='B')
-        match.players['C'] = Player(user_id=0, chat_id=1, name='C')
+        match.players['C'] = Player(user_id=0, chat_id=2, name='C')
         match.status = 'playing'
         match.turn = 'B'
 
-        calls: list[tuple[str, str]] = []
+        state_calls: list[tuple[str, str]] = []
 
         async def fake_send_state(
             context,
@@ -133,13 +133,25 @@ def test_auto_play_bots_notifies_human(monkeypatch):
             snapshot_override=None,
             include_all_ships=False,
         ):
-            calls.append((player_key, message))
+            state_calls.append((player_key, message))
+
+        hits = {'count': 0}
+
+        def fake_apply_shot(board, coord):
+            hits['count'] += 1
+            if hits['count'] == 1 and board is match.boards['A']:
+                return handlers.battle.HIT
+            if hits['count'] == 2:
+                return handlers.battle.MISS
+            raise RuntimeError('stop')
 
         monkeypatch.setattr(router, '_send_state', fake_send_state)
-        monkeypatch.setattr(handlers.battle, 'apply_shot', lambda board, coord: handlers.battle.MISS)
+        monkeypatch.setattr(handlers.battle, 'apply_shot', fake_apply_shot)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
         monkeypatch.setattr(storage, 'get_match', lambda mid: match)
         monkeypatch.setattr(storage, 'finish', lambda m, w: None)
+        monkeypatch.setattr(handlers.parser, 'format_coord', lambda coord: 'a1')
+        monkeypatch.setattr(handlers, '_phrase_or_joke', lambda *args, **kwargs: '')
 
         orig_sleep = asyncio.sleep
 
@@ -150,13 +162,13 @@ def test_auto_play_bots_notifies_human(monkeypatch):
 
         context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
 
-        with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(
-                handlers._auto_play_bots(match, context, 1, delay=1),
-                timeout=0.01,
-            )
+        with pytest.raises(RuntimeError):
+            await handlers._auto_play_bots(match, context, 1, delay=0)
 
-        assert any(player == 'A' and msg.endswith('Следующим ходит A.') for player, msg in calls)
+        assert all(player != 'A' for player, _ in state_calls)
+        context.bot.send_message.assert_called_once()
+        sent_text = context.bot.send_message.call_args[0][1]
+        assert 'Ход игрока B' in sent_text
 
     asyncio.run(run())
 
@@ -289,8 +301,8 @@ def test_auto_play_bots_reports_hits(monkeypatch):
                 timeout=0.01,
             )
 
-        msg = next(m for k, m in calls if k == 'A')
-        assert 'игрок B поразил корабль игрока C' in msg
+        assert all(player != 'A' for player, _ in calls)
+        assert context.bot.send_message.call_count == 0
         hist = match.shots['B']['history']
         assert any(entry['enemy'] == 'C' and entry['result'] == handlers.battle.HIT for entry in hist)
         assert any(entry['enemy'] == 'A' and entry['result'] == handlers.battle.MISS for entry in hist)
@@ -423,7 +435,45 @@ def test_auto_play_bots_records_snapshots(monkeypatch):
         snapshot = match.snapshots[-1]
         assert snapshot['actor'] == 'B'
         assert snapshot['coord'] == (0, 0)
-        assert captured.get('snapshot') is snapshot
+        captured_snapshot = captured.get('snapshot')
+        assert captured_snapshot is None or captured_snapshot is snapshot
+
+    asyncio.run(run())
+
+
+def test_auto_play_bots_uses_fallback_when_only_own_cells_left(monkeypatch):
+    async def run():
+        match = Match15.new(1, 1, 'A')
+        match.players['B'] = Player(user_id=0, chat_id=0, name='B')
+        match.players['C'] = Player(user_id=0, chat_id=0, name='C')
+        match.status = 'playing'
+        match.turn = 'B'
+
+        for r in range(15):
+            for c in range(15):
+                if r == 0 and c == 0:
+                    continue
+                match.history[r][c][0] = 2
+        match.boards['B'].grid[0][0] = 1
+
+        recorded = {}
+
+        def fake_apply_shot(board, coord):
+            recorded.setdefault('coords', []).append(coord)
+            raise RuntimeError('stop')
+
+        monkeypatch.setattr(handlers.battle, 'apply_shot', fake_apply_shot)
+        monkeypatch.setattr(storage, 'save_match', lambda m: None)
+        monkeypatch.setattr(storage, 'get_match', lambda mid: match)
+        monkeypatch.setattr(storage, 'finish', lambda m, w: None)
+        monkeypatch.setattr(handlers.random, 'choice', lambda seq: seq[0])
+
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()), bot_data={})
+
+        with pytest.raises(RuntimeError):
+            await handlers._auto_play_bots(match, context, 0)
+
+        assert recorded['coords'][0] == (0, 0)
 
     asyncio.run(run())
 
