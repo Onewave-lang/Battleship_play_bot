@@ -187,7 +187,6 @@ async def _send_state(
                 if cell_state == 1:
                     if existing_state == 0:
                         combined_board[r][c] = 1
-                    if combined_owners[r][c] != owner_key:
                         combined_owners[r][c] = owner_key
 
     view_board = [row.copy() for row in combined_board]
