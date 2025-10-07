@@ -19,7 +19,7 @@ jobs:
       cancel-in-progress: false
     env:
       # основной URL — поставь свой
-      RENDER_BASE: "https://<ТВОЙ-СЕРВИС>.onrender.com"
+      RENDER_BASE: "https://my-learning-repository.onrender.com"
       # можно пингануть сразу несколько путей
       PATHS: |
         /healthz
