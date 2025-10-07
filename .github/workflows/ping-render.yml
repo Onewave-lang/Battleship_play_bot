@@ -23,7 +23,6 @@ jobs:
       # можно пингануть сразу несколько путей
       PATHS: |
         /healthz
-        /
     steps:
       - name: Show config
         run: |
