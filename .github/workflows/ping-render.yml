@@ -1,0 +1,47 @@
+name: Keep Render Free Instance Warm
+
+on:
+  schedule:
+    # каждые 5 минут
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Ping health endpoints
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: ping-render
+      cancel-in-progress: false
+    env:
+      # основной URL — поставь свой
+      RENDER_BASE: "https://<ТВОЙ-СЕРВИС>.onrender.com"
+      # можно пингануть сразу несколько путей
+      PATHS: |
+        /healthz
+        /
+    steps:
+      - name: Show config
+        run: |
+          echo "Base: $RENDER_BASE"
+          echo "Paths:"
+          echo "$PATHS"
+
+      - name: Ping endpoints
+        run: |
+          set -e
+          for p in $PATHS; do
+            url="${RENDER_BASE}${p}"
+            # random query, чтобы исключить кеш на прокси
+            q=$RANDOM
+            echo "Pinging: $url?_=$q"
+            # 3 попытки, таймаут на коннект 5с, общий 10с, фолбэк на /
+            if ! curl -fsS --connect-timeout 5 --max-time 10 "$url?_=$q"; then
+              echo "Primary path failed, trying /"
+              curl -fsS --connect-timeout 5 --max-time 10 "${RENDER_BASE}/?_=$q"
+            fi
+          done
