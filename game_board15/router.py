@@ -283,6 +283,36 @@ async def _send_state(
         text_hist.append(msg.message_id)
 
 
+async def _send_text_update(
+    context: ContextTypes.DEFAULT_TYPE,
+    match,
+    player_key: str,
+    message: str,
+    *,
+    message_id: int | None = None,
+) -> int | None:
+    """Send a plain text notification and track it in match messages."""
+
+    participant = match.players[player_key]
+    if message_id is None:
+        try:
+            msg = await context.bot.send_message(participant.chat_id, message)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Failed to send text update for %s", player_key)
+            return None
+        message_id = getattr(msg, "message_id", None)
+        if message_id is None:
+            return None
+
+    msgs = match.messages.setdefault(player_key, {})
+    msgs["text"] = message_id
+    text_hist = msgs.setdefault("text_history", [])
+    text_hist.append(message_id)
+    return message_id
+
+
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     text = update.message.text.strip()
@@ -515,6 +545,14 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     record_snapshot(match, actor=player_key, coord=coord)
     next_obj = match.players.get(next_player)
     next_name = getattr(next_obj, 'name', '') or next_player
+    watch_body = msg_watch.rstrip()
+    if not watch_body.endswith((".", "!", "?")):
+        watch_body += "."
+    watch_message = _compose_move_message(
+        f"Ход игрока {player_label}: {coord_str} - {watch_body}",
+        phrase_self,
+        f"Следующим ходит {next_name}.",
+    )
     chat_counts: dict[int, int] = {}
     for participant in match.players.values():
         chat_counts[participant.chat_id] = chat_counts.get(participant.chat_id, 0) + 1
@@ -529,17 +567,21 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 )
                 await _send_state(context, match, enemy, message_enemy)
     if others and not same_chat:
+        sent_per_chat: dict[int, int] = {}
         for other in others:
-            if match.players[other].user_id != 0:
-                watch_body = msg_watch.rstrip()
-                if not watch_body.endswith(('.', '!', '?')):
-                    watch_body += '.'
-                watch_message = _compose_move_message(
-                    f"Ход игрока {player_label}: {coord_str} - {watch_body}",
-                    phrase_self,
-                    f"Следующим ходит {next_name}.",
-                )
-                await _send_state(context, match, other, watch_message)
+            participant = match.players.get(other)
+            if not participant or participant.user_id == 0:
+                continue
+            existing = sent_per_chat.get(participant.chat_id)
+            message_id = await _send_text_update(
+                context,
+                match,
+                other,
+                watch_message,
+                message_id=existing,
+            )
+            if message_id is not None:
+                sent_per_chat[participant.chat_id] = message_id
     msg_body = ' '.join(parts_self) if parts_self else 'мимо'
     body_self = msg_body.rstrip()
     if not body_self.endswith(('.', '!', '?')):
@@ -558,14 +600,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if save_before_send:
         storage.save_match(match)
     if same_chat:
-        watch_body = msg_watch.rstrip()
-        if not watch_body.endswith((".", "!", "?")):
-            watch_body += "."
-        watch_message = _compose_move_message(
-            f"Ход игрока {player_label}: {coord_str} - {watch_body}",
-            phrase_self,
-            f"Следующим ходит {next_name}.",
-        )
         enemy_personal_texts: dict[str, str] = {}
         for enemy, (_, result_line_enemy, humor_enemy) in enemy_msgs.items():
             enemy_personal_texts[enemy] = _compose_move_message(
@@ -580,7 +614,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             elif key in enemy_personal_texts:
                 message_text = enemy_personal_texts[key]
             elif key in others:
-                message_text = watch_message
+                continue
             else:
                 message_text = shared_text
 
@@ -592,6 +626,22 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 reveal_ships=True,
                 include_all_ships=False,
             )
+        if others:
+            sent_per_chat: dict[int, int] = {}
+            for other in others:
+                participant = match.players.get(other)
+                if not participant or participant.user_id == 0:
+                    continue
+                existing = sent_per_chat.get(participant.chat_id)
+                message_id = await _send_text_update(
+                    context,
+                    match,
+                    other,
+                    watch_message,
+                    message_id=existing,
+                )
+                if message_id is not None:
+                    sent_per_chat[participant.chat_id] = message_id
     elif single_user:
         await _send_state(context, match, player_key, shared_text)
     else:
