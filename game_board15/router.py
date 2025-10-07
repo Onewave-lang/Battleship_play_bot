@@ -185,7 +185,9 @@ async def _send_state(
                         combined_owners[r][c] = owner_key
                     continue
                 if cell_state == 1:
-                    if existing_state == 0:
+                    if existing_state == 0 or (
+                        owner_key == player_key and existing_state in {2, 5}
+                    ):
                         combined_board[r][c] = 1
                         combined_owners[r][c] = owner_key
 
@@ -238,23 +240,15 @@ async def _send_state(
         own_grid = match.boards[player_key].grid
         for r in range(15):
             for c in range(15):
-                cell = own_grid[r][c]
-                if _get_cell_state(cell) != 1:
+                # не «оживляем» попадания/уничтожения
+                if view_board[r][c] in {3, 4}:
                     continue
-                history_state = combined_board[r][c]
-                history_owner = combined_owners[r][c]
-                if history_state in {3, 4} and history_owner == player_key:
+                # восстанавливаем свои живые палубы
+                if _get_cell_state(own_grid[r][c]) != 1:
                     continue
-                if history_state in {2, 5}:
-                    logger.warning(
-                        "Correcting state %s for player %s at (%s, %s)",
-                        history_state,
-                        player_key,
-                        r,
-                        c,
-                    )
-                view_board[r][c] = 1
-                view_owners[r][c] = player_key
+                if view_board[r][c] in {0, 2, 5} or view_owners[r][c] != player_key:
+                    view_board[r][c] = 1
+                    view_owners[r][c] = player_key
 
     state.board = view_board
     state.owners = view_owners
