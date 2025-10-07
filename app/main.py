@@ -4,7 +4,7 @@ import logging
 import os
 import signal
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
@@ -143,11 +143,6 @@ async def root() -> dict[str, str]:
     return {"status": "running"}
 
 
-@app.get("/healthz")
-async def healthz() -> dict[str, str]:
-    """Simple health-check endpoint for Render.
-
-    Returns a JSON response indicating the application is up. Used by the
-    hosting platform to verify the service is healthy.
-    """
+@app.api_route("/healthz", methods=["GET", "HEAD"])
+async def healthz():
     return {"status": "ok"}
