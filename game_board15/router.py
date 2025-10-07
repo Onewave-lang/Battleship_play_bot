@@ -192,7 +192,7 @@ async def _send_state(
     view_board = [row.copy() for row in combined_board]
     view_owners = [[owner for owner in row] for row in combined_owners]
 
-    own_live_grid = board_sources.get(player_key, match.boards[player_key].grid)
+    own_live_grid = match.boards[player_key].grid
 
     if not include_all_ships:
         for r in range(15):
@@ -235,7 +235,7 @@ async def _send_state(
                 view_owners[r][c] = None
 
     if reveal_ships:
-        own_grid = board_sources.get(player_key, match.boards[player_key].grid)
+        own_grid = match.boards[player_key].grid
         for r in range(15):
             for c in range(15):
                 cell = own_grid[r][c]
@@ -622,13 +622,15 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             else:
                 message_text = shared_text
 
+            include_all = key == player_key
+
             await _send_state(
                 context,
                 match,
                 key,
                 message_text,
                 reveal_ships=True,
-                include_all_ships=False,
+                include_all_ships=include_all,
             )
         if others:
             sent_per_chat: dict[int, int] = {}
@@ -647,9 +649,21 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 if message_id is not None:
                     sent_per_chat[participant.chat_id] = message_id
     elif single_user:
-        await _send_state(context, match, player_key, shared_text)
+        await _send_state(
+            context,
+            match,
+            player_key,
+            shared_text,
+            include_all_ships=True,
+        )
     else:
-        await _send_state(context, match, player_key, personal_text)
+        await _send_state(
+            context,
+            match,
+            player_key,
+            personal_text,
+            include_all_ships=True,
+        )
 
     if not save_before_send:
         storage.save_match(match)
