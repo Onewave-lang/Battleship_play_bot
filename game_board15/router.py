@@ -192,11 +192,18 @@ async def _send_state(
     view_board = [row.copy() for row in combined_board]
     view_owners = [[owner for owner in row] for row in combined_owners]
 
+    own_live_grid = board_sources.get(player_key, match.boards[player_key].grid)
+
     if not include_all_ships:
         for r in range(15):
             for c in range(15):
                 owner = view_owners[r][c]
-                if owner is None or owner == player_key:
+                if owner == player_key:
+                    continue
+                if _get_cell_state(own_live_grid[r][c]) == 1:
+                    # ✅ не скрываем свои корабли, даже если ключ отличается
+                    continue
+                if owner is None:
                     continue
                 if view_board[r][c] != 1:
                     continue
@@ -612,8 +619,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 message_text = personal_text
             elif key in enemy_personal_texts:
                 message_text = enemy_personal_texts[key]
-            elif key in others:
-                continue
             else:
                 message_text = shared_text
 
