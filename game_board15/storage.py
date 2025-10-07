@@ -1,383 +1,277 @@
 from __future__ import annotations
+
+import os
 import json
-from pathlib import Path
 import logging
+from pathlib import Path
 from threading import Lock
-from typing import Dict, Any
+from typing import Any, Dict, Optional, List
+
 from datetime import datetime
+import httpx
 
-from .models import Match15, Board15, Player, Ship
-from . import placement
-from .utils import record_snapshot
-
-DATA_FILE = Path("data15.json")
-_lock = Lock()
 logger = logging.getLogger(__name__)
 
+# =====================================================
+# Конфигурация
+# =====================================================
+USE_SUPABASE = os.getenv("USE_SUPABASE") == "1"
+SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").rstrip("/")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY") or ""
+SUPABASE_TABLE15 = os.getenv("SUPABASE_TABLE15", "matches15")
 
-def _serialize_history(history):
-    if history is None:
+# Fallback-файл для локальной отладки
+DATA_FILE = Path(os.getenv("DATA15_FILE_PATH", "data15.json"))
+_lock = Lock()
+
+
+# =====================================================
+# Вспомогательные утилиты
+# =====================================================
+def _sb_headers(extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    base = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Accept": "application/json",
+    }
+    if extra:
+        base.update(extra)
+    return base
+
+
+def _require_supabase():
+    if not (SUPABASE_URL and SUPABASE_KEY):
+        raise RuntimeError("Supabase credentials are not configured")
+
+
+# =====================================================
+# SUPABASE BACKEND (построчные CRUD)
+# =====================================================
+def _sb_get_all() -> Dict[str, dict]:
+    _require_supabase()
+    url = f"{SUPABASE_URL}/rest/v1/{SUPABASE_TABLE15}?select=id,payload"
+    with httpx.Client(timeout=30) as cl:
+        r = cl.get(url, headers=_sb_headers())
+        r.raise_for_status()
+        rows = r.json()
+    return {row["id"]: row["payload"] for row in rows}
+
+
+def _sb_get_one(match_id: str) -> Optional[dict]:
+    _require_supabase()
+    url = f"{SUPABASE_URL}/rest/v1/{SUPABASE_TABLE15}?id=eq.{match_id}&select=id,payload"
+    with httpx.Client(timeout=30) as cl:
+        r = cl.get(url, headers=_sb_headers())
+        r.raise_for_status()
+        rows = r.json()
+    if not rows:
         return None
-    serialized: list[list[Any]] = []
-    for row in history:
-        serialized_row: list[Any] = []
-        for cell in row:
-            if isinstance(cell, list):
-                serialized_row.append(cell.copy())
-            elif isinstance(cell, tuple):
-                serialized_row.append(list(cell))
-            else:
-                serialized_row.append(cell)
-        serialized.append(serialized_row)
-    return serialized
+    return rows[0]["payload"]
 
 
-def _deserialize_history(history):
-    if not history:
-        return [[[0, None] for _ in range(15)] for _ in range(15)]
-    restored: list[list[Any]] = []
-    for row in history:
-        restored_row: list[Any] = []
-        for cell in row:
-            if isinstance(cell, list):
-                restored_row.append(cell.copy())
-            elif isinstance(cell, tuple):
-                restored_row.append(list(cell))
-            else:
-                restored_row.append(cell)
-        restored.append(restored_row)
-    return restored
+def _sb_upsert_one(match_id: str, payload: dict) -> None:
+    _require_supabase()
+    url = f"{SUPABASE_URL}/rest/v1/{SUPABASE_TABLE15}?on_conflict=id"
+    body = [{"id": match_id, "payload": payload}]
+    headers = _sb_headers({"Content-Type": "application/json", "Prefer": "resolution=merge-duplicates"})
+    with httpx.Client(timeout=30) as cl:
+        r = cl.post(url, headers=headers, json=body)
+        r.raise_for_status()
 
 
-def _serialize_board(board: Board15) -> dict:
-    return {
-        'grid': [row.copy() for row in board.grid],
-        'ships': [
-            {
-                'cells': [list(cell) for cell in ship.cells],
-                'alive': ship.alive,
-            }
-            for ship in board.ships
-        ],
-        'alive_cells': board.alive_cells,
-    }
+def _sb_delete_one(match_id: str) -> None:
+    _require_supabase()
+    url = f"{SUPABASE_URL}/rest/v1/{SUPABASE_TABLE15}?id=eq.{match_id}"
+    with httpx.Client(timeout=30) as cl:
+        r = cl.delete(url, headers=_sb_headers({"Prefer": "return=representation"}))
+        r.raise_for_status()
 
 
-def _serialize_snapshot_board(board_data: Any) -> dict:
-    if isinstance(board_data, Board15):
-        grid = [row.copy() for row in board_data.grid]
-        ships = [
-            {
-                'cells': [list(cell) for cell in ship.cells],
-                'alive': ship.alive,
-            }
-            for ship in board_data.ships
-        ]
-        alive_cells = board_data.alive_cells
-    else:
-        grid = [list(row) for row in board_data.get('grid', [])]
-        ships = [
-            {
-                'cells': [list(cell) for cell in ship.get('cells', [])],
-                'alive': ship.get('alive', True),
-            }
-            for ship in board_data.get('ships', [])
-        ]
-        alive_cells = board_data.get('alive_cells', 20)
-    return {
-        'grid': grid,
-        'ships': ships,
-        'alive_cells': alive_cells,
-    }
-
-
-def _serialize_snapshots(snapshots: list[dict]) -> list[dict]:
-    result: list[dict] = []
-    for snap in snapshots or []:
-        serialized = {
-            'timestamp': snap.get('timestamp'),
-            'move': snap.get('move'),
-            'actor': snap.get('actor'),
-            'coord': list(snap['coord']) if snap.get('coord') is not None else None,
-            'next_turn': snap.get('next_turn'),
-            'history': _serialize_history(snap.get('history')),
-            'last_highlight': [list(cell) for cell in snap.get('last_highlight', [])],
-            'boards': {
-                key: _serialize_snapshot_board(board)
-                for key, board in snap.get('boards', {}).items()
-            },
-        }
-        result.append(serialized)
-    return result
-
-
-def _deserialize_snapshot_board(board: dict) -> dict:
-    return {
-        'grid': [list(row) for row in board.get('grid', [])],
-        'ships': [
-            {
-                'cells': [tuple(cell) for cell in ship.get('cells', [])],
-                'alive': ship.get('alive', True),
-            }
-            for ship in board.get('ships', [])
-        ],
-        'alive_cells': board.get('alive_cells', 20),
-    }
-
-
-def _deserialize_snapshots(snapshots: list[dict]) -> list[dict]:
-    result: list[dict] = []
-    for snap in snapshots or []:
-        restored = {
-            'timestamp': snap.get('timestamp'),
-            'move': snap.get('move'),
-            'actor': snap.get('actor'),
-            'coord': tuple(snap['coord']) if snap.get('coord') is not None else None,
-            'next_turn': snap.get('next_turn'),
-            'history': _deserialize_history(snap.get('history')),
-            'last_highlight': [tuple(cell) for cell in snap.get('last_highlight', [])],
-            'boards': {
-                key: _deserialize_snapshot_board(board)
-                for key, board in snap.get('boards', {}).items()
-            },
-        }
-        result.append(restored)
-    return result
-
-
-def _load_all() -> Dict[str, dict]:
+# =====================================================
+# FILE FALLBACK BACKEND (единый словарь в JSON-файле)
+# =====================================================
+def _file_load_all() -> Dict[str, dict]:
     if DATA_FILE.exists():
         try:
-            with DATA_FILE.open("r", encoding="utf-8") as f:
-                return json.load(f)
+            return json.loads(DATA_FILE.read_text(encoding="utf-8")) or {}
         except json.JSONDecodeError:
+            logger.warning("DATA15_FILE is corrupted or empty, returning {}")
             return {}
     return {}
 
 
-def _save_all(data: Dict[str, dict]) -> str | None:
-    tmp = DATA_FILE.with_suffix('.tmp')
-    try:
-        with tmp.open("w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        tmp.replace(DATA_FILE)
-    except OSError as e:
-        logger.exception("Failed to save data15")
-        return str(e)
-    return None
+def _file_save_all(data: Dict[str, dict]) -> None:
+    DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = DATA_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(DATA_FILE)
 
 
-def create_match(a_user_id: int, a_chat_id: int, a_name: str = "") -> Match15:
-    match = Match15.new(a_user_id, a_chat_id, a_name)
-    save_match(match)
-    return match
-
-
-def get_match(match_id: str) -> Match15 | None:
+def _file_get_one(match_id: str) -> Optional[dict]:
     with _lock:
-        data = _load_all()
-    m = data.get(match_id)
-    if not m:
-        return None
-    match = Match15(match_id=m['match_id'], status=m['status'], created_at=m['created_at'])
-    match.turn = m.get('turn', 'A')
-    match.players = {k: Player(**p) for k, p in m.get('players', {}).items()}
-    match.boards = {}
-    for key, b in m.get('boards', {}).items():
-        ships = [
-            Ship(
-                cells=[tuple(cell) for cell in s.get('cells', [])],
-                alive=s.get('alive', True),
-            )
-            for s in b.get('ships', [])
-        ]
-        match.boards[key] = Board15(
-            grid=[row.copy() for row in b.get('grid', [[0] * 15 for _ in range(15)])],
-            ships=ships,
-            alive_cells=b.get('alive_cells', 20),
-        )
-    match.history = _deserialize_history(m.get('history'))
-    match.shots = m.get('shots', match.shots)
-    match.messages = m.get('messages', {})
-    match.last_highlight = [tuple(cell) for cell in m.get('last_highlight', [])]
-    match.snapshots = _deserialize_snapshots(m.get('snapshots', []))
-    return match
+        data = _file_load_all()
+        return data.get(match_id)
 
 
-def join_match(match_id: str, user_id: int, chat_id: int, name: str = "") -> Match15 | None:
-    match = get_match(match_id)
-    if not match:
-        return None
-    if user_id in [p.user_id for p in match.players.values()]:
-        return None
-    if 'B' not in match.players:
-        match.players['B'] = Player(user_id=user_id, chat_id=chat_id, name=name)
-    elif 'C' not in match.players:
-        match.players['C'] = Player(user_id=user_id, chat_id=chat_id, name=name)
-    else:
-        return None
-    if len(match.players) == 3:
-        match.status = 'placing'
-    save_match(match)
-    return match
+def _file_upsert_one(match_id: str, payload: dict) -> None:
+    with _lock:
+        data = _file_load_all()
+        data[match_id] = payload
+        _file_save_all(data)
 
 
-def save_board(match: Match15,
-               player_key: str,
-               board: Board15 | None = None) -> None:
-    """Save player's board and update match state safely.
+def _file_delete_one(match_id: str) -> None:
+    with _lock:
+        data = _file_load_all()
+        if match_id in data:
+            del data[match_id]
+            _file_save_all(data)
 
-    Similar to the two-player version, we need to avoid race conditions when
-    several players send the ``авто`` command simultaneously.  The previous
-    implementation called :func:`get_match` while holding the global lock,
-    which attempted to acquire the same lock again and caused a deadlock.
-    Instead we reconstruct the latest state manually based on the data stored
-    on disk.
+
+# =====================================================
+# Публичное API (совместимо с прежней логикой)
+# =====================================================
+def list_matches() -> Dict[str, dict]:
+    """Вернёт все матчи 15×15 в виде словаря {match_id: payload}."""
+    if USE_SUPABASE:
+        try:
+            return _sb_get_all()
+        except Exception:
+            logger.exception("Failed to list matches15 from Supabase; returning {}")
+            return {}
+    return _file_load_all()
+
+
+def get_match(match_id: str) -> Optional[dict]:
+    """Вернёт payload матча или None."""
+    if USE_SUPABASE:
+        try:
+            return _sb_get_one(match_id)
+        except Exception:
+            logger.exception("Failed to get match15 from Supabase")
+            return None
+    return _file_get_one(match_id)
+
+
+def create_match(match_id: str, payload: dict) -> None:
+    """Создаёт/перезаписывает матч 15×15."""
+    payload.setdefault("match_id", match_id)
+    payload.setdefault("created_at", datetime.utcnow().isoformat())
+    payload.setdefault("status", payload.get("status", "active"))
+    if USE_SUPABASE:
+        _sb_upsert_one(match_id, payload)
+        return
+    _file_upsert_one(match_id, payload)
+
+
+def save_match(match_id: str, payload: dict) -> None:
+    """Сохраняет изменения матча (upsert)."""
+    payload.setdefault("match_id", match_id)
+    payload["updated_at"] = datetime.utcnow().isoformat()
+    if USE_SUPABASE:
+        _sb_upsert_one(match_id, payload)
+        return
+    _file_upsert_one(match_id, payload)
+
+
+def delete_match(match_id: str) -> None:
+    """Удаляет матч."""
+    if USE_SUPABASE:
+        _sb_delete_one(match_id)
+        return
+    _file_delete_one(match_id)
+
+
+def find_match_by_user(
+    user_id: int,
+    chat_id: Optional[int] = None,
+    active_statuses: Optional[List[str]] = None,
+) -> Optional[dict]:
     """
-
-    with _lock:
-        data = _load_all()
-        m_dict = data.get(match.match_id)
-        if m_dict:
-            # Reconstruct current match state without calling get_match (to
-            # avoid re-acquiring the lock)
-            current = Match15(
-                match_id=m_dict['match_id'],
-                status=m_dict['status'],
-                created_at=m_dict['created_at'],
-            )
-            current.turn = m_dict.get('turn', 'A')
-            current.players = {k: Player(**p) for k, p in m_dict.get('players', {}).items()}
-            current.boards = {}
-            for key, b in m_dict.get('boards', {}).items():
-                ships = [
-                    Ship(cells=[tuple(cell) for cell in s.get('cells', [])],
-                         alive=s.get('alive', True))
-                    for s in b.get('ships', [])
-                ]
-                current.boards[key] = Board15(
-                    grid=[row.copy() for row in b.get('grid', [[0] * 15 for _ in range(15)])],
-                    ships=ships,
-                    alive_cells=b.get('alive_cells', 20),
-                )
-            current.shots = m_dict.get('shots', current.shots)
-            current.messages = m_dict.get('messages', {})
-            current.history = _deserialize_history(m_dict.get('history'))
-            current.last_highlight = [tuple(cell) for cell in m_dict.get('last_highlight', [])]
-            current.snapshots = _deserialize_snapshots(m_dict.get('snapshots', []))
-        else:
-            current = match
-
-        started_playing = False
-
-        # build a mask of cells occupied or surrounded by other fleets
-        mask = [[0] * 15 for _ in range(15)]
-        for k, b in current.boards.items():
-            if k == player_key:
-                continue
-            for ship in b.ships:
-                for r, c in ship.cells:
-                    for dr in (-1, 0, 1):
-                        for dc in (-1, 0, 1):
-                            nr, nc = r + dr, c + dc
-                            if 0 <= nr < 15 and 0 <= nc < 15:
-                                mask[nr][nc] = 1
-
-        # generate board if not provided, taking into account the mask
-        if board is None:
-            board = placement.random_board(mask)
-
-        current.boards[player_key] = board
-        current.players[player_key].ready = True
-        if (
-            len(current.players) == 3
-            and all(p.ready for p in current.players.values())
-            and current.status != 'playing'
-        ):
-            current.status = 'playing'
-            current.turn = 'A'
-            started_playing = True
-
-        if started_playing:
-            record_snapshot(current, actor=None, coord=None)
-
-        # persist updated match
-        data[current.match_id] = {
-            'match_id': current.match_id,
-            'status': current.status,
-            'created_at': current.created_at,
-            'players': {k: vars(p) for k, p in current.players.items()},
-            'turn': current.turn,
-            'boards': {k: _serialize_board(b) for k, b in current.boards.items()},
-            'shots': current.shots,
-            'messages': current.messages,
-            'history': _serialize_history(current.history),
-            'last_highlight': [list(cell) for cell in current.last_highlight],
-            'snapshots': _serialize_snapshots(current.snapshots),
-        }
-        _save_all(data)
-
-    # update caller's object with latest state
-    match.status = current.status
-    match.turn = current.turn
-    match.players = current.players
-    match.boards = current.boards
-    match.shots = current.shots
-    match.history = current.history
-    match.messages = current.messages
-    match.last_highlight = current.last_highlight
-    match.snapshots = current.snapshots
-
-
-def save_match(match: Match15) -> str | None:
-    with _lock:
-        data = _load_all()
-        data[match.match_id] = {
-            'match_id': match.match_id,
-            'status': match.status,
-            'created_at': match.created_at,
-            'players': {k: vars(p) for k, p in match.players.items()},
-            'turn': match.turn,
-            'boards': {k: _serialize_board(b) for k, b in match.boards.items()},
-            'shots': match.shots,
-            'messages': match.messages,
-            'history': _serialize_history(match.history),
-            'last_highlight': [list(cell) for cell in match.last_highlight],
-            'snapshots': _serialize_snapshots(match.snapshots),
-        }
-        return _save_all(data)
-
-
-def finish(match: Match15, winner: str) -> str | None:
-    match.status = 'finished'
-    match.shots[winner]['last_result'] = 'win'
-    return save_match(match)
-
-
-def find_match_by_user(user_id: int, chat_id: int | None = None) -> Match15 | None:
-    """Return the latest active match for ``user_id``.
-
-    When ``chat_id`` is provided, prefer matches where the user participates in
-    the specified chat.  If no such match exists, fall back to the most recent
-    active match regardless of chat.
+    Находит «последний» (по updated_at/created_at) активный матч пользователя.
+    Ожидается структура в payload:
+      payload["players"] = {
+        "A": {"user_id": 123, "chat_id": 456, ...},
+        "B": {"user_id": 999, "chat_id": 456, ...},
+      }
     """
-    with _lock:
-        data = _load_all()
-    active = {'waiting', 'placing', 'playing'}
-    all_candidates: list[dict] = []
-    chat_candidates: list[dict] = []
-    for m in data.values():
-        if m.get('status') not in active:
+    active = set(active_statuses or ["active", "placing", "in_progress", "waiting"])
+
+    matches = list_matches().values()
+    if not matches:
+        return None
+
+    candidates: List[dict] = []
+    for m in matches:
+        if m.get("status") not in active:
             continue
-        players = m.get('players', {})
+        players = (m.get("players") or {}) if isinstance(m.get("players"), dict) else {}
         for p in players.values():
-            if p.get('user_id') == user_id:
-                all_candidates.append(m)
-                if chat_id is not None and p.get('chat_id') == chat_id:
-                    chat_candidates.append(m)
-                break
-    candidates = chat_candidates if chat_candidates else all_candidates
+            try:
+                if int(p.get("user_id")) == int(user_id):
+                    if chat_id is None or int(p.get("chat_id")) == int(chat_id):
+                        candidates.append(m)
+                        break
+            except Exception:
+                continue
+
     if not candidates:
         return None
-    latest = max(candidates, key=lambda m: datetime.fromisoformat(m['created_at']))
-    return get_match(latest['match_id'])
+
+    def _ts(mm: dict) -> str:
+        return mm.get("updated_at") or mm.get("created_at") or "1970-01-01T00:00:00"
+    return max(candidates, key=_ts)
+
+
+# =====================================================
+# Удобные обёртки для работы c доской/снапшотами 15×15
+# (если где-то в коде ты их вызываешь напрямую)
+# =====================================================
+def get_board(match_id: str) -> Optional[dict]:
+    """
+    Возвращает весь payload матча (там обычно и «доска»/board, и прочее состояние).
+    Оставлено для совместимости с кодом, где понятие «board» = весь матч.
+    """
+    return get_match(match_id)
+
+
+def save_board(match_id: str, payload: dict) -> None:
+    """
+    Сохраняет payload матча. Синоним save_match для совместимости.
+    """
+    save_match(match_id, payload)
+
+
+def get_snapshots(match_id: str) -> List[dict]:
+    """
+    Возвращает список снапшотов из payload["snapshots"] (если используется).
+    """
+    m = get_match(match_id)
+    if not m:
+        return []
+    snaps = m.get("snapshots")
+    return snaps if isinstance(snaps, list) else []
+
+
+def append_snapshot(match_id: str, snapshot: dict, limit: Optional[int] = None) -> None:
+    """
+    Добавляет снапшот в payload["snapshots"]. Можно ограничить длину.
+    """
+    m = get_match(match_id) or {"match_id": match_id}
+    snaps = m.get("snapshots")
+    if not isinstance(snaps, list):
+        snaps = []
+    snaps.append(snapshot)
+    if isinstance(limit, int) and limit > 0 and len(snaps) > limit:
+        snaps = snaps[-limit:]
+    m["snapshots"] = snaps
+    save_match(match_id, m)
+
+
+def clear_snapshots(match_id: str) -> None:
+    """Очищает payload["snapshots"]."""
+    m = get_match(match_id)
+    if not m:
+        return
+    m["snapshots"] = []
+    save_match(match_id, m)
