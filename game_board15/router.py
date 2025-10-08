@@ -245,15 +245,27 @@ async def _send_state(
         own_grid = match.boards[player_key].grid
         for r in range(15):
             for c in range(15):
-                # не «оживляем» попадания/уничтожения
-                if view_board[r][c] in {3, 4} and view_owners[r][c] == player_key:
+                own_state = _get_cell_state(own_grid[r][c])
+                if own_state == 0:
                     continue
-                # восстанавливаем свои живые палубы
-                if _get_cell_state(own_grid[r][c]) != 1:
-                    continue
-                if view_board[r][c] in {0, 2, 5} or view_owners[r][c] != player_key:
-                    view_board[r][c] = 1
+                if own_state in {3, 4}:
+                    # попадания/убийства по своим кораблям всегда отражаем
+                    view_board[r][c] = own_state
                     view_owners[r][c] = player_key
+                    continue
+                if own_state == 1:
+                    # восстанавливаем свои живые палубы
+                    if view_board[r][c] in {0, 2, 5} or view_owners[r][c] != player_key:
+                        view_board[r][c] = 1
+                        view_owners[r][c] = player_key
+                    continue
+                if own_state == 2:
+                    if view_board[r][c] == 0:
+                        view_board[r][c] = 2
+                    continue
+                if own_state == 5:
+                    if view_board[r][c] in {0, 2}:
+                        view_board[r][c] = 5
 
     state.board = view_board
     state.owners = view_owners
