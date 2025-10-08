@@ -91,7 +91,6 @@ async def _send_state(
         return [row.copy() for row in grid]
 
     board_sources: dict[str, list[list[int]]] = {}
-    owner_snapshot_grids: dict[str, list[list[int]] | None] = {}
     snapshot_boards = snapshot.get("boards", {}) if snapshot else {}
     if snapshot:
         boards_section = snapshot.setdefault("boards", {})
@@ -146,26 +145,20 @@ async def _send_state(
                     snapshot_grid = fresh_grid
             if mismatch_coord and prefer_snapshot and original_snapshot_grid is not None:
                 board_sources[owner_key] = original_snapshot_grid
-                owner_snapshot_grids[owner_key] = original_snapshot_grid
             else:
                 board_sources[owner_key] = board_entry.get("grid", [])
-                owner_snapshot_grids[owner_key] = snapshot_grid
         else:
             board_sources[owner_key] = live_grid
-            owner_snapshot_grids[owner_key] = None
 
     for owner_key, board_data in snapshot_boards.items():
         if owner_key not in board_sources:
             board_sources[owner_key] = board_data.get("grid", [])
-            owner_snapshot_grids[owner_key] = board_data.get("grid")
 
     shared_view = any(
         other_key != player_key
         and getattr(other_player, "chat_id", None) == chat_id
         for other_key, other_player in match.players.items()
     )
-    reuse_snapshot_enemy_ships = not include_all_ships and not shared_view
-
     for owner_key, grid in board_sources.items():
         if not grid:
             continue
@@ -217,24 +210,13 @@ async def _send_state(
                 history_state = history_states[r][c]
                 if history_state in {3, 4, 5}:
                     continue
-                snapshot_grid = owner_snapshot_grids.get(owner)
-                snapshot_cell_has_ship = (
-                    snapshot_grid is not None
-                    and r < len(snapshot_grid)
-                    and c < len(snapshot_grid[r])
-                    and _get_cell_state(snapshot_grid[r][c]) == 1
-                )
-                if reuse_snapshot_enemy_ships and snapshot_cell_has_ship:
-                    continue
                 logger.debug(
                     "Hiding ship at (%s, %s) for viewer %s owned by %s; "
-                    "reuse_snapshot=%s snapshot_has_ship=%s include_all_ships=%s shared_view=%s",
+                    "include_all_ships=%s shared_view=%s",
                     r,
                     c,
                     player_key,
                     owner,
-                    reuse_snapshot_enemy_ships,
-                    snapshot_cell_has_ship,
                     include_all_ships,
                     shared_view,
                 )
@@ -245,11 +227,18 @@ async def _send_state(
         own_grid = match.boards[player_key].grid
         for r in range(15):
             for c in range(15):
-                # не «оживляем» попадания/уничтожения
-                if view_board[r][c] in {3, 4} and view_owners[r][c] == player_key:
+                own_state = _get_cell_state(own_grid[r][c])
+                if own_state == 0:
                     continue
-                # восстанавливаем свои живые палубы
-                if _get_cell_state(own_grid[r][c]) != 1:
+                if own_state in {3, 4}:
+                    if (
+                        view_board[r][c] != own_state
+                        or view_owners[r][c] != player_key
+                    ):
+                        view_board[r][c] = own_state
+                        view_owners[r][c] = player_key
+                    continue
+                if own_state != 1:
                     continue
                 if view_board[r][c] in {0, 2, 5} or view_owners[r][c] != player_key:
                     view_board[r][c] = 1
@@ -621,15 +610,13 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             else:
                 message_text = shared_text
 
-            include_all = key == player_key
-
             await _send_state(
                 context,
                 match,
                 key,
                 message_text,
                 reveal_ships=True,
-                include_all_ships=include_all,
+                include_all_ships=False,
             )
         if others:
             sent_per_chat: dict[int, int] = {}
@@ -653,7 +640,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             match,
             player_key,
             shared_text,
-            include_all_ships=True,
+            include_all_ships=False,
         )
     else:
         await _send_state(
@@ -661,7 +648,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             match,
             player_key,
             personal_text,
-            include_all_ships=True,
+            include_all_ships=False,
         )
 
     if not save_before_send:

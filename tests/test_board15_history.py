@@ -323,9 +323,9 @@ def test_shared_chat_board_hides_intact_enemy_ships(monkeypatch):
 
         assert len(send_state_calls) == 4
         assert send_state_calls == [
-            ('A', True, True),
+            ('A', True, False),
             ('B', True, False),
-            ('A', True, True),
+            ('A', True, False),
             ('B', True, False),
         ]
         assert len(rendered) == len(history_snapshots) == 4
@@ -437,7 +437,7 @@ def test_shared_chat_snapshot_hides_intact_enemy_ships(monkeypatch):
     asyncio.run(run_test())
 
 
-def test_personal_view_reuses_snapshot_enemy_ships(monkeypatch):
+def test_personal_view_hides_snapshot_enemy_ships(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
             players={
@@ -516,12 +516,12 @@ def test_personal_view_reuses_snapshot_enemy_ships(monkeypatch):
 
         assert board_a[2][2] == 1  # player keeps visibility on own fleet
         assert (
-            board_a[1][1] == 1
-        )  # intact enemy ship recorded in snapshot stays visible for every viewer
+            board_a[1][1] == 0
+        )  # intact enemy ship from snapshot is hidden for the attacker
         assert board_b[1][1] == 1  # enemy retains view of their own fleet
         assert (
-            board_b[2][2] == 1
-        )  # previously recorded opponent ship remains visible when snapshot is reused
+            board_b[2][2] == 0
+        )  # attacker fleet no longer leaks to defender through old snapshot data
 
     asyncio.run(run_test())
 
@@ -583,6 +583,55 @@ def test_personal_view_keeps_enemy_hits_from_history(monkeypatch):
         assert board_a[2][2] == 1  # own fleet revealed
         assert board_a[1][1] == 4  # enemy kill from history remains visible
         assert board_a[0][0] == 2  # other history states remain intact
+
+    asyncio.run(run_test())
+
+
+def test_personal_view_overlays_own_ship_history(monkeypatch):
+    async def run_test():
+        match = SimpleNamespace(
+            players={
+                'A': SimpleNamespace(chat_id=1),
+            },
+            boards={'A': Board15()},
+            history=_new_grid(15),
+            messages={'A': {}},
+            snapshots=[],
+            last_highlight=[],
+        )
+
+        # Imitate a hit on the player's own ship that hasn't yet been saved to history.
+        match.boards['A'].grid[0][11] = 3  # l1 in zero-based indexes
+
+        captured: dict[str, list[list[int]]] = {}
+
+        def fake_render_board(state, player_key=None):
+            captured[player_key] = [row[:] for row in state.board]
+            return BytesIO(b'img')
+
+        monkeypatch.setattr(router, 'render_board', fake_render_board)
+
+        context = SimpleNamespace(
+            bot=SimpleNamespace(
+                send_photo=AsyncMock(return_value=SimpleNamespace(message_id=1)),
+                edit_message_media=AsyncMock(),
+                edit_message_text=AsyncMock(),
+                send_message=AsyncMock(),
+            ),
+            bot_data={},
+            chat_data={},
+        )
+
+        await router._send_state(
+            context,
+            match,
+            'A',
+            'msg',
+            include_all_ships=False,
+        )
+
+        board_a = captured['A']
+        assert board_a[0][11] == 3
 
     asyncio.run(run_test())
 
