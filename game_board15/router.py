@@ -621,15 +621,13 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             else:
                 message_text = shared_text
 
-            include_all = key == player_key
-
             await _send_state(
                 context,
                 match,
                 key,
                 message_text,
                 reveal_ships=True,
-                include_all_ships=include_all,
+                include_all_ships=False,
             )
         if others:
             sent_per_chat: dict[int, int] = {}
@@ -653,7 +651,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             match,
             player_key,
             shared_text,
-            include_all_ships=True,
+            include_all_ships=False,
         )
     else:
         await _send_state(
@@ -661,7 +659,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             match,
             player_key,
             personal_text,
-            include_all_ships=True,
+            include_all_ships=False,
         )
 
     if not save_before_send:

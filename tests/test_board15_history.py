@@ -323,9 +323,9 @@ def test_shared_chat_board_hides_intact_enemy_ships(monkeypatch):
 
         assert len(send_state_calls) == 4
         assert send_state_calls == [
-            ('A', True, True),
+            ('A', True, False),
             ('B', True, False),
-            ('A', True, True),
+            ('A', True, False),
             ('B', True, False),
         ]
         assert len(rendered) == len(history_snapshots) == 4
