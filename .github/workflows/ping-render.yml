@@ -11,36 +11,52 @@ permissions:
 
 jobs:
   ping:
-    name: Ping health endpoints
+    name: Ping Render health endpoint
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:
       group: ping-render
       cancel-in-progress: false
     env:
-      # основной URL — поставь свой
-      RENDER_BASE: "https://my-learning-repository.onrender.com"
-      # можно пингануть сразу несколько путей
-      PATHS: |
-        /healthz
+      # 🔹 Укажи свой Render-домен
+      RENDER_BASE: "https://battleship-play-bot-3pcn.onrender.com"
+
     steps:
       - name: Show config
         run: |
-          echo "Base: $RENDER_BASE"
-          echo "Paths:"
-          echo "$PATHS"
+          echo "Pinging Render instance:"
+          echo "Base URL: $RENDER_BASE"
+          echo "Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "--------------------------------------"
 
-      - name: Ping endpoints
+      - name: Warmup Render (retry if cold)
         run: |
-          set -e
-          for p in $PATHS; do
-            url="${RENDER_BASE}${p}"
-            # random query, чтобы исключить кеш на прокси
+          set +e
+          url="${RENDER_BASE}/healthz"
+          tries=8               # до 8 попыток (примерно 2 минуты)
+          delay=5               # начальная задержка 5с
+          ok=0
+
+          for i in $(seq 1 $tries); do
             q=$RANDOM
-            echo "Pinging: $url?_=$q"
-            # 3 попытки, таймаут на коннект 5с, общий 10с, фолбэк на /
-            if ! curl -fsS --connect-timeout 5 --max-time 10 "$url?_=$q"; then
-              echo "Primary path failed, trying /"
-              curl -fsS --connect-timeout 5 --max-time 10 "${RENDER_BASE}/?_=$q"
+            echo "[$i/$tries] GET $url?_=$q"
+            # Разрешаем долгий отклик — Render free может подниматься 30–90 секунд
+            if curl -fsS --connect-timeout 10 --max-time 60 "$url?_=$q"; then
+              echo "✅ Success on attempt $i"
+              ok=1
+              break
+            else
+              echo "⚠️ No response yet, waiting $delay s..."
+              sleep $delay
+              # экспоненциальный бэкофф (до 20 сек)
+              delay=$(( delay < 20 ? delay*2 : 20 ))
             fi
           done
+
+          if [ "$ok" -ne 1 ]; then
+            echo "::warning::Warmup didn't finish (likely cold instance still booting)."
+            echo "Will try again on next cron tick."
+            exit 0   # не фейлим джобу
+          fi
+
+          echo "🔥 Render instance warmed successfully!"
