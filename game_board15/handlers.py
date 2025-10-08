@@ -75,7 +75,9 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             cell = own_grid[r][c]
             if merged[r][c] == 0 and _get_cell_state(cell) == 1:
                 merged[r][c] = 1
+                owners[r][c] = _get_cell_owner(cell) or player_key
     state.board = merged
+    state.owners = owners
     state.player_key = player_key
     buf = render_board(state, player_key)
     msg = await update.message.reply_photo(

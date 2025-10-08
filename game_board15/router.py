@@ -238,11 +238,11 @@ async def _send_state(
                     view_owners[r][c] = player_key
                     continue
                 if own_state == 1:
-                    # восстанавливаем свои живые палубы
+                    # безусловно кладём свои палубы поверх всего
                     if view_board[r][c] != 1 or view_owners[r][c] != player_key:
-                        view_board[r][c] = 1
-                        view_owners[r][c] = player_key
                         restored_cells.append((r, c))
+                    view_board[r][c] = 1
+                    view_owners[r][c] = player_key
                     continue
                 if own_state == 2:
                     if view_board[r][c] == 0:
