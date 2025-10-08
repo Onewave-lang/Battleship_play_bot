@@ -231,18 +231,23 @@ async def _send_state(
                 if own_state == 0:
                     continue
                 if own_state in {3, 4}:
-                    if (
-                        view_board[r][c] != own_state
-                        or view_owners[r][c] != player_key
-                    ):
-                        view_board[r][c] = own_state
+                    # попадания/убийства по своим кораблям всегда отражаем
+                    view_board[r][c] = own_state
+                    view_owners[r][c] = player_key
+                    continue
+                if own_state == 1:
+                    # восстанавливаем свои живые палубы
+                    if view_board[r][c] in {0, 2, 5} or view_owners[r][c] != player_key:
+                        view_board[r][c] = 1
                         view_owners[r][c] = player_key
                     continue
-                if own_state != 1:
+                if own_state == 2:
+                    if view_board[r][c] == 0:
+                        view_board[r][c] = 2
                     continue
-                if view_board[r][c] in {0, 2, 5} or view_owners[r][c] != player_key:
-                    view_board[r][c] = 1
-                    view_owners[r][c] = player_key
+                if own_state == 5:
+                    if view_board[r][c] in {0, 2}:
+                        view_board[r][c] = 5
 
     state.board = view_board
     state.owners = view_owners
