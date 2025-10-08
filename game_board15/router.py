@@ -1,7 +1,8 @@
 from __future__ import annotations
+
+import asyncio
 import logging
 import random
-import asyncio
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -225,6 +226,7 @@ async def _send_state(
 
     if reveal_ships:
         own_grid = match.boards[player_key].grid
+        restored_cells: list[tuple[int, int]] = []
         for r in range(15):
             for c in range(15):
                 own_state = _get_cell_state(own_grid[r][c])
@@ -237,9 +239,10 @@ async def _send_state(
                     continue
                 if own_state == 1:
                     # восстанавливаем свои живые палубы
-                    if view_board[r][c] in {0, 2, 5} or view_owners[r][c] != player_key:
+                    if view_board[r][c] != 1 or view_owners[r][c] != player_key:
                         view_board[r][c] = 1
                         view_owners[r][c] = player_key
+                        restored_cells.append((r, c))
                     continue
                 if own_state == 2:
                     if view_board[r][c] == 0:
@@ -248,6 +251,13 @@ async def _send_state(
                 if own_state == 5:
                     if view_board[r][c] in {0, 2}:
                         view_board[r][c] = 5
+        if restored_cells:
+            logger.debug(
+                "Force-restored %d own ship cells for %s: %s",
+                len(restored_cells),
+                player_key,
+                restored_cells,
+            )
 
     state.board = view_board
     state.owners = view_owners
