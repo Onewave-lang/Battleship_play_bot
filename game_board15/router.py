@@ -177,17 +177,21 @@ async def _send_state(
                     continue
                 existing_state = combined_board[r][c]
                 if cell_state != 1:
+                    # не даём "чужим" 3/4/5 затирать нашу живую 1
                     if existing_state == 0 or (
                         existing_state == 1 and cell_state in {3, 4, 5}
+                        and combined_owners[r][c] == owner_key
                     ):
                         combined_board[r][c] = cell_state
-                    if cell_state in {3, 4, 5}:
-                        combined_owners[r][c] = owner_key
-                    continue
+                        if cell_state in {3, 4, 5}:
+                            combined_owners[r][c] = owner_key
                 if cell_state == 1:
-                    if existing_state == 0 or (
-                        owner_key == player_key and existing_state in {2, 5}
-                    ):
+                    # свою живую палубу показываем поверх 0/2/5 и поверх "чужих" 2/5
+                    if owner_key == player_key and existing_state in {0, 2, 5}:
+                        combined_board[r][c] = 1
+                        combined_owners[r][c] = owner_key
+                    # для чужих '1' оставляем прежнее поведение (не затираем наши попадания/убитые)
+                    elif existing_state == 0:
                         combined_board[r][c] = 1
                         combined_owners[r][c] = owner_key
 
