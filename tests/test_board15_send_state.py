@@ -1,7 +1,10 @@
 import asyncio
+from io import BytesIO
 from types import SimpleNamespace
 
 from game_board15 import router, storage, placement
+from game_board15.handlers import STATE_KEY
+from game_board15.models import Match15, Player
 
 class DummyBot:
     async def send_message(self, *args, **kwargs):
@@ -48,3 +51,41 @@ def test_send_state_for_all_players(tmp_path, monkeypatch):
     asyncio.run(run_router(update))
 
     assert set(called) == {"A", "B", "C"}
+
+
+def test_send_state_restores_player_ships(monkeypatch):
+    async def _run():
+        match = Match15.new(1, 1, "A")
+        match.players["B"] = Player(user_id=2, chat_id=2, name="B")
+        match.players["C"] = Player(user_id=3, chat_id=3, name="C")
+        match.status = "playing"
+        match.boards["A"].grid[0][0] = 1
+
+        snapshot = {
+            "history": [[0 for _ in range(15)] for _ in range(15)],
+            "boards": {
+                "A": {"grid": [[0 for _ in range(15)] for _ in range(15)]},
+                "B": {"grid": [[0 for _ in range(15)] for _ in range(15)]},
+                "C": {"grid": [[0 for _ in range(15)] for _ in range(15)]},
+            },
+            "last_highlight": [],
+        }
+        match.snapshots.append(snapshot)
+
+        class _Bot:
+            async def send_message(self, *args, **kwargs):
+                return SimpleNamespace(message_id=101)
+
+            async def send_photo(self, *args, **kwargs):
+                return SimpleNamespace(message_id=202)
+
+        monkeypatch.setattr(router, "render_board", lambda state, player_key=None: BytesIO(b"x"))
+
+        context = SimpleNamespace(bot=_Bot(), bot_data={}, chat_data={})
+        await router._send_state(context, match, "A", "test")
+
+        state = context.bot_data[STATE_KEY][match.players["A"].chat_id]
+        assert state.board[0][0] == 1
+        assert state.owners[0][0] == "A"
+
+    asyncio.run(_run())
