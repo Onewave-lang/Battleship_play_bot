@@ -241,7 +241,7 @@ async def _send_state(
         for r in range(15):
             for c in range(15):
                 # не «оживляем» попадания/уничтожения
-                if view_board[r][c] in {3, 4}:
+                if view_board[r][c] in {3, 4} and view_owners[r][c] == player_key:
                     continue
                 # восстанавливаем свои живые палубы
                 if _get_cell_state(own_grid[r][c]) != 1:
