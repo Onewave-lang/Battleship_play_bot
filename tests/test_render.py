@@ -25,6 +25,17 @@ def test_render_board_own_renders_ship_symbol():
     assert HIT_SYMBOL not in own
 
 
+def test_render_board_own_preserves_owner_ship_visibility():
+    b = Board(owner='A')
+    b.grid[0][0] = [0, 'A']
+
+    own = render_board_own(b)
+    assert SHIP_SYMBOL in own
+
+    enemy = render_board_enemy(b)
+    assert SHIP_SYMBOL not in enemy
+
+
 def test_render_board_enemy_marks_hit():
     b = Board(owner='A')
     b.grid[0][0] = 3
