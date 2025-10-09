@@ -446,6 +446,29 @@ def save_board(match: Match15, player_key: str, board: Optional[Board15] = None)
         board = placement.random_board_global(mask)
     board.highlight = []
     ensure_ship_owners(match.history, board, player_key)
+    stored: Optional[Match15] = None
+    if getattr(match, "match_id", None):
+        try:
+            stored = get_match(match.match_id)
+        except Exception:
+            stored = None
+    if stored:
+        for key, stored_player in stored.players.items():
+            local = match.players.get(key)
+            if local is None:
+                match.players[key] = Player(
+                    user_id=stored_player.user_id,
+                    chat_id=stored_player.chat_id,
+                    name=getattr(stored_player, "name", ""),
+                    ready=getattr(stored_player, "ready", False),
+                )
+                continue
+            if local.user_id in (0, None):
+                local.user_id = stored_player.user_id
+            if local.chat_id in (0, None):
+                local.chat_id = stored_player.chat_id
+            if not getattr(local, "name", "") and getattr(stored_player, "name", ""):
+                local.name = stored_player.name
     match.boards[player_key] = board
 
     match.players.setdefault(player_key, Player(user_id=0, chat_id=0, name="", ready=False))

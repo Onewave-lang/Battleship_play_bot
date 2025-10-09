@@ -70,6 +70,7 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         storage.save_match(match)
     state = Board15State(chat_id=update.effective_chat.id)
     merged = [[_get_cell_state(cell) for cell in row] for row in match.history]
+    owners = [[_get_cell_owner(cell) for cell in row] for row in match.history]
     own_grid = match.boards[player_key].grid
     for r in range(15):
         for c in range(15):
