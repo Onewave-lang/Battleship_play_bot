@@ -103,6 +103,36 @@ async def _send_state(
         boards_section = {}
 
     for owner_key, board in match.boards.items():
+        # ``board.grid`` is the single source of truth for live ship cells when
+        # composing the shared view.  If anything in the previous processing
+        # pipeline accidentally wiped a ship segment (sets state to ``0``), the
+        # viewer would later see an empty cell instead of their own ship.  That
+        # scenario was observed in production and must be considered invalid.
+        #
+        # We therefore enforce that every alive ship cell remains marked as
+        # ``1`` in the live grid before further merging.  In addition to
+        # restoring the values we also keep track of the corrections so that
+        # the root cause can be investigated via logs.
+        if getattr(board, "ships", None):
+            restored: list[tuple[int, int, int]] = []
+            for ship in board.ships:
+                if not getattr(ship, "alive", True):
+                    continue
+                for rr, cc in ship.cells:
+                    if not (0 <= rr < 15 and 0 <= cc < 15):
+                        continue
+                    current_state = _get_cell_state(board.grid[rr][cc])
+                    if current_state != 0:
+                        continue
+                    board.grid[rr][cc] = 1
+                    restored.append((rr, cc, current_state))
+            if restored:
+                logger.critical(
+                    "Restored %d live ship cells for %s before rendering: %s",
+                    len(restored),
+                    owner_key,
+                    restored,
+                )
         live_grid = board.grid
         if snapshot:
             board_entry = boards_section.setdefault(owner_key, {})
@@ -214,7 +244,7 @@ async def _send_state(
                     continue
                 history_state = history_states[r][c]
                 history_owner = _get_cell_owner(history_source[r][c])
-                if history_owner == owner:
+                if history_owner == owner and history_state != 0:
                     continue
                 if history_state in {3, 4, 5}:
                     continue
@@ -256,7 +286,7 @@ async def _send_state(
                         view_board[r][c] = 2
                     continue
                 if own_state == 5:
-                    if view_board[r][c] in {0, 2}:
+                    if view_board[r][c] == 0:
                         view_board[r][c] = 5
         if restored_cells:
             logger.debug(
@@ -276,6 +306,15 @@ async def _send_state(
     buf = render_board(state, player_key)
     if buf.getbuffer().nbytes == 0:
         logger.warning("render_board returned empty buffer for chat %s", chat_id)
+        return
+
+    if getattr(state, "_shared_skip_next", False):
+        msgs = match.messages.setdefault(player_key, {})
+        if state.message_id is not None:
+            msgs["board"] = state.message_id
+        msgs.setdefault("board_history", [])
+        msgs.setdefault("text_history", [])
+        msgs.setdefault("history_active", False)
         return
 
     msgs = match.messages.setdefault(player_key, {})
@@ -583,21 +622,24 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 )
                 await _send_state(context, match, enemy, message_enemy)
     if others and not same_chat:
-        sent_per_chat: dict[int, int] = {}
+        board_targets: list[str] = []
         for other in others:
             participant = match.players.get(other)
             if not participant or participant.user_id == 0:
                 continue
-            existing = sent_per_chat.get(participant.chat_id)
-            message_id = await _send_text_update(
+            board_targets.append(other)
+        for other in board_targets:
+            if other in enemy_msgs or other == player_key:
+                continue
+            participant = match.players.get(other)
+            if not participant or participant.user_id == 0:
+                continue
+            await _send_state(
                 context,
                 match,
                 other,
                 watch_message,
-                message_id=existing,
             )
-            if message_id is not None:
-                sent_per_chat[participant.chat_id] = message_id
     msg_body = ' '.join(parts_self) if parts_self else 'мимо'
     body_self = msg_body.rstrip()
     if not body_self.endswith(('.', '!', '?')):
@@ -616,45 +658,37 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if save_before_send:
         storage.save_match(match)
     if same_chat:
-        enemy_personal_texts: dict[str, str] = {}
-        for enemy, (_, result_line_enemy, humor_enemy) in enemy_msgs.items():
-            enemy_personal_texts[enemy] = _compose_move_message(
-                result_line_enemy,
-                humor_enemy,
-                f"Следующим ходит {next_name}.",
-            )
-
-        for key, participant in match.players.items():
-            if key == player_key:
-                message_text = personal_text
-            elif key in enemy_personal_texts:
-                message_text = enemy_personal_texts[key]
-            else:
-                message_text = shared_text
-
+        states = context.bot_data.setdefault(STATE_KEY, {})
+        chat_id = match.players[player_key].chat_id
+        shared_state = states.get(chat_id)
+        if shared_state is not None:
+            shared_state._shared_skip_next = False
+        for idx, (key, participant) in enumerate(match.players.items()):
+            if shared_state is not None and idx > 0:
+                shared_state._shared_skip_next = True
             await _send_state(
                 context,
                 match,
                 key,
-                message_text,
+                shared_text,
                 reveal_ships=True,
             )
-        if others:
-            sent_per_chat: dict[int, int] = {}
-            for other in others:
-                participant = match.players.get(other)
-                if not participant or participant.user_id == 0:
-                    continue
-                existing = sent_per_chat.get(participant.chat_id)
-                message_id = await _send_text_update(
-                    context,
-                    match,
-                    other,
-                    watch_message,
-                    message_id=existing,
-                )
-                if message_id is not None:
-                    sent_per_chat[participant.chat_id] = message_id
+            if idx == 0:
+                shared_state = states.get(chat_id)
+        if shared_state is not None:
+            shared_state._shared_skip_next = False
+        shared_entry = match.messages.get(player_key, {})
+        shared_board = shared_entry.get("board")
+        shared_history_active = shared_entry.get("history_active", False)
+        for key in match.players:
+            msgs = match.messages.setdefault(key, {})
+            if shared_board is not None:
+                msgs["board"] = shared_board
+            msgs.setdefault("board_history", [])
+            msgs.setdefault("text_history", [])
+            msgs["history_active"] = shared_history_active
+        # все участники видят общий борт и подпись, поэтому отдельные текстовые
+        # уведомления не рассылаем
     elif single_user:
         await _send_state(
             context,
