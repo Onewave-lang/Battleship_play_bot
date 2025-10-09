@@ -89,7 +89,8 @@ def render_board_own(board: Board) -> str:
         for c_idx, v in enumerate(row):
             coord = (r_idx, c_idx)
             cell_state, owner = _resolve_cell(v)
-            if cell_state == 1:
+            owner_cell = owner == board.owner and owner is not None
+            if cell_state == 1 or (owner_cell and cell_state == 0):
                 sym = SHIP_SYMBOL
             elif cell_state == 2:
                 sym = MISS_SYMBOL
