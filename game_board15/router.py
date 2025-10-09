@@ -24,6 +24,7 @@ from .utils import (
     _get_cell_state,
     _get_cell_owner,
     _set_cell_state,
+    ensure_ship_owners,
     _persist_highlight_to_history,
     record_snapshot,
 )
@@ -74,6 +75,9 @@ async def _send_state(
     snapshot = snapshot_override
     if snapshot is None:
         snapshot = match.snapshots[-1] if getattr(match, "snapshots", []) else None
+    for owner_key, board in match.boards.items():
+        ensure_ship_owners(match.history, board, owner_key)
+
     history_source = snapshot.get("history") if snapshot else None
     if not history_source:
         history_source = match.history
@@ -209,6 +213,9 @@ async def _send_state(
                 if view_board[r][c] != 1:
                     continue
                 history_state = history_states[r][c]
+                history_owner = _get_cell_owner(history_source[r][c])
+                if history_owner == owner:
+                    continue
                 if history_state in {3, 4, 5}:
                     continue
                 logger.debug(
@@ -631,7 +638,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 key,
                 message_text,
                 reveal_ships=True,
-                include_all_ships=False,
             )
         if others:
             sent_per_chat: dict[int, int] = {}
@@ -655,7 +661,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             match,
             player_key,
             shared_text,
-            include_all_ships=False,
         )
     else:
         await _send_state(
@@ -663,7 +668,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             match,
             player_key,
             personal_text,
-            include_all_ships=False,
         )
 
     if not save_before_send:

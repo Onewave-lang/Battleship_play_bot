@@ -25,6 +25,7 @@ from .utils import (
     _get_cell_state,
     _get_cell_owner,
     _set_cell_state,
+    ensure_ship_owners,
     _persist_highlight_to_history,
     record_snapshot,
 )
@@ -480,6 +481,7 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         board = placement.random_board_global(mask)
         match.players[key].ready = True
         match.boards[key] = board
+        ensure_ship_owners(match.history, board, key)
     storage.save_match(match)
     state = Board15State(chat_id=update.effective_chat.id)
     merged = [[_get_cell_state(cell) for cell in row] for row in match.history]
