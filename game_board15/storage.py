@@ -13,7 +13,7 @@ import httpx
 
 from .models import Match15, Player, Board15, Ship
 from . import placement
-from .utils import record_snapshot
+from .utils import record_snapshot, ensure_ship_owners
 
 
 logger = logging.getLogger(__name__)
@@ -445,6 +445,7 @@ def save_board(match: Match15, player_key: str, board: Optional[Board15] = None)
         mask = _build_mask(match, exclude=player_key)
         board = placement.random_board_global(mask)
     board.highlight = []
+    ensure_ship_owners(match.history, board, player_key)
     match.boards[player_key] = board
 
     match.players.setdefault(player_key, Player(user_id=0, chat_id=0, name="", ready=False))

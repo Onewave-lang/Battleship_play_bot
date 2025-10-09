@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import random
 from datetime import datetime
-from typing import List, Union, Tuple, Optional, Dict, Any
+from typing import List, Union, Tuple, Optional, Dict, Any, TYPE_CHECKING
 
 from logic.phrases import random_phrase, random_joke
+
+if TYPE_CHECKING:
+    from .models import Board15
 
 
 def _phrase_or_joke(match, player_key: str, phrases: list[str]) -> str:
@@ -49,6 +52,40 @@ def _set_cell_state(
                     cell.append(owner)
     else:
         grid[r][c] = [value, owner] if owner is not None else value
+
+
+def ensure_ship_owners(
+    history: List[List[Union[int, List[Union[int, Optional[str]]]]]],
+    board: "Board15",
+    owner_key: str,
+) -> None:
+    """Ensure ``history`` records ``owner_key`` for every live ship cell.
+
+    The three-player mode keeps a shared history grid where each cell stores
+    both the revealed state and (optionally) the owner key.  During the
+    placement phase the history still contains only ``0`` values, but the very
+    first rendered board already expects ship cells to be associated with the
+    correct owner so that colouring logic works consistently for all players.
+
+    This helper walks over the player's live board and mirrors the ownership
+    information into the history grid without changing the stored state value.
+    Existing owners are overwritten so that repeated auto-placement (during
+    tests) also refreshes the mapping.
+    """
+
+    history_rows = len(history)
+    board_rows = len(board.grid)
+    rows = min(history_rows, board_rows)
+
+    for r in range(rows):
+        history_row = history[r]
+        board_row = board.grid[r]
+        cols = min(len(history_row), len(board_row))
+        for c in range(cols):
+            if _get_cell_state(board_row[c]) != 1:
+                continue
+            cell_state = _get_cell_state(history_row[c])
+            _set_cell_state(history, r, c, cell_state, owner_key)
 
 
 def _persist_highlight_to_history(match) -> None:
@@ -164,6 +201,7 @@ __all__ = [
     "_get_cell_state",
     "_get_cell_owner",
     "_set_cell_state",
+    "ensure_ship_owners",
     "_persist_highlight_to_history",
     "record_snapshot",
 ]
