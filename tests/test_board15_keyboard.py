@@ -5,7 +5,18 @@ from unittest.mock import AsyncMock
 
 from tests.utils import _new_grid
 from game_board15 import router
-from game_board15.models import Board15
+from game_board15.models import Board15, Ship
+
+
+def _populate_full_fleet(board: Board15) -> None:
+    coords = []
+    for idx in range(20):
+        r = idx // 5
+        c = idx % 5
+        board.grid[r][c] = 1
+        coords.append((r, c))
+    board.ships = [Ship(cells=coords)]
+    board.alive_cells = len(coords)
 
 
 def test_send_state_records_history(monkeypatch):
@@ -16,6 +27,7 @@ def test_send_state_records_history(monkeypatch):
             history=_new_grid(15),
             messages={"A": {"history_active": True, "board_history": [], "text_history": []}},
         )
+        _populate_full_fleet(match.boards["A"])
         monkeypatch.setattr(router, "render_board", lambda state, player_key=None: BytesIO(b"img"))
         monkeypatch.setattr(router.storage, "save_match", lambda m: None)
         bot = SimpleNamespace(
@@ -41,6 +53,7 @@ def test_send_state_appends_history(monkeypatch):
             history=_new_grid(15),
             messages={"A": {"history_active": True, "board_history": [], "text_history": []}},
         )
+        _populate_full_fleet(match.boards["A"])
         monkeypatch.setattr(router, "render_board", lambda state, player_key=None: BytesIO(b"img"))
         monkeypatch.setattr(router.storage, "save_match", lambda m: None)
         bot = SimpleNamespace(
@@ -70,6 +83,7 @@ def test_history_not_recorded_when_inactive(monkeypatch):
             history=_new_grid(15),
             messages={"A": {"history_active": False, "board_history": [], "text_history": []}},
         )
+        _populate_full_fleet(match.boards["A"])
         monkeypatch.setattr(router, "render_board", lambda state, player_key=None: BytesIO(b"img"))
         monkeypatch.setattr(router.storage, "save_match", lambda m: None)
         bot = SimpleNamespace(
@@ -91,6 +105,7 @@ def test_send_state_shows_own_ships_even_with_history_marks(monkeypatch):
             history=_new_grid(15),
             messages={"A": {"history_active": False, "board_history": [], "text_history": []}},
         )
+        _populate_full_fleet(match.boards["A"])
         match.boards["A"].grid[2][3] = 1
         match.history[2][3] = [3, "B"]
 

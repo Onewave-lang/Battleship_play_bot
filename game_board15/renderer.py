@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from io import BytesIO
 
@@ -8,6 +9,9 @@ from PIL import Image, ImageDraw, ImageFont
 from constants import BOMB
 from .state import Board15State
 from .models import Board15
+
+
+logger = logging.getLogger(__name__)
 
 TILE_PX = int(os.getenv("BOARD15_TILE_PX", "44"))
 DEFAULT_FONT = os.path.abspath(
@@ -94,6 +98,29 @@ CELL_STYLE = {
 
 def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
     """Render the 15x15 board into a PNG image."""
+
+    debug_fleet_issue = False
+    debug_fleet_cells: list[tuple[int, int]] = []
+    if player_key and state.owners:
+        owner_rows = state.owners
+        for r in range(min(15, len(state.board))):
+            row = state.board[r]
+            owner_row = owner_rows[r] if r < len(owner_rows) else []
+            for c in range(min(15, len(row))):
+                if c >= len(owner_row):
+                    continue
+                if owner_row[c] != player_key:
+                    continue
+                if row[c] in {1, 3, 4}:
+                    debug_fleet_cells.append((r, c))
+        if len(debug_fleet_cells) < 20:
+            debug_fleet_issue = True
+            logger.error(
+                "[B15] render_board fleet underflow for %s: cells=%d sample=%s",
+                player_key,
+                len(debug_fleet_cells),
+                debug_fleet_cells[:40],
+            )
 
     margin = TILE_PX
     size = 15 * TILE_PX
@@ -204,6 +231,20 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
     for idx in range(15):
         y = margin + idx * TILE_PX + TILE_PX // 2
         draw.text((margin // 2, y), str(idx + 1), fill=COLORS[THEME]["grid"], anchor="mm", font=font)
+
+    if debug_fleet_issue:
+        warn_text = "DEBUG: FLEET<20"
+        try:
+            warn_font = ImageFont.truetype(FONT_PATH, int(TILE_PX * 1.4))
+        except OSError:
+            warn_font = ImageFont.load_default()
+        draw.text(
+            (margin + size / 2, margin + size / 2),
+            warn_text,
+            fill=(255, 0, 0, 255),
+            anchor="mm",
+            font=warn_font,
+        )
 
     buf = BytesIO()
     img.save(buf, format="PNG")

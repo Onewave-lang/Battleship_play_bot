@@ -228,6 +228,62 @@ async def _send_state(
     view_board = [row.copy() for row in combined_board]
     view_owners = [[owner for owner in row] for row in combined_owners]
 
+    logger.info(
+        "[B15] render enter: match=%s player=%s reveal=%s snap=%s hist_len=%d",
+        getattr(match, "match_id", "?"),
+        player_key,
+        reveal_ships,
+        bool(snapshot),
+        len(history_source or []),
+    )
+
+    def _dump_coords(tag: str, grid, owners) -> None:
+        cells = []
+        for r in range(min(15, len(grid))):
+            if r >= len(owners):
+                break
+            row = grid[r]
+            owner_row = owners[r]
+            for c in range(min(15, len(row))):
+                if c >= len(owner_row):
+                    continue
+                if owner_row[c] != player_key:
+                    continue
+                if row[c] in {1, 3, 4}:
+                    cells.append((r, c))
+        logger.info("[B15] %s cells=%d: %s", tag, len(cells), cells[:40])
+
+    _dump_coords("view_before_fix", view_board, view_owners)
+
+    if snapshot:
+        player_snapshot = snapshot_boards.get(player_key, {})
+        ref = player_snapshot.get("grid") if isinstance(player_snapshot, dict) else None
+        if ref:
+            ref_cells = [
+                (r, c)
+                for r in range(min(15, len(ref)))
+                for c in range(min(15, len(ref[r])))
+                if _get_cell_state(ref[r][c]) in {1, 3, 4}
+            ]
+            logger.info(
+                "[B15] snapshot_ref cells=%d (sample=%s)",
+                len(ref_cells),
+                ref_cells[:40],
+            )
+    if history_source:
+        history_cells = [
+            (r, c)
+            for r in range(min(15, len(history_source)))
+            for c in range(min(15, len(history_source[r])))
+            if _get_cell_owner(history_source[r][c]) == player_key
+            and _get_cell_state(history_source[r][c]) in {1, 3, 4}
+        ]
+        logger.info(
+            "[B15] history_ref cells=%d (sample=%s)",
+            len(history_cells),
+            history_cells[:40],
+        )
+
     own_live_grid = match.boards[player_key].grid
 
     if not include_all_ships:
@@ -364,6 +420,7 @@ async def _send_state(
                 player_key,
                 restored_from_snapshot,
             )
+        _dump_coords("view_after_restore", view_board, view_owners)
         current_ship_cells = _player_ship_cells_count()
     if current_ship_cells != expected_ship_cells:
         if current_ship_cells < expected_ship_cells:
