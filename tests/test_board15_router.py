@@ -20,6 +20,77 @@ from game_board15.models import Board15, Ship
 from game_board15.utils import _get_cell_state, _get_cell_owner, _set_cell_state
 
 
+STANDARD_FLEET = [
+    [(0, 0), (0, 1), (0, 2), (0, 3)],
+    [(2, 0), (2, 1), (2, 2)],
+    [(4, 0), (4, 1), (4, 2)],
+    [(6, 0), (6, 1)],
+    [(6, 3), (6, 4)],
+    [(6, 6), (6, 7)],
+    [(8, 0)],
+    [(8, 2)],
+    [(8, 4)],
+    [(8, 6)],
+]
+
+FLEET_OFFSETS = {
+    "A": (0, 0),
+    "B": (0, 5),
+    "C": (5, 0),
+}
+
+
+def _fleet_offset(owner_key: str | None, index: int | None = None) -> tuple[int, int]:
+    if owner_key is not None and owner_key in FLEET_OFFSETS:
+        return FLEET_OFFSETS[owner_key]
+    if index is None:
+        index = 0
+    return ((index * 5) % 10, ((index * 5) // 10) * 5)
+
+
+def _populate_full_fleet(
+    board: Board15,
+    owner_key: str | None = None,
+    *,
+    offset: tuple[int, int] | None = None,
+) -> Board15:
+    """Fill ``board`` with a standard fleet occupying exactly 20 cells."""
+
+    row_offset, col_offset = offset or _fleet_offset(owner_key)
+    for r in range(15):
+        for c in range(15):
+            board.grid[r][c] = 0
+    ships: list[Ship] = []
+    for cells in STANDARD_FLEET:
+        translated = []
+        for rr, cc in cells:
+            r = rr + row_offset
+            c = cc + col_offset
+            if not (0 <= r < 15 and 0 <= c < 15):
+                continue
+            translated.append((r, c))
+        if not translated:
+            continue
+        ship = Ship(cells=translated)
+        ships.append(ship)
+        for r, c in ship.cells:
+            board.grid[r][c] = 1
+    board.ships = ships
+    board.alive_cells = sum(len(ship.cells) for ship in ships)
+    return board
+
+
+def _populate_history_with_fleet(history, owner_keys):
+    for index, owner_key in enumerate(owner_keys):
+        row_offset, col_offset = _fleet_offset(owner_key, index)
+        for cells in STANDARD_FLEET:
+            for rr, cc in cells:
+                r = rr + row_offset
+                c = cc + col_offset
+                if 0 <= r < 15 and 0 <= c < 15:
+                    _set_cell_state(history, r, c, 1, owner_key)
+
+
 def test_router_auto_sends_boards(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
@@ -29,16 +100,18 @@ def test_router_auto_sends_boards(monkeypatch):
                 'B': SimpleNamespace(user_id=2, chat_id=20, ready=False, name='Bob'),
             },
             boards={
-                'A': SimpleNamespace(grid=[[0] * 15 for _ in range(15)], highlight=[]),
-                'B': SimpleNamespace(grid=[[0] * 15 for _ in range(15)], highlight=[]),
+                'A': _populate_full_fleet(Board15(), 'A'),
+                'B': _populate_full_fleet(Board15(), 'B'),
             },
             turn='A',
             messages={},
             history=_new_grid(15),
         )
+        _populate_history_with_fleet(match.history, match.players.keys())
 
         def fake_save_board(m, key, board=None):
-            m.boards[key] = board or Board15(grid=[[0] * 15 for _ in range(15)])
+            new_board = board or Board15()
+            m.boards[key] = _populate_full_fleet(new_board, key)
             m.players[key].ready = True
             if all(p.ready for p in m.players.values()):
                 m.status = 'playing'
@@ -92,6 +165,7 @@ def test_last_highlight_persists_after_kill(monkeypatch):
             shots={"A": {"move_count": 0, "joke_start": 10}, "B": {}},
             messages={"A": {}, "B": {}},
             history=_new_grid(15),
+            last_highlight=[],
         )
 
         monkeypatch.setattr(storage, "find_match_by_user", lambda uid, chat_id=None: match)
@@ -130,7 +204,7 @@ def test_last_highlight_persists_after_kill(monkeypatch):
 def test_router_text_fallback_stamps_cell(monkeypatch, scenario, expected_state, expected_owner):
     async def run_test():
         coord = (1, 1)
-        board_self = Board15()
+        board_self = _populate_full_fleet(Board15(), "A")
         board_enemy = Board15()
         if scenario == "hit":
             ship = Ship(cells=[coord, (1, 2)])
@@ -159,6 +233,7 @@ def test_router_text_fallback_stamps_cell(monkeypatch, scenario, expected_state,
             history=_new_grid(15),
             last_highlight=[],
         )
+        _populate_history_with_fleet(match.history, match.players.keys())
 
         monkeypatch.setattr(storage, "find_match_by_user", lambda uid, chat_id=None: match)
         monkeypatch.setattr(storage, "save_match", lambda m: None)
@@ -256,6 +331,7 @@ def test_router_text_rejects_repeat_before_apply_shot(monkeypatch):
             last_highlight=[],
             snapshots=[{"history": "initial"}],
         )
+        _populate_history_with_fleet(match.history, match.players.keys())
         _set_cell_state(match.history, coord[0], coord[1], 2)
 
         monkeypatch.setattr(storage, "find_match_by_user", lambda uid, chat_id=None: match)
@@ -300,6 +376,9 @@ def test_last_highlight_persists_through_storage(monkeypatch, tmp_path):
     storage.save_match(match)
 
     reloaded = storage.get_match(match.match_id)
+    for key, board in reloaded.boards.items():
+        _populate_full_fleet(board, key)
+    _populate_history_with_fleet(reloaded.history, reloaded.players.keys())
 
     captured = {}
 
@@ -324,7 +403,7 @@ def test_last_highlight_persists_through_storage(monkeypatch, tmp_path):
 
 def test_send_state_refreshes_snapshot_for_contour(monkeypatch):
     async def run_test():
-        board_self = Board15()
+        board_self = _populate_full_fleet(Board15(), "A")
         board_enemy = Board15()
         ship = Ship(cells=[(2, 2)])
         board_enemy.ships = [ship]
@@ -344,6 +423,7 @@ def test_send_state_refreshes_snapshot_for_contour(monkeypatch):
             },
             "last_highlight": [],
         }
+        _populate_history_with_fleet(snapshot["history"], ["A", "B"])
 
         match = SimpleNamespace(
             players={
@@ -357,6 +437,7 @@ def test_send_state_refreshes_snapshot_for_contour(monkeypatch):
             snapshots=[snapshot],
             turn="A",
         )
+        _populate_history_with_fleet(match.history, match.players.keys())
 
         context = SimpleNamespace(
             bot=SimpleNamespace(
@@ -506,6 +587,7 @@ def test_router_notifies_other_players_on_hit(monkeypatch):
             messages={'A': {}, 'B': {}, 'C': {}},
             history=_new_grid(15),
         )
+        _populate_history_with_fleet(match.history, match.players.keys())
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
@@ -614,6 +696,8 @@ def test_router_notifies_attacked_player(monkeypatch, result, expected):
             messages={"A": {}, "B": {}, "C": {}},
             history=_new_grid(15),
         )
+        _populate_history_with_fleet(match.history, match.players.keys())
+        _populate_history_with_fleet(match.history, match.players.keys())
 
         monkeypatch.setattr(storage, "find_match_by_user", lambda uid, chat_id=None: match)
         monkeypatch.setattr(storage, "save_match", lambda m: None)
@@ -662,6 +746,7 @@ def test_router_notifies_next_player_on_miss(monkeypatch):
             messages={'A': {}, 'B': {}, 'C': {}},
             history=_new_grid(15),
         )
+        _populate_history_with_fleet(match.history, match.players.keys())
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
@@ -700,12 +785,12 @@ def test_router_move_sends_board(monkeypatch):
             status='playing',
             players={
                 'A': SimpleNamespace(user_id=1, chat_id=10, name='Alice'),
-                'B': SimpleNamespace(user_id=2, chat_id=20, name='Bob'),
+                'B': SimpleNamespace(user_id=2, chat_id=10, name='Bob'),
             },
             boards={'A': Board15(), 'B': Board15()},
             turn='A',
             shots={'A': {}, 'B': {}},
-            messages={'A': {'board': 1}, 'B': {'board': 3}},
+            messages={'A': {}, 'B': {}},
             history=_new_grid(15),
         )
 
@@ -717,12 +802,13 @@ def test_router_move_sends_board(monkeypatch):
         monkeypatch.setattr(router, '_phrase_or_joke', lambda m, pk, ph: '')
         monkeypatch.setattr(router, 'render_board', lambda state, player_key=None: BytesIO(b'target'))
 
-        send_photo = AsyncMock()
+        send_state = AsyncMock()
+        monkeypatch.setattr(router, '_send_state', send_state)
         context = SimpleNamespace(
             bot=SimpleNamespace(
                 edit_message_media=AsyncMock(),
                 edit_message_text=AsyncMock(),
-                send_photo=send_photo,
+                send_photo=AsyncMock(),
                 send_message=AsyncMock(),
             ),
             chat_data={},
@@ -736,7 +822,7 @@ def test_router_move_sends_board(monkeypatch):
 
         await router.router_text(update, context)
 
-        assert {c.args[0] for c in send_photo.call_args_list} == {10, 20}
+        assert {c.args[2] for c in send_state.call_args_list} == {'A', 'B'}
 
     asyncio.run(run_test())
 
@@ -760,6 +846,8 @@ def test_router_uses_player_names(monkeypatch):
             messages={'A': {}},
             history=_new_grid(15),
         )
+        _populate_history_with_fleet(match.history, match.players.keys())
+        _populate_history_with_fleet(match.history, match.players.keys())
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         monkeypatch.setattr(storage, 'save_match', lambda m: None)
@@ -853,6 +941,7 @@ def test_router_repeat_shot(monkeypatch):
             messages={},
             history=_new_grid(15),
         )
+        _populate_history_with_fleet(match.history, match.players.keys())
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
         save_match = Mock()
@@ -893,6 +982,7 @@ def test_router_blocks_contour_cell(monkeypatch):
             messages={},
             history=_new_grid(15),
         )
+        _populate_history_with_fleet(match.history, match.players.keys())
         match.history[0][0][0] = 5
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)
@@ -932,6 +1022,7 @@ def test_router_skips_eliminated_players(monkeypatch):
             messages={'A': {}},
             history=_new_grid(15),
         )
+        _populate_history_with_fleet(match.history, match.players.keys())
         match.boards['B'].alive_cells = 0
 
         monkeypatch.setattr(storage, 'find_match_by_user', lambda uid, chat_id=None: match)

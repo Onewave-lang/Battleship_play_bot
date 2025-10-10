@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+from typing import Iterator
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -295,6 +296,91 @@ async def _send_state(
                 player_key,
                 restored_cells,
             )
+
+    def _player_ship_cells_count() -> int:
+        """Return number of cells showing player's fleet (1/3/4)."""
+
+        count = 0
+        for r in range(15):
+            for c in range(15):
+                if view_owners[r][c] != player_key:
+                    continue
+                if view_board[r][c] in {1, 3, 4}:
+                    count += 1
+        return count
+
+    def _iter_reference_ship_cells(owner_key: str) -> Iterator[tuple[int, int, int]]:
+        """Yield ship cells from snapshot/history for ``owner_key``."""
+
+        seen: set[tuple[int, int]] = set()
+        if snapshot:
+            board_entry = snapshot_boards.get(owner_key, {})
+            ref_grid = board_entry.get("grid") if isinstance(board_entry, dict) else None
+            if ref_grid:
+                for rr in range(min(len(ref_grid), 15)):
+                    row = ref_grid[rr]
+                    for cc in range(min(len(row), 15)):
+                        state = _get_cell_state(row[cc])
+                        if state not in {1, 3, 4}:
+                            continue
+                        coord = (rr, cc)
+                        if coord in seen:
+                            continue
+                        seen.add(coord)
+                        yield rr, cc, state
+        if history_source:
+            for rr in range(min(len(history_source), 15)):
+                row = history_source[rr]
+                for cc in range(min(len(row), 15)):
+                    coord = (rr, cc)
+                    if coord in seen:
+                        continue
+                    if _get_cell_owner(row[cc]) != owner_key:
+                        continue
+                    state = _get_cell_state(row[cc])
+                    if state not in {1, 3, 4}:
+                        continue
+                    seen.add(coord)
+                    yield rr, cc, state
+
+    expected_ship_cells = 20
+    current_ship_cells = _player_ship_cells_count()
+    if current_ship_cells < expected_ship_cells:
+        missing = expected_ship_cells - current_ship_cells
+        restored_from_snapshot: list[tuple[int, int, int]] = []
+        for rr, cc, state in _iter_reference_ship_cells(player_key):
+            if view_owners[rr][cc] == player_key and view_board[rr][cc] in {1, 3, 4}:
+                continue
+            view_board[rr][cc] = state
+            view_owners[rr][cc] = player_key
+            restored_from_snapshot.append((rr, cc, state))
+            missing -= 1
+            if missing == 0:
+                break
+        if restored_from_snapshot:
+            logger.warning(
+                "Restored %d ship cells for %s from reference snapshot: %s",
+                len(restored_from_snapshot),
+                player_key,
+                restored_from_snapshot,
+            )
+        current_ship_cells = _player_ship_cells_count()
+    if current_ship_cells != expected_ship_cells:
+        if current_ship_cells < expected_ship_cells:
+            logger.error(
+                "Unable to restore ship cells for %s before rendering: %d of %d present",
+                player_key,
+                current_ship_cells,
+                expected_ship_cells,
+            )
+        else:
+            logger.error(
+                "Too many ship cells for %s before rendering: %d (expected %d)",
+                player_key,
+                current_ship_cells,
+                expected_ship_cells,
+            )
+        return
 
     state.board = view_board
     state.owners = view_owners
