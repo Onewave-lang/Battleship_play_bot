@@ -8,8 +8,6 @@ from telegram import (
 from telegram.ext import ContextTypes
 from urllib.parse import quote_plus
 
-from .state import Board15State
-from .renderer import render_board
 from . import storage, parser, battle, placement
 from .models import Player
 from logic.phrases import (
@@ -468,52 +466,19 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         match.boards[key] = board
         ensure_ship_owners(match.history, board, key)
     storage.save_match(match)
-    state = Board15State(chat_id=update.effective_chat.id)
-    merged = [[_get_cell_state(cell) for cell in row] for row in match.history]
-    owners = [[_get_cell_owner(cell) for cell in row] for row in match.history]
-    own_grid = match.boards['A'].grid
-    for r in range(15):
-        for c in range(15):
-            cell = own_grid[r][c]
-            if merged[r][c] == 0 and _get_cell_state(cell) == 1:
-                merged[r][c] = 1
-                owners[r][c] = _get_cell_owner(cell) or 'A'
-    state.board = merged
-    state.owners = owners
-    state.player_key = 'A'
-
     await update.message.reply_text(
         'Тестовый матч начат. Вы — игрок A; два бота ходят автоматически.'
     )
 
-    try:
-        buf = render_board(state, 'A')
-    except Exception:
-        from io import BytesIO
-        buf = BytesIO()
+    from . import router as router_module
 
-    reply_photo = getattr(update.message, "reply_photo", None)
-    board_msg_id = None
-    if reply_photo is not None:
-        msg = await reply_photo(
-            buf, caption='Выберите клетку или введите ход текстом.'
-        )
-        board_msg_id = msg.message_id
-    else:
-        msg = await context.bot.send_photo(
-            chat_id=update.effective_chat.id,
-            photo=buf,
-            caption='Выберите клетку или введите ход текстом.',
-        )
-        board_msg_id = msg.message_id
-    state.message_id = board_msg_id
-    context.bot_data.setdefault(STATE_KEY, {})[update.effective_chat.id] = state
-    match.messages['A'] = {
-        'board': board_msg_id,
-        'board_history': [],
-        'text_history': [],
-        'history_active': False,
-    }
+    await router_module._send_state(
+        context,
+        match,
+        'A',
+        'Выберите клетку или введите ход текстом.',
+        reveal_ships=True,
+    )
     storage.save_match(match)
     _schedule_auto_play(
         match, context, update.effective_chat.id, human='A', delay=3
