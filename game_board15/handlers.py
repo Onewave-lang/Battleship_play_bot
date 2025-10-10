@@ -68,31 +68,15 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not getattr(player, 'name', ''):
         player.name = name
         storage.save_match(match)
-    state = Board15State(chat_id=update.effective_chat.id)
-    merged = [[_get_cell_state(cell) for cell in row] for row in match.history]
-    owners = [[_get_cell_owner(cell) for cell in row] for row in match.history]
-    own_grid = match.boards[player_key].grid
-    for r in range(15):
-        for c in range(15):
-            cell = own_grid[r][c]
-            if merged[r][c] == 0 and _get_cell_state(cell) == 1:
-                merged[r][c] = 1
-                owners[r][c] = _get_cell_owner(cell) or player_key
-    state.board = merged
-    state.owners = owners
-    state.player_key = player_key
-    buf = render_board(state, player_key)
-    msg = await update.message.reply_photo(
-        buf, caption='Выберите клетку или введите ход текстом.'
+    from . import router as router_module
+
+    await router_module._send_state(
+        context,
+        match,
+        player_key,
+        'Выберите клетку или введите ход текстом.',
+        reveal_ships=True,
     )
-    state.message_id = msg.message_id
-    context.bot_data.setdefault(STATE_KEY, {})[update.effective_chat.id] = state
-    match.messages[player_key] = {
-        'board': msg.message_id,
-        'board_history': [],
-        'text_history': [],
-        'history_active': False,
-    }
     storage.save_match(match)
 
 
