@@ -15,9 +15,14 @@ pil.ImageDraw = types.SimpleNamespace()
 pil.ImageFont = types.SimpleNamespace()
 sys.modules.setdefault('PIL', pil)
 
-from game_board15 import battle, router, storage
-from game_board15.models import Board15, Ship
-from game_board15.utils import _get_cell_state, _get_cell_owner, _set_cell_state
+from game_board15 import battle, router, storage, placement
+from game_board15.models import Board15, Ship, Match15, Player
+from game_board15.utils import (
+    _get_cell_state,
+    _get_cell_owner,
+    _set_cell_state,
+    ensure_ship_owners,
+)
 
 
 STANDARD_FLEET = [
@@ -465,6 +470,62 @@ def test_send_state_refreshes_snapshot_for_contour(monkeypatch):
 
         assert captured["board"][1][1] == 5
         assert snapshot["boards"]["B"]["grid"][1][1] == 5
+
+    asyncio.run(run_test())
+
+
+def test_send_state_restores_missing_ship_cells(monkeypatch):
+    async def run_test():
+        match = Match15.new(1, 101, "A")
+        match.status = "playing"
+        match.turn = "A"
+        match.players["A"].ready = True
+        match.players["B"] = Player(user_id=2, chat_id=202, name="B", ready=True)
+        match.players["C"] = Player(user_id=3, chat_id=303, name="C", ready=True)
+
+        mask = [[0] * 15 for _ in range(15)]
+        for key in ("A", "B", "C"):
+            board = placement.random_board_global(mask)
+            match.boards[key] = board
+            ensure_ship_owners(match.history, board, key)
+
+        player_board = match.boards["A"]
+        target_ship = player_board.ships[0]
+        target_ship.alive = False
+        corrupted_cells: list[tuple[int, int]] = []
+        for rr, cc in target_ship.cells:
+            player_board.grid[rr][cc] = 0
+            match.history[rr][cc] = 0
+            corrupted_cells.append((rr, cc))
+
+        match.messages = {key: {} for key in match.players}
+        match.snapshots = []
+
+        captured: dict[str, list[list[int]]] = {}
+
+        def fake_render_board(state, player_key=None):
+            captured["board"] = [row[:] for row in state.board]
+            return BytesIO(b"x")
+
+        monkeypatch.setattr(router, "render_board", fake_render_board)
+
+        context = SimpleNamespace(
+            bot=SimpleNamespace(
+                send_photo=AsyncMock(return_value=SimpleNamespace(message_id=1)),
+                send_message=AsyncMock(),
+                edit_message_media=AsyncMock(),
+                edit_message_text=AsyncMock(),
+            ),
+            bot_data={},
+            chat_data={},
+        )
+
+        await router._send_state(context, match, "A", "msg")
+
+        board_image = captured["board"]
+        assert len(board_image) == 15
+        for rr, cc in corrupted_cells:
+            assert board_image[rr][cc] == 4
 
     asyncio.run(run_test())
 

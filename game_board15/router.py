@@ -228,7 +228,8 @@ async def _send_state(
     view_board = [row.copy() for row in combined_board]
     view_owners = [[owner for owner in row] for row in combined_owners]
 
-    own_live_grid = match.boards[player_key].grid
+    player_board = match.boards.get(player_key)
+    own_live_grid = player_board.grid if player_board else [[0] * 15 for _ in range(15)]
 
     if not include_all_ships:
         for r in range(15):
@@ -343,17 +344,34 @@ async def _send_state(
                     seen.add(coord)
                     yield rr, cc, state
 
-    expected_ship_cells = 20
+    def _expected_ship_cells(board) -> int:
+        total = 0
+        if board is not None:
+            ships = getattr(board, "ships", []) or []
+            for ship in ships:
+                for rr, cc in getattr(ship, "cells", []) or []:
+                    if 0 <= rr < 15 and 0 <= cc < 15:
+                        total += 1
+            if total == 0:
+                grid = getattr(board, "grid", []) or []
+                for r in range(min(len(grid), 15)):
+                    row = grid[r]
+                    for c in range(min(len(row), 15)):
+                        if _get_cell_state(row[c]) in {1, 3, 4}:
+                            total += 1
+        return total or 20
+
+    expected_ship_cells = _expected_ship_cells(player_board)
     current_ship_cells = _player_ship_cells_count()
     if current_ship_cells < expected_ship_cells:
         missing = expected_ship_cells - current_ship_cells
         restored_from_snapshot: list[tuple[int, int, int]] = []
-        for rr, cc, state in _iter_reference_ship_cells(player_key):
+        for rr, cc, cell_state in _iter_reference_ship_cells(player_key):
             if view_owners[rr][cc] == player_key and view_board[rr][cc] in {1, 3, 4}:
                 continue
-            view_board[rr][cc] = state
+            view_board[rr][cc] = cell_state
             view_owners[rr][cc] = player_key
-            restored_from_snapshot.append((rr, cc, state))
+            restored_from_snapshot.append((rr, cc, cell_state))
             missing -= 1
             if missing == 0:
                 break
@@ -364,6 +382,36 @@ async def _send_state(
                 player_key,
                 restored_from_snapshot,
             )
+        if missing > 0 and player_board is not None:
+            restored_from_board: list[tuple[int, int, int]] = []
+            for ship in getattr(player_board, "ships", []) or []:
+                if missing == 0:
+                    break
+                cells = getattr(ship, "cells", []) or []
+                for rr, cc in cells:
+                    if missing == 0:
+                        break
+                    if not (0 <= rr < 15 and 0 <= cc < 15):
+                        continue
+                    cell_state = _get_cell_state(player_board.grid[rr][cc])
+                    if cell_state not in {1, 3, 4}:
+                        cell_state = 4 if not getattr(ship, "alive", True) else 1
+                    if (
+                        view_board[rr][cc] == cell_state
+                        and view_owners[rr][cc] == player_key
+                    ):
+                        continue
+                    view_board[rr][cc] = cell_state
+                    view_owners[rr][cc] = player_key
+                    restored_from_board.append((rr, cc, cell_state))
+                    missing -= 1
+            if restored_from_board:
+                logger.warning(
+                    "Restored %d ship cells for %s from live board data: %s",
+                    len(restored_from_board),
+                    player_key,
+                    restored_from_board,
+                )
         current_ship_cells = _player_ship_cells_count()
     if current_ship_cells != expected_ship_cells:
         if current_ship_cells < expected_ship_cells:
