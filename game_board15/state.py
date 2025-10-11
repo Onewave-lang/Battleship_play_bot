@@ -26,3 +26,4 @@ class Board15State:
     message_id: Optional[int] = None
     player_key: Optional[str] = None
     highlight: List[Coord] = field(default_factory=list)
+    footer_label: str = ""

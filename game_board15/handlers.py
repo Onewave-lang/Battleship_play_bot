@@ -456,6 +456,8 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     match.players['C'] = Player(user_id=0, chat_id=update.effective_chat.id, name='C')
     match.status = 'playing'
     match.turn = 'A'
+    flags = match.messages.setdefault('_flags', {})
+    flags['board15_test'] = True
     # place fleets for all players ensuring that ships of different players do
     # not touch each other.  Build a mask of forbidden cells (occupied or
     # adjacent) and update it after each fleet is generated.

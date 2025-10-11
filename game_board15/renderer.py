@@ -232,6 +232,38 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
         y = margin + idx * TILE_PX + TILE_PX // 2
         draw.text((margin // 2, y), str(idx + 1), fill=COLORS[THEME]["grid"], anchor="mm", font=font)
 
+    footer_label = getattr(state, "footer_label", "")
+    if footer_label:
+        try:
+            footer_font = ImageFont.truetype(FONT_PATH, int(TILE_PX * 0.25))
+        except OSError:
+            footer_font = ImageFont.load_default()
+        padding_x = max(4, TILE_PX // 3)
+        padding_y = max(4, TILE_PX // 4)
+        x = margin + size - padding_x
+        y = margin + size - padding_y
+        try:
+            draw.text(
+                (x, y),
+                footer_label,
+                fill=(128, 128, 128, 255),
+                font=footer_font,
+                anchor="rd",
+            )
+        except TypeError:
+            try:
+                bbox = draw.textbbox((0, 0), footer_label, font=footer_font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+            except Exception:
+                text_width, text_height = footer_font.getsize(footer_label)
+            draw.text(
+                (x - text_width, y - text_height),
+                footer_label,
+                fill=(128, 128, 128, 255),
+                font=footer_font,
+            )
+
     if debug_fleet_issue:
         warn_text = "DEBUG: FLEET<20"
         try:
