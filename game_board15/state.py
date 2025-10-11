@@ -27,3 +27,4 @@ class Board15State:
     player_key: Optional[str] = None
     highlight: List[Coord] = field(default_factory=list)
     footer_label: str = ""
+    rendered_ship_cells: Optional[int] = None
