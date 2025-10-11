@@ -554,6 +554,19 @@ async def _send_state(
             displayed_ship_cells = rendered_cells
             state.footer_label = _format_footer_label(displayed_ship_cells)
             buf = render_fn(state, player_key)
+
+        rendered_cells = getattr(state, "rendered_ship_cells", None)
+        if (
+            rendered_cells is not None
+            and rendered_cells != displayed_ship_cells
+        ):
+            logger.error(
+                "render_board returned %d ship cells for %s while footer shows %d; aborting",
+                rendered_cells,
+                player_key,
+                displayed_ship_cells,
+            )
+            return
     if buf.getbuffer().nbytes == 0:
         logger.warning("render_board returned empty buffer for chat %s", chat_id)
         return
