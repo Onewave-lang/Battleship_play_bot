@@ -495,12 +495,7 @@ async def _send_state(
             label_parts.append(f"match={truncated}")
         label_parts.append(f"player={player_key}")
         label_parts.append(f"ships={total_ship_cells}")
-        displayed_ship_cells = sum(
-            1
-            for rr in range(len(view_board))
-            for cc in range(len(view_board[rr]))
-            if view_board[rr][cc] in {1, 3, 4}
-        )
+        displayed_ship_cells = _player_ship_cells_count()
         label_parts.append(f"sh_disp={displayed_ship_cells}")
         label_parts.append(f"snap={'Y' if snapshot else 'N'}")
         label_parts.append(f"hist={history_length}")
