@@ -186,7 +186,7 @@ def test_board15_test_manual(monkeypatch):
             1
             for r in range(15)
             for c in range(15)
-            if state.owners[r][c] == 'A' and state.board[r][c] in {1, 3, 4}
+            if state.board[r][c] in {1, 3, 4}
         )
         assert f"sh_disp={expected_sh_disp}" in state.footer_label
 
