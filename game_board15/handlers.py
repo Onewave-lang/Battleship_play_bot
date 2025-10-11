@@ -9,6 +9,7 @@ from telegram.ext import ContextTypes
 from urllib.parse import quote_plus
 
 from . import storage, parser, battle, placement
+from .renderer import render_board
 from .models import Player
 from logic.phrases import (
     ENEMY_HIT,
@@ -67,6 +68,14 @@ async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         player.name = name
         storage.save_match(match)
     from . import router as router_module
+
+    if not hasattr(context.bot, "send_photo"):
+        async def _fallback_send_photo(chat_id, buf, *, caption=None):
+            if chat_id != update.effective_chat.id:
+                raise AttributeError("send_photo unavailable for this chat")
+            return await update.message.reply_photo(buf, caption=caption)
+
+        context.bot.send_photo = _fallback_send_photo  # type: ignore[attr-defined]
 
     await router_module._send_state(
         context,

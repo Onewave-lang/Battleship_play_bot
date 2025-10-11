@@ -9,8 +9,8 @@ from telegram.ext import ContextTypes
 
 from . import storage
 from . import battle, parser
-from .handlers import STATE_KEY
-from .renderer import render_board
+from . import handlers
+from .renderer import render_board as renderer_render_board
 from .state import Board15State
 from logic.phrases import (
     ENEMY_HIT,
@@ -32,6 +32,7 @@ from .utils import (
 
 
 logger = logging.getLogger(__name__)
+render_board = renderer_render_board
 
 
 CHAT_PREFIXES = ("@", "!")
@@ -67,7 +68,7 @@ async def _send_state(
     """Render and send main board image followed by text message."""
 
     chat_id = match.players[player_key].chat_id
-    states = context.bot_data.setdefault(STATE_KEY, {})
+    states = context.bot_data.setdefault(handlers.STATE_KEY, {})
     state: Board15State | None = states.get(chat_id)
     if not state:
         state = Board15State(chat_id=chat_id)
@@ -410,6 +411,23 @@ async def _send_state(
                     total_ship_cells += 1
     else:
         total_ship_cells = current_ship_cells
+
+    ship_cells_from_ships = 0
+    ships_defined = False
+    if player_board and getattr(player_board, "ships", None):
+        for ship in player_board.ships:
+            cells = getattr(ship, "cells", []) or []
+            if cells:
+                ships_defined = True
+                ship_cells_from_ships += len(cells)
+
+    if ships_defined:
+        expected_ship_cells = ship_cells_from_ships
+    else:
+        expected_ship_cells = total_ship_cells
+
+    if current_ship_cells > expected_ship_cells:
+        expected_ship_cells = current_ship_cells
     if current_ship_cells < expected_ship_cells:
         missing = expected_ship_cells - current_ship_cells
 
@@ -485,21 +503,27 @@ async def _send_state(
     if isinstance(messages_section, dict):
         flags = messages_section.get("_flags", {})
     history_length = len(history_source or [])
-    if isinstance(flags, dict) and flags.get("board15_test"):
+    board15_test = isinstance(flags, dict) and flags.get("board15_test")
+    displayed_ship_cells = _player_ship_cells_count()
+
+    if board15_test:
         match_id = getattr(match, "match_id", "") or ""
         truncated = match_id[:4]
         if match_id and len(match_id) > 4:
             truncated += "…"
-        label_parts: list[str] = []
-        if truncated:
-            label_parts.append(f"match={truncated}")
-        label_parts.append(f"player={player_key}")
-        label_parts.append(f"ships={total_ship_cells}")
-        displayed_ship_cells = _player_ship_cells_count()
-        label_parts.append(f"sh_disp={displayed_ship_cells}")
-        label_parts.append(f"snap={'Y' if snapshot else 'N'}")
-        label_parts.append(f"hist={history_length}")
-        state.footer_label = " ".join(label_parts)
+
+        def _format_footer_label(display_count: int) -> str:
+            parts: list[str] = []
+            if truncated:
+                parts.append(f"match={truncated}")
+            parts.append(f"player={player_key}")
+            parts.append(f"ships={total_ship_cells}")
+            parts.append(f"sh_disp={display_count}")
+            parts.append(f"snap={'Y' if snapshot else 'N'}")
+            parts.append(f"hist={history_length}")
+            return " ".join(parts)
+
+        state.footer_label = _format_footer_label(displayed_ship_cells)
     else:
         state.footer_label = ""
 
@@ -510,7 +534,26 @@ async def _send_state(
         state.highlight = [tuple(cell) for cell in snapshot.get("last_highlight", [])]
     else:
         state.highlight = getattr(match, "last_highlight", []).copy()
-    buf = render_board(state, player_key)
+    render_fn = getattr(handlers, "render_board", None)
+    if render_fn is None or render_fn is renderer_render_board:
+        render_fn = render_board
+    buf = render_fn(state, player_key)
+
+    if board15_test:
+        rendered_cells = getattr(state, "rendered_ship_cells", None)
+        if (
+            rendered_cells is not None
+            and rendered_cells != displayed_ship_cells
+        ):
+            logger.warning(
+                "Rendered ship cell count %d mismatches label %d for %s; updating",
+                rendered_cells,
+                displayed_ship_cells,
+                player_key,
+            )
+            displayed_ship_cells = rendered_cells
+            state.footer_label = _format_footer_label(displayed_ship_cells)
+            buf = render_fn(state, player_key)
     if buf.getbuffer().nbytes == 0:
         logger.warning("render_board returned empty buffer for chat %s", chat_id)
         return
@@ -865,7 +908,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if save_before_send:
         storage.save_match(match)
     if same_chat:
-        states = context.bot_data.setdefault(STATE_KEY, {})
+        states = context.bot_data.setdefault(handlers.STATE_KEY, {})
         chat_id = match.players[player_key].chat_id
         shared_state = states.get(chat_id)
         if shared_state is not None:

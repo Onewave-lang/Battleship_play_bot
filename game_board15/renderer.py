@@ -121,6 +121,9 @@ def render_board(state: Board15State, player_key: str | None = None) -> BytesIO:
                 len(debug_fleet_cells),
                 debug_fleet_cells[:40],
             )
+        state.rendered_ship_cells = len(debug_fleet_cells)
+    else:
+        state.rendered_ship_cells = None
 
     margin = TILE_PX
     size = 15 * TILE_PX
