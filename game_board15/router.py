@@ -439,6 +439,27 @@ async def _send_state(
             )
         return
 
+    flags = {}
+    messages_section = getattr(match, "messages", {})
+    if isinstance(messages_section, dict):
+        flags = messages_section.get("_flags", {})
+    history_length = len(history_source or [])
+    if isinstance(flags, dict) and flags.get("board15_test"):
+        match_id = getattr(match, "match_id", "") or ""
+        truncated = match_id[:4]
+        if match_id and len(match_id) > 4:
+            truncated += "…"
+        label_parts: list[str] = []
+        if truncated:
+            label_parts.append(f"match={truncated}")
+        label_parts.append(f"player={player_key}")
+        label_parts.append(f"ships={current_ship_cells}")
+        label_parts.append(f"snap={'Y' if snapshot else 'N'}")
+        label_parts.append(f"hist={history_length}")
+        state.footer_label = " ".join(label_parts)
+    else:
+        state.footer_label = ""
+
     state.board = view_board
     state.owners = view_owners
     state.player_key = player_key

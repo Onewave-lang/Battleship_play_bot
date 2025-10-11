@@ -115,3 +115,24 @@ def test_hit_player_renders_dark_color(owner):
     expected = renderer.PLAYER_SHIP_COLORS_DARK.get(renderer.THEME, {}).get(owner)
     assert img.getpixel((x, y)) == expected
 
+
+def test_footer_label_draws_overlay():
+    sys.modules.pop("PIL", None)
+    sys.modules.pop("game_board15.renderer", None)
+    from PIL import Image, ImageChops
+    renderer = importlib.import_module("game_board15.renderer")
+    from game_board15.state import Board15State
+
+    img_plain = Image.open(renderer.render_board(Board15State())).convert("RGBA")
+    img_labeled = Image.open(
+        renderer.render_board(
+            Board15State(
+                footer_label="match=abcd player=A ships=20 snap=N hist=15"
+            )
+        )
+    ).convert("RGBA")
+
+    diff = ImageChops.difference(img_plain, img_labeled)
+    extrema = diff.getextrema()
+    assert any(channel_max > 0 for _, channel_max in extrema[:3])
+
