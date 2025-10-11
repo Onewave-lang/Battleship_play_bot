@@ -127,7 +127,7 @@ def test_footer_label_draws_overlay():
     img_labeled = Image.open(
         renderer.render_board(
             Board15State(
-                footer_label="match=abcd player=A ships=20 snap=N hist=15"
+                footer_label="match=abcd player=A ships=20 sh_disp=19 snap=N hist=15"
             )
         )
     ).convert("RGBA")
