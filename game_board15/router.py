@@ -403,40 +403,72 @@ async def _send_state(
     current_ship_cells = _player_ship_cells_count()
     if current_ship_cells < expected_ship_cells:
         missing = expected_ship_cells - current_ship_cells
-        restored_from_snapshot: list[tuple[int, int, int]] = []
+
+        # 1) Пробуем восстановить из снапшота/истории (как и раньше)
+        restored_from_ref: list[tuple[int, int, int]] = []
         for rr, cc, state in _iter_reference_ship_cells(player_key):
             if view_owners[rr][cc] == player_key and view_board[rr][cc] in {1, 3, 4}:
                 continue
             view_board[rr][cc] = state
             view_owners[rr][cc] = player_key
-            restored_from_snapshot.append((rr, cc, state))
+            restored_from_ref.append((rr, cc, state))
             missing -= 1
             if missing == 0:
                 break
-        if restored_from_snapshot:
+        if restored_from_ref:
             logger.warning(
-                "Restored %d ship cells for %s from reference snapshot: %s",
-                len(restored_from_snapshot),
+                "Restored %d ship cells for %s from reference snapshot/history: %s",
+                len(restored_from_ref),
                 player_key,
-                restored_from_snapshot,
+                restored_from_ref,
             )
-        _dump_coords("view_after_restore", view_board, view_owners)
+
+        # 2) Если всё ещё не хватает — дотягиваем из живой доски игрока
+        #    (гарантированно содержит реальные 1/3/4 его кораблей).
+        if missing > 0:
+            own_live = match.boards[player_key].grid
+            live_added: list[tuple[int, int, int]] = []
+            for rr in range(15):
+                for cc in range(15):
+                    st = _get_cell_state(own_live[rr][cc])
+                    if st not in {1, 3, 4}:
+                        continue
+                    if view_owners[rr][cc] == player_key and view_board[rr][cc] in {1, 3, 4}:
+                        continue
+                    view_board[rr][cc] = st
+                    view_owners[rr][cc] = player_key
+                    live_added.append((rr, cc, st))
+                    missing -= 1
+                    if missing == 0:
+                        break
+                if missing == 0:
+                    break
+            if live_added:
+                logger.warning(
+                    "Restored %d ship cells for %s from live grid: %s",
+                    len(live_added),
+                    player_key,
+                    live_added,
+                )
+
+        # 3) Контроль: после двух источников должно быть ровно 20.
         current_ship_cells = _player_ship_cells_count()
-    if current_ship_cells != expected_ship_cells:
-        if current_ship_cells < expected_ship_cells:
+        if current_ship_cells != expected_ship_cells:
+            # В проде делать fail-fast: НЕ отправлять неверное изображение.
             logger.error(
-                "Unable to restore ship cells for %s before rendering: %d of %d present",
+                "Unable to reach exactly %d ship cells for %s before rendering: got %d",
+                expected_ship_cells,
                 player_key,
                 current_ship_cells,
-                expected_ship_cells,
             )
-        else:
-            logger.error(
-                "Too many ship cells for %s before rendering: %d (expected %d)",
-                player_key,
-                current_ship_cells,
-                expected_ship_cells,
-            )
+            return
+    elif current_ship_cells > expected_ship_cells:
+        logger.error(
+            "Too many ship cells for %s before rendering: %d (expected %d)",
+            player_key,
+            current_ship_cells,
+            expected_ship_cells,
+        )
         return
 
     flags = {}
