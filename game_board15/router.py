@@ -926,7 +926,14 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         shared_state = states.get(chat_id)
         if shared_state is not None:
             shared_state._shared_skip_next = False
-        for idx, (key, participant) in enumerate(match.players.items()):
+
+        ordered_players = sorted(
+            match.players.items(),
+            key=lambda kv: (0 if kv[1].user_id != 0 else 1, kv[0]),
+        )
+
+        shared_owner_key: str | None = None
+        for idx, (key, participant) in enumerate(ordered_players):
             if shared_state is not None and idx > 0:
                 shared_state._shared_skip_next = True
             await _send_state(
@@ -937,10 +944,13 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 reveal_ships=True,
             )
             if idx == 0:
+                shared_owner_key = key
                 shared_state = states.get(chat_id)
         if shared_state is not None:
             shared_state._shared_skip_next = False
-        shared_entry = match.messages.get(player_key, {})
+        if shared_owner_key is None:
+            shared_owner_key = player_key
+        shared_entry = match.messages.get(shared_owner_key, {})
         shared_board = shared_entry.get("board")
         shared_history_active = shared_entry.get("history_active", False)
         for key in match.players:
