@@ -182,6 +182,13 @@ def test_board15_test_manual(monkeypatch):
             if match.boards['A'].grid[r][c] in {1, 3, 4}
         )
         assert f"ships={expected_ships}" in state.footer_label
+        expected_sh_disp = sum(
+            1
+            for r in range(15)
+            for c in range(15)
+            if state.owners[r][c] == 'A' and state.board[r][c] in {1, 3, 4}
+        )
+        assert f"sh_disp={expected_sh_disp}" in state.footer_label
 
         # first human move: miss at c3
         update.message.reply_text = AsyncMock()

@@ -401,6 +401,15 @@ async def _send_state(
 
     expected_ship_cells = 20
     current_ship_cells = _player_ship_cells_count()
+    total_ship_cells = 0
+    player_board = match.boards.get(player_key) if hasattr(match, "boards") else None
+    if player_board and getattr(player_board, "grid", None):
+        for row in player_board.grid:
+            for cell in row:
+                if _get_cell_state(cell) in {1, 3, 4}:
+                    total_ship_cells += 1
+    else:
+        total_ship_cells = current_ship_cells
     if current_ship_cells < expected_ship_cells:
         missing = expected_ship_cells - current_ship_cells
 
@@ -485,7 +494,8 @@ async def _send_state(
         if truncated:
             label_parts.append(f"match={truncated}")
         label_parts.append(f"player={player_key}")
-        label_parts.append(f"ships={current_ship_cells}")
+        label_parts.append(f"ships={total_ship_cells}")
+        label_parts.append(f"sh_disp={current_ship_cells}")
         label_parts.append(f"snap={'Y' if snapshot else 'N'}")
         label_parts.append(f"hist={history_length}")
         state.footer_label = " ".join(label_parts)
