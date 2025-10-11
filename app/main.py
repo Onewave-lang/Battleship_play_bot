@@ -52,6 +52,8 @@ if not webhook_url_raw:
 webhook_url = normalize_webhook_base(webhook_url_raw)
 
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 logger.info("Using webhook base URL %s", webhook_url)
