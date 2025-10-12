@@ -16,7 +16,7 @@ pil.ImageFont = types.SimpleNamespace()
 sys.modules.setdefault('PIL', pil)
 
 from game_board15 import battle, router, storage
-from game_board15.models import Board15, Ship
+from game_board15.models import Board15, Match15, Ship
 from game_board15.utils import _get_cell_state, _get_cell_owner, _set_cell_state
 
 
@@ -89,6 +89,51 @@ def _populate_history_with_fleet(history, owner_keys):
                 c = cc + col_offset
                 if 0 <= r < 15 and 0 <= c < 15:
                     _set_cell_state(history, r, c, 1, owner_key)
+
+
+def test_send_state_skips_underfilled_ready_fleet(monkeypatch):
+    async def run():
+        match = Match15.new(1, 101, "Tester")
+        board = match.boards["A"]
+        board.grid = [[0] * 15 for _ in range(15)]
+        # Simulate a corrupted fleet with only 19 cells instead of 20.
+        ship_cells = [
+            (0, 0), (0, 1), (0, 2), (0, 3),
+            (2, 0), (2, 1), (2, 2),
+            (4, 0), (4, 1), (4, 2),
+            (6, 0), (6, 1),
+            (6, 3), (6, 4),
+            (8, 1), (9, 1),
+            (10, 10),
+            (12, 12),
+            (14, 14),
+        ]
+        board.ships = [Ship(cells=[cell]) for cell in ship_cells]
+        for r, c in ship_cells:
+            board.grid[r][c] = 1
+        board.alive_cells = len(ship_cells)
+        match.players["A"].ready = True
+
+        render_called = False
+
+        def fake_render(state, player_key=None):
+            nonlocal render_called
+            render_called = True
+            return BytesIO(b"skip")
+
+        monkeypatch.setattr(router, "render_board", fake_render)
+
+        context = SimpleNamespace(
+            bot=SimpleNamespace(send_photo=AsyncMock()),
+            bot_data={},
+        )
+
+        await router._send_state(context, match, "A", "test")
+
+        assert render_called is False
+        context.bot.send_photo.assert_not_awaited()
+
+    asyncio.run(run())
 
 
 def test_router_auto_sends_boards(monkeypatch):
