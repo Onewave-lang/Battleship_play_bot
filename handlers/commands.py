@@ -45,6 +45,7 @@ NAME_KEY = "player_name"
 NAME_STATE_KEY = "name_state"
 NAME_HINT_NEWGAME = "newgame"
 NAME_HINT_AUTO = "auto"
+NAME_HINT_BOARD15 = "board15"
 
 
 def _user_data(context: ContextTypes.DEFAULT_TYPE) -> dict:

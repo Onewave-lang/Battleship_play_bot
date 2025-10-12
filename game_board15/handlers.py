@@ -2,9 +2,16 @@
 from __future__ import annotations
 
 import logging
+from typing import Optional
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
+
+from handlers.commands import (
+    NAME_HINT_BOARD15,
+    get_player_name,
+    set_waiting_for_name,
+)
 
 from . import storage
 from .models import Match15
@@ -14,34 +21,119 @@ from . import router
 
 logger = logging.getLogger(__name__)
 
+PENDING_BOARD15_CREATE = "board15_create"
+PENDING_BOARD15_TEST = "board15_test"
 
-async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+
+async def _prompt_for_name(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    pending_action: str,
+) -> None:
     message = update.message
     if not message:
         return
-    user = update.effective_user
-    chat = update.effective_chat
-    match = storage.find_match_by_user(user.id, chat.id)
-    if match:
-        await message.reply_text("Вы уже участвуете в матче 15×15.")
-        return
-    name = user.first_name or "Игрок"
-    match = storage.create_match(user.id, chat.id, name)
-    keyboard = InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton(
-                    "Получить ссылку-приглашение",
-                    callback_data="b15_get_link",
-                )
-            ]
-        ]
+    set_waiting_for_name(
+        context,
+        hint=NAME_HINT_BOARD15,
+        pending={"action": pending_action},
     )
     await message.reply_text(
-        "Матч создан. Пригласите ещё двух игроков по ссылке.",
-        reply_markup=keyboard,
+        "Перед созданием матча напишите, как вас представить соперникам."
     )
-    logger.info("MATCH3_CREATE | match_id=%s owner=%s", match.match_id, user.id)
+    await message.reply_text(
+        "Введите имя одним сообщением (например: Иван)."
+    )
+
+
+async def _create_board15_match(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    test_mode: bool = False,
+) -> Optional[Match15]:
+    message = update.message
+    if not message:
+        return None
+    user = update.effective_user
+    chat = update.effective_chat
+
+    existing = storage.find_match_by_user(user.id, chat.id)
+    if existing:
+        await message.reply_text("Вы уже участвуете в матче 15×15.")
+        return existing
+
+    name = get_player_name(context)
+    if not name:
+        # Should not happen because we prompt beforehand, but guard just in case.
+        await _prompt_for_name(
+            update,
+            context,
+            pending_action=PENDING_BOARD15_TEST if test_mode else PENDING_BOARD15_CREATE,
+        )
+        return None
+
+    match = storage.create_match(user.id, chat.id, name)
+
+    if test_mode:
+        match.messages.setdefault("_flags", {})["board15_test"] = True
+        context.bot_data.setdefault(STATE_KEY, {})
+        match.status = "playing"
+        match.create_snapshot()
+        storage.save_match(match)
+        await message.reply_text("Тестовый матч 15×15 создан. Боты готовы к игре.")
+        await _auto_play_bots(context, match, "A")
+        logger.info("MATCH3_TEST_CREATE | match_id=%s owner=%s", match.match_id, user.id)
+    else:
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "Получить ссылку-приглашение",
+                        callback_data="b15_get_link",
+                    )
+                ]
+            ]
+        )
+        await message.reply_text(
+            "Матч создан. Пригласите ещё двух игроков по ссылке.",
+            reply_markup=keyboard,
+        )
+        logger.info("MATCH3_CREATE | match_id=%s owner=%s", match.match_id, user.id)
+    return match
+
+
+async def _ensure_board15_ready(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    test_mode: bool = False,
+) -> Optional[Match15]:
+    name = get_player_name(context)
+    if not name:
+        await _prompt_for_name(
+            update,
+            context,
+            pending_action=PENDING_BOARD15_TEST if test_mode else PENDING_BOARD15_CREATE,
+        )
+        return None
+    return await _create_board15_match(update, context, test_mode=test_mode)
+
+
+async def finalize_board15_pending(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    pending: dict,
+) -> bool:
+    action = pending.get("action")
+    test_mode = action == PENDING_BOARD15_TEST
+    match = await _create_board15_match(update, context, test_mode=test_mode)
+    return match is not None
+
+
+async def board15(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _ensure_board15_ready(update, context)
 
 
 async def send_board15_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -60,16 +152,7 @@ async def send_board15_invite_link(update: Update, context: ContextTypes.DEFAULT
 
 
 async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    message = update.message
-    if not message:
-        return
-    user = update.effective_user
-    name = user.first_name or "Тестирующий"
-    match = storage.create_match(user.id, message.chat.id, name)
-    match.messages.setdefault("_flags", {})["board15_test"] = True
-    context.bot_data.setdefault(STATE_KEY, {})
-    await message.reply_text("Тестовый матч 15×15 создан. Боты готовы к игре.")
-    await _auto_play_bots(context, match, "A")
+    await _ensure_board15_ready(update, context, test_mode=True)
 
 
 async def _auto_play_bots(
@@ -108,5 +191,6 @@ __all__ = [
     "STATE_KEY",
     "board15",
     "board15_test",
+    "finalize_board15_pending",
     "send_board15_invite_link",
 ]
