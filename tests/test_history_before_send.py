@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from game_board15 import router as router15
+from game_board15.battle import HIT, KILL, MISS, ShotResult
 from game_board15.models import Board15, Ship as Ship15
 from handlers import router as router_std
 from models import Board, Ship
@@ -65,6 +66,39 @@ def test_board15_router_updates_history_before_send(monkeypatch):
         assert saved
 
     asyncio.run(run())
+
+
+def test_update_history_marks_last_move_and_decays():
+    boards = {key: Board15() for key in ("A", "B", "C")}
+    match = SimpleNamespace(history=_new_grid(15), boards=boards)
+
+    miss_result = ShotResult(result=MISS, owner=None, coord=(0, 0))
+    router15._update_history(match, miss_result)
+    assert match.history[0][0] == [2, None, 0]
+
+    hit_result = ShotResult(result=HIT, owner="B", coord=(0, 1))
+    router15._update_history(match, hit_result)
+    assert match.history[0][0][2] == 1
+    assert match.history[0][1] == [3, "B", 0]
+
+    ship = Ship15(cells=[(1, 1), (1, 2)], owner="C")
+    kill_result = ShotResult(
+        result=KILL,
+        owner="C",
+        coord=(1, 1),
+        killed_ship=ship,
+        contour=[(0, 2)],
+    )
+    router15._update_history(match, kill_result)
+    assert match.history[1][1] == [4, "C", 0]
+    assert match.history[1][2] == [4, "C", 0]
+    assert match.history[0][1][2] == 1
+    assert match.history[0][2] == [5, None, 1]
+
+    next_miss = ShotResult(result=MISS, owner=None, coord=(2, 2))
+    router15._update_history(match, next_miss)
+    assert match.history[1][1][2] == 1
+    assert match.history[2][2] == [2, None, 0]
 
 
 def test_board_test_router_updates_history_before_send(monkeypatch):

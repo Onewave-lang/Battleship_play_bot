@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field as dc_field
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import uuid
 
 Coord = Tuple[int, int]
@@ -15,6 +15,46 @@ PLAYER_COLORS = {
     "B": (38, 178, 69),
     "C": (255, 136, 17),
 }
+
+
+def _coerce_age(value: Any) -> int:
+    try:
+        age = int(value)
+    except (TypeError, ValueError):
+        return 1
+    return 0 if age == 0 else 1
+
+
+def normalize_history_cell(cell: Any, *, default_owner: Optional[str] = None) -> List[int | None]:
+    """Return a normalized ``[state, owner, age]`` triple for history cells."""
+
+    if isinstance(cell, (list, tuple)):
+        state = int(cell[0]) if len(cell) > 0 and cell[0] is not None else 0
+        owner = cell[1] if len(cell) > 1 else default_owner
+        age = _coerce_age(cell[2] if len(cell) > 2 else 1)
+    else:
+        state = int(cell)
+        owner = default_owner
+        age = 1
+    return [state, owner, age]
+
+
+def empty_history(size: int = 15) -> List[List[List[int | None]]]:
+    return [[[0, None, 1] for _ in range(size)] for _ in range(size)]
+
+
+def normalize_history_grid(grid: Any, *, size: int = 15) -> List[List[List[int | None]]]:
+    normalized: List[List[List[int | None]]] = []
+    rows: List[Any] = list(grid) if isinstance(grid, (list, tuple)) else []
+    for r in range(size):
+        row_data = rows[r] if r < len(rows) else []
+        row: List[List[int | None]] = []
+        cells = list(row_data) if isinstance(row_data, (list, tuple)) else []
+        for c in range(size):
+            cell = cells[c] if c < len(cells) else [0, None, 1]
+            row.append(normalize_history_cell(cell))
+        normalized.append(row)
+    return normalized
 
 
 @dataclass
@@ -108,7 +148,7 @@ class Snapshot15:
     def from_match(cls, match: "Match15") -> "Snapshot15":
         field_copy = match.field.clone()
         history_copy = [
-            [list(cell) if isinstance(cell, (list, tuple)) else [cell, None] for cell in row]
+            [normalize_history_cell(cell) for cell in row]
             for row in match.history
         ]
         return cls(
@@ -138,9 +178,7 @@ class Match15:
     alive_cells: Dict[str, int] = dc_field(
         default_factory=lambda: {key: 20 for key in PLAYER_ORDER}
     )
-    history: List[List[List[int | None]]] = dc_field(
-        default_factory=lambda: [[[0, None] for _ in range(15)] for _ in range(15)]
-    )
+    history: List[List[List[int | None]]] = dc_field(default_factory=empty_history)
     messages: Dict[str, Dict[str, object]] = dc_field(
         default_factory=lambda: {key: {} for key in PLAYER_ORDER}
     )
@@ -245,7 +283,7 @@ class Match15:
             "turn_idx": self.turn_idx,
             "alive_cells": dict(self.alive_cells),
             "history": [
-                [list(cell) if isinstance(cell, (list, tuple)) else [cell, None] for cell in row]
+                [normalize_history_cell(cell) for cell in row]
                 for row in self.history
             ],
             "messages": {key: dict(value) for key, value in self.messages.items()},
@@ -292,10 +330,11 @@ class Match15:
         match.order = list(data.get("order", PLAYER_ORDER))
         match.turn_idx = int(data.get("turn_idx", 0))
         match.alive_cells = {key: int(value) for key, value in data.get("alive_cells", {}).items()}
-        match.history = [
-            [list(cell) if isinstance(cell, (list, tuple)) else [cell, None] for cell in row]
-            for row in data.get("history", match.history)
-        ]
+        raw_history = data.get("history")
+        if raw_history is not None:
+            match.history = normalize_history_grid(raw_history)
+        else:
+            match.history = normalize_history_grid(match.history)
         match.messages = {
             key: dict(value)
             for key, value in data.get("messages", {}).items()
@@ -322,6 +361,9 @@ __all__ = [
     "Ship",
     "Snapshot15",
     "Coord",
+    "empty_history",
+    "normalize_history_cell",
+    "normalize_history_grid",
     "PLAYER_COLORS",
     "PLAYER_ORDER",
 ]
