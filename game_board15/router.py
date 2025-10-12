@@ -21,7 +21,15 @@ from logic.phrases import (
 )
 
 from . import storage
-from .battle import KILL, MISS, HIT, ShotResult, advance_turn, apply_shot
+from .battle import (
+    AdvanceOutcome,
+    KILL,
+    MISS,
+    HIT,
+    ShotResult,
+    advance_turn,
+    apply_shot,
+)
 from .models import (
     Field15,
     Match15,
@@ -130,6 +138,106 @@ def _player_key(match, user_id: int) -> Optional[str]:
         if getattr(player, "user_id", None) == user_id:
             return key
     return None
+
+
+def _player_label(match, player_key: str) -> str:
+    player = getattr(match, "players", {}).get(player_key)
+    if not player:
+        return player_key
+    name = getattr(player, "name", "") or ""
+    return name.strip() or player_key
+
+
+def _iter_real_players(match):
+    players = getattr(match, "players", {})
+    for key, player in players.items():
+        chat_id = getattr(player, "chat_id", 0)
+        if not chat_id:
+            continue
+        yield key, player
+
+
+def _meta(match) -> dict:
+    messages = getattr(match, "messages", None)
+    if not isinstance(messages, dict):
+        match.messages = {}
+        messages = match.messages
+    return messages.setdefault("_meta", {})
+
+
+def _record_eliminations(match, eliminated: List[str]) -> List[str]:
+    meta = _meta(match)
+    order: List[str] = meta.setdefault("elimination_order", [])
+    for key in eliminated:
+        if key not in order:
+            order.append(key)
+    return order
+
+
+async def _broadcast_elimination(
+    context: ContextTypes.DEFAULT_TYPE, match, player_key: str
+) -> None:
+    label = _player_label(match, player_key)
+    text = f"⛔ Игрок {label} выбыл (флот уничтожен)"
+    for _, player in _iter_real_players(match):
+        try:
+            await context.bot.send_message(player.chat_id, text)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception(
+                "Failed to send elimination notice for player %s", player_key
+            )
+
+
+def _final_ranking(match, winner: Optional[str], elimination_order: List[str]) -> List[str]:
+    ranking: List[str] = []
+    if winner and winner not in ranking:
+        ranking.append(winner)
+    for key in reversed(elimination_order):
+        if key not in ranking and key in getattr(match, "players", {}):
+            ranking.append(key)
+    for key in PLAYER_ORDER:
+        if key not in ranking and key in getattr(match, "players", {}):
+            ranking.append(key)
+    return ranking
+
+
+async def _send_final_summaries(
+    context: ContextTypes.DEFAULT_TYPE,
+    match,
+    ranking: List[str],
+    winner: Optional[str],
+) -> None:
+    meta = _meta(match)
+    if meta.get("final_summary_sent"):
+        return
+
+    placements = {key: idx + 1 for idx, key in enumerate(ranking)}
+    lines_template = ["Итоги матча:"]
+    for pos, key in enumerate(ranking, start=1):
+        label = _player_label(match, key)
+        marker = " 🏆" if winner and key == winner else ""
+        lines_template.append(f"{pos}. {label}{marker}")
+
+    for key, player in _iter_real_players(match):
+        placement = placements.get(key)
+        header = "🏁 Игра завершена!"
+        if winner and key == winner:
+            header += " Вы победили!🏆"
+        elif placement:
+            header += f" Вы заняли {placement} место."
+        else:
+            header += " Матч завершён."
+        message_lines = [header, ""] + lines_template
+        try:
+            await context.bot.send_message(player.chat_id, "\n".join(message_lines))
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Failed to send final summary to player %s", key)
+
+    meta["final_summary_sent"] = True
 
 
 def _phrase_or_joke(match, player_key: str, phrases: List[str]) -> str:
@@ -323,6 +431,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if board_self and hasattr(board_self, "highlight"):
         board_self.highlight.clear()
 
+    prev_alive = {key: match.alive_cells.get(key, 0) for key in PLAYER_ORDER}
+
     try:
         shot_result = apply_shot(match, player_key, coord)
     except ValueError as exc:
@@ -352,8 +462,11 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     coord_text = format_coord(coord)
     message_self = f"Ваш ход: {coord_text}. {phrase}".strip()
+    player_label = _player_label(match, player_key)
 
-    advance_turn(match, shot_result)
+    outcome = advance_turn(match, shot_result, previous_alive=prev_alive)
+    elimination_order = _record_eliminations(match, outcome.eliminated)
+
     snapshot = storage.append_snapshot(match)
 
     await _send_state(
@@ -375,11 +488,18 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 context,
                 match,
                 other_key,
-                f"Ход {match.players[player_key].name}: {coord_text}. {enemy_phrase}",
+                f"Ход {player_label}: {coord_text}. {enemy_phrase}",
                 snapshot=snapshot,
             )
         except Exception:
             logger.exception("Failed to notify player %s", other_key)
+
+    for eliminated_key in outcome.eliminated:
+        await _broadcast_elimination(context, match, eliminated_key)
+
+    if outcome.finished:
+        ranking = _final_ranking(match, outcome.winner, elimination_order)
+        await _send_final_summaries(context, match, ranking, outcome.winner)
 
 
 __all__ = ["router_text", "_send_state", "STATE_KEY"]
