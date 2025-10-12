@@ -372,7 +372,20 @@ def get_match(match_id: str) -> Optional[Match]:
     if not payload:
         return None
     try:
-        return _payload_to_match(payload)
+        match = _payload_to_match(payload)
+        if match.status != "playing":
+            boards_ready = {
+                key: bool(match.boards.get(key) and getattr(match.boards[key], "ships", None))
+                for key in ("A", "B")
+            }
+            if all(boards_ready.values()):
+                match.status = "playing"
+                for key in ("A", "B"):
+                    player = match.players.get(key)
+                    if player:
+                        player.ready = True
+                save_match(match)
+        return match
     except Exception:
         logger.exception("Failed to deserialize match %s", match_id)
         return None
@@ -453,63 +466,47 @@ def join_match(match_id: str, user_id: int, chat_id: int, name: str = "") -> Opt
 
 
 def save_board(match: Match, player_key: str, board: Optional[Board] = None) -> Optional[str]:
-    if board is not None:
-        board.owner = player_key
-        match.boards[player_key] = board
-    match.players.setdefault(player_key, Player(user_id=0, chat_id=0, name="", ready=False))
-    match.players[player_key].ready = True
+    with _lock:
+        data = _file_load_all()
+        payload = data.get(match.match_id)
+        if payload:
+            working = _payload_to_match(payload)
+        else:
+            working = match
 
-    if match.status == "waiting":
-        match.status = "placing"
+        if board is not None:
+            board.owner = player_key
+            working.boards[player_key] = board
 
-    ready_state = {
-        key: bool(match.players.get(key) and match.players[key].ready)
-        for key in ("A", "B")
-    }
+        working.players.setdefault(
+            player_key, Player(user_id=0, chat_id=0, name="", ready=False)
+        )
+        working.players[player_key].ready = True
 
-    if not all(ready_state.values()):
-        latest = get_match(match.match_id)
-        if latest:
-            for key in ("A", "B"):
-                latest_player = latest.players.get(key)
-                if not latest_player:
-                    continue
-                existing = match.players.get(key)
-                combined_ready = bool(existing and existing.ready) or latest_player.ready
-                if key == player_key:
-                    match.players[key].ready = combined_ready
-                else:
-                    match.players[key] = Player(
-                        user_id=latest_player.user_id,
-                        chat_id=latest_player.chat_id,
-                        name=latest_player.name,
-                        ready=combined_ready,
-                    )
-                ready_state[key] = combined_ready
-                if key != player_key and (
-                    key not in match.boards or not getattr(match.boards[key], "ships", None)
-                ):
-                    match.boards[key] = latest.boards.get(key, match.boards.get(key))
+        for key in ("A", "B"):
+            board_obj = working.boards.get(key)
+            if board_obj and getattr(board_obj, "ships", None):
+                player = working.players.setdefault(
+                    key, Player(user_id=0, chat_id=0, name="", ready=False)
+                )
+                player.ready = True
 
-    if all(ready_state.values()):
-        match.status = "playing"
-        if match.turn not in ("A", "B"):
-            match.turn = "A"
-
-    error = save_match(match)
-    if error:
-        return error
-
-    latest = get_match(match.match_id)
-    if latest and latest.status != "playing":
-        if all(
-            latest.players.get(key) and latest.players[key].ready
+        boards_ready = {
+            key: bool(working.boards.get(key) and getattr(working.boards[key], "ships", None))
             for key in ("A", "B")
-        ):
-            latest.status = "playing"
-            if latest.turn not in ("A", "B"):
-                latest.turn = "A"
-            save_match(latest)
+        }
+        if all(boards_ready.values()):
+            working.status = "playing"
+            if working.turn not in ("A", "B"):
+                working.turn = "A"
+
+        data[match.match_id] = _match_to_payload(working)
+        _file_save_all(data)
+
+    match.status = working.status
+    match.turn = working.turn
+    match.players = {key: value for key, value in working.players.items()}
+    match.boards = working.boards
 
     return None
 
