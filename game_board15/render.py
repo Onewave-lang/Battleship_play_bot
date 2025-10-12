@@ -115,12 +115,15 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
             field_state = state.field.grid[r][c]
             field_owner = state.field.owners[r][c]
             owner = owner if owner is not None else field_owner
-            if field_state == 1 and field_owner == player_key:
-                visible_own += 1
-                if state.reveal_ships:
+            if field_state == 1:
+                if field_owner == player_key:
+                    visible_own += 1
                     draw.rectangle(rect, fill=_mix(PLAYER_COLORS[player_key], 0.25))
-            elif field_state == 1 and state.reveal_ships and owner:
-                draw.rectangle(rect, fill=_mix(PLAYER_COLORS.get(owner, (120, 120, 120)), 0.15))
+                elif state.reveal_ships and owner:
+                    draw.rectangle(
+                        rect,
+                        fill=_mix(PLAYER_COLORS.get(owner, (120, 120, 120)), 0.15),
+                    )
 
             if state_value == 2 or field_state == 2:
                 cx = (rect[0] + rect[2]) // 2

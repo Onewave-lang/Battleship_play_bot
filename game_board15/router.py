@@ -105,11 +105,18 @@ async def _send_state(
     player_key: str,
     message: str,
     *,
-    reveal_ships: bool = True,
+    reveal_ships: bool = False,
 ) -> None:
     player = match.players[player_key]
     chat_id = player.chat_id
     field = _ensure_field(match)
+    flags = (
+        match.messages.get("_flags", {})
+        if isinstance(getattr(match, "messages", None), dict)
+        else {}
+    )
+    if not reveal_ships and isinstance(flags, dict):
+        reveal_ships = bool(flags.get("board15_reveal_ships"))
     state_store = context.bot_data.setdefault(STATE_KEY, {})
     match_id = getattr(match, "match_id", "unknown")
     footer = f"match={match_id} • player={player_key} • sh_disp=20"
