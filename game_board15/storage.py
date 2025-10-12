@@ -5,7 +5,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from threading import Lock
+from threading import RLock
 from typing import Dict, Iterable, Optional
 
 from .models import Match15, Player, Snapshot15, PLAYER_ORDER
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 DATA_FILE = Path(os.getenv("DATA15_FILE_PATH", "data15.json"))
 SNAPSHOT_DIR = Path(os.getenv("DATA15_SNAPSHOTS", "snapshots15"))
 
-_lock = Lock()
+_lock = RLock()
 _cache: Dict[str, Match15] = {}
 
 
@@ -100,6 +100,14 @@ def join_match(match_id: str, user_id: int, chat_id: int, name: str) -> Optional
                     name=name.strip() or f"Игрок {key}",
                     color=key,
                 )
+                if all(match.players.get(player_key) for player_key in PLAYER_ORDER):
+                    match.status = "playing"
+                    try:
+                        primary = match.order[0]
+                        match.turn_idx = match.order.index(primary)
+                    except (IndexError, ValueError):
+                        match.turn_idx = 0
+                    match.create_snapshot()
                 save_match(match)
                 return match
         return None

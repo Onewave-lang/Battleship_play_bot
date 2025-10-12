@@ -385,13 +385,27 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         hint = state.get("hint", NAME_HINT_NEWGAME)
         pending = state.get("pending")
         cleaned = store_player_name(context, text)
-        if pending and pending.get("action") == "join":
+        pending_action = pending.get("action") if pending else None
+        if pending_action == "join":
             match_id = pending.get("match_id")
             if match_id:
                 success = await finalize_pending_join(update, context, match_id)
                 if success:
                     return
             await update.message.reply_text('Не удалось присоединиться к матчу. Попробуйте снова перейти по ссылке приглашения.')
+            return
+        if pending_action in {"board15_create", "board15_test"}:
+            if pending_action == "board15_test":
+                ack = f'Имя сохранено: {cleaned}. Запускаем тестовый режим 15×15.'
+            else:
+                ack = f'Имя сохранено: {cleaned}. Создаём матч 15×15.'
+            await update.message.reply_text(ack)
+            from game_board15.handlers import finalize_board15_pending
+
+            success = await finalize_board15_pending(update, context, pending)
+            if success:
+                return
+            await update.message.reply_text('Не удалось подготовить матч 15×15. Попробуйте снова команду /board15.')
             return
         if hint == NAME_HINT_AUTO:
             await update.message.reply_text(
