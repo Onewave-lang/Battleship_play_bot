@@ -169,7 +169,20 @@ class Match15:
         )
         match = Match15(match_id=match_id)
         match.players["A"] = player_a
+
+        # Auto-generate full fleets for all players as required by the
+        # specification. The placement logic lives in ``placement`` and is
+        # imported lazily here to avoid circular imports at module load time.
+        from .placement import generate_field  # local import
+
+        field, fleets = generate_field()
+        match.field = field
         match.boards = {key: match.field for key in PLAYER_ORDER}
+        match.field.ships = fleets
+        match.alive_cells = {
+            owner: sum(len(ship.cells) for ship in ships)
+            for owner, ships in fleets.items()
+        }
         match.snapshots.append(Snapshot15.from_match(match))
         return match
 
