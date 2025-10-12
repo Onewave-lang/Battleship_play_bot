@@ -80,8 +80,7 @@ async def _create_board15_match(
         match.messages.setdefault("_flags", {})["board15_test"] = True
         context.bot_data.setdefault(STATE_KEY, {})
         match.status = "playing"
-        match.create_snapshot()
-        storage.save_match(match)
+        storage.append_snapshot(match)
         await message.reply_text("Тестовый матч 15×15 создан. Боты готовы к игре.")
         await _auto_play_bots(context, match, "A")
         logger.info("MATCH3_TEST_CREATE | match_id=%s owner=%s", match.match_id, user.id)

@@ -107,8 +107,9 @@ def join_match(match_id: str, user_id: int, chat_id: int, name: str) -> Optional
                         match.turn_idx = match.order.index(primary)
                     except (IndexError, ValueError):
                         match.turn_idx = 0
-                    match.create_snapshot()
-                save_match(match)
+                    append_snapshot(match)
+                else:
+                    save_match(match)
                 return match
         return None
 
@@ -121,7 +122,8 @@ def append_snapshot(match: Match15, snapshot: Snapshot15 | None = None) -> Snaps
         "status": snap.status,
         "turn_idx": snap.turn_idx,
         "alive_cells": snap.alive_cells,
-        "history": snap.history,
+        "cell_history": snap.cell_history,
+        "history": [entry.to_payload() for entry in snap.shot_history],
     }
     with path.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record, ensure_ascii=False) + "\n")
