@@ -58,6 +58,52 @@ def normalize_history_grid(grid: Any, *, size: int = 15) -> List[List[List[int |
 
 
 @dataclass
+class ShotLogEntry:
+    """Single entry describing a shot that happened in the match."""
+
+    by_player: str
+    coord: Coord
+    result: str
+    target: Optional[str] = None
+    created_at: str = dc_field(default_factory=lambda: datetime.utcnow().isoformat())
+
+    def to_payload(self) -> Dict[str, Any]:
+        return {
+            "by_player": self.by_player,
+            "coord": list(self.coord),
+            "result": self.result,
+            "target": self.target,
+            "created_at": self.created_at,
+        }
+
+    @classmethod
+    def from_payload(cls, data: Any) -> "ShotLogEntry":
+        if not isinstance(data, dict):
+            raise TypeError("Shot log payload must be a dict")
+        coord_value = data.get("coord")
+        if isinstance(coord_value, (list, tuple)) and len(coord_value) >= 2:
+            coord = (int(coord_value[0]), int(coord_value[1]))
+        else:
+            coord = (0, 0)
+        return cls(
+            by_player=str(data.get("by_player", "")),
+            coord=coord,
+            result=str(data.get("result", "")),
+            target=data.get("target"),
+            created_at=str(data.get("created_at", datetime.utcnow().isoformat())),
+        )
+
+    def clone(self) -> "ShotLogEntry":
+        return ShotLogEntry(
+            by_player=self.by_player,
+            coord=self.coord,
+            result=self.result,
+            target=self.target,
+            created_at=self.created_at,
+        )
+
+
+@dataclass
 class Player:
     """Representation of a participant of the 15×15 match."""
 
@@ -141,7 +187,8 @@ class Snapshot15:
     turn_idx: int
     field: Field15
     alive_cells: Dict[str, int]
-    history: List[List[List[int | None]]]
+    cell_history: List[List[List[int | None]]]
+    shot_history: List[ShotLogEntry]
     last_move: Optional[Coord]
 
     @classmethod
@@ -149,14 +196,15 @@ class Snapshot15:
         field_copy = match.field.clone()
         history_copy = [
             [normalize_history_cell(cell) for cell in row]
-            for row in match.history
+            for row in match.cell_history
         ]
         return cls(
             status=match.status,
             turn_idx=match.turn_idx,
             field=field_copy,
             alive_cells={k: v for k, v in match.alive_cells.items()},
-            history=history_copy,
+            cell_history=history_copy,
+            shot_history=[entry.clone() for entry in match.history],
             last_move=match.field.last_move,
         )
 
@@ -178,7 +226,8 @@ class Match15:
     alive_cells: Dict[str, int] = dc_field(
         default_factory=lambda: {key: 20 for key in PLAYER_ORDER}
     )
-    history: List[List[List[int | None]]] = dc_field(default_factory=empty_history)
+    cell_history: List[List[List[int | None]]] = dc_field(default_factory=empty_history)
+    history: List[ShotLogEntry] = dc_field(default_factory=list)
     messages: Dict[str, Dict[str, object]] = dc_field(
         default_factory=lambda: {key: {} for key in PLAYER_ORDER}
     )
@@ -282,10 +331,11 @@ class Match15:
             "order": list(self.order),
             "turn_idx": self.turn_idx,
             "alive_cells": dict(self.alive_cells),
-            "history": [
+            "cell_history": [
                 [normalize_history_cell(cell) for cell in row]
-                for row in self.history
+                for row in self.cell_history
             ],
+            "history": [entry.to_payload() for entry in self.history],
             "messages": {key: dict(value) for key, value in self.messages.items()},
             "shots": {
                 key: {
@@ -330,11 +380,27 @@ class Match15:
         match.order = list(data.get("order", PLAYER_ORDER))
         match.turn_idx = int(data.get("turn_idx", 0))
         match.alive_cells = {key: int(value) for key, value in data.get("alive_cells", {}).items()}
-        raw_history = data.get("history")
-        if raw_history is not None:
-            match.history = normalize_history_grid(raw_history)
+        raw_cell_history = data.get("cell_history")
+        if raw_cell_history is not None:
+            match.cell_history = normalize_history_grid(raw_cell_history)
         else:
-            match.history = normalize_history_grid(match.history)
+            legacy_history = data.get("history")
+            if legacy_history and isinstance(legacy_history, list) and legacy_history and isinstance(legacy_history[0], dict):
+                # Already in the new log format.
+                match.cell_history = normalize_history_grid(empty_history())
+            else:
+                match.cell_history = normalize_history_grid(legacy_history)
+        raw_log = data.get("history") or []
+        if raw_log and isinstance(raw_log, list) and raw_log and isinstance(raw_log[0], dict):
+            entries = []
+            for item in raw_log:
+                try:
+                    entries.append(ShotLogEntry.from_payload(item))
+                except Exception:
+                    continue
+            match.history = entries
+        else:
+            match.history = []
         match.messages = {
             key: dict(value)
             for key, value in data.get("messages", {}).items()
@@ -359,6 +425,7 @@ __all__ = [
     "Match15",
     "Player",
     "Ship",
+    "ShotLogEntry",
     "Snapshot15",
     "Coord",
     "empty_history",

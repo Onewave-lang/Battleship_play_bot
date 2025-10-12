@@ -27,7 +27,7 @@ from .models import (
     Match15,
     PLAYER_ORDER,
     Ship,
-    empty_history,
+    ShotLogEntry,
     normalize_history_cell,
     normalize_history_grid,
 )
@@ -90,12 +90,12 @@ def _ensure_field(match) -> Field15:
 
 def _ensure_history(match) -> List[List[List[int | None]]]:
     try:
-        history_source = getattr(match, "history")
+        history_source = getattr(match, "cell_history")
     except AttributeError:
-        history_source = None
+        history_source = getattr(match, "history", None)
     setattr(match, "_history_pre_coerce", history_source)
     history = normalize_history_grid(history_source)
-    setattr(match, "history", history)
+    setattr(match, "cell_history", history)
     return history
 
 
@@ -150,10 +150,24 @@ async def _send_state(
     message: str,
     *,
     reveal_ships: bool = False,
+    snapshot: "Snapshot15" | None = None,
 ) -> None:
     player = match.players[player_key]
     chat_id = player.chat_id
     field = _ensure_field(match)
+    if snapshot is None:
+        snapshots = getattr(match, "snapshots", [])
+        if snapshots:
+            snapshot = snapshots[-1]
+        elif hasattr(match, "create_snapshot"):
+            snapshot = match.create_snapshot()
+    if snapshot is not None:
+        field = snapshot.field
+        history_grid = snapshot.cell_history
+        last_move = snapshot.last_move
+    else:
+        history_grid = _ensure_history(match)
+        last_move = getattr(field, "last_move", None)
     flags = (
         match.messages.get("_flags", {})
         if isinstance(getattr(match, "messages", None), dict)
@@ -166,10 +180,10 @@ async def _send_state(
     footer = f"match={match_id} • player={player_key} • sh_disp=20"
     render_state = RenderState(
         field=field,
-        history=match.history,
+        history=history_grid,
         footer_label=footer,
         reveal_ships=reveal_ships,
-        last_move=getattr(field, "last_move", None),
+        last_move=last_move,
     )
     buffer = render_board(render_state, player_key)
     visible = render_state.rendered_ship_cells
@@ -211,12 +225,12 @@ async def _send_state(
         msgs.setdefault("text_history", []).append(caption)
 
 
-def _update_history(match, result: ShotResult) -> bool:
+def _update_history(match, shooter: str, result: ShotResult) -> bool:
     r, c = result.coord
     owner = result.owner
     raw_source = getattr(match, "_history_pre_coerce", None)
     if raw_source is None:
-        raw_source = getattr(match, "history", [])
+        raw_source = getattr(match, "cell_history", [])
     raw_cell = None
     if isinstance(raw_source, (list, tuple)) and len(raw_source) > r:
         row = raw_source[r]
@@ -255,6 +269,17 @@ def _update_history(match, result: ShotResult) -> bool:
             for board in boards.values():
                 if hasattr(board, "grid"):
                     board.grid[rr][cc] = 5
+    log_entry = ShotLogEntry(
+        by_player=shooter,
+        coord=result.coord,
+        result=result.result,
+        target=result.owner,
+    )
+    history_log = getattr(match, "history", None)
+    if isinstance(history_log, list):
+        history_log.append(log_entry)
+    else:
+        match.history = [log_entry]
     return original_was_scalar
 
 
@@ -304,7 +329,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await message.reply_text(str(exc))
         return
 
-    needs_presave = _update_history(match, shot_result)
+    needs_presave = _update_history(match, player_key, shot_result)
 
     shots = match.shots.setdefault(player_key, {})
     shots.setdefault("history", []).append(coord)
@@ -314,9 +339,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     if needs_presave:
         storage.save_match(match)
-        presaved = True
-    else:
-        presaved = False
 
     if shot_result.result == MISS:
         phrase = _phrase_or_joke(match, player_key, SELF_MISS)
@@ -331,7 +353,16 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     coord_text = format_coord(coord)
     message_self = f"Ваш ход: {coord_text}. {phrase}".strip()
 
-    await _send_state(context, match, player_key, message_self)
+    advance_turn(match, shot_result)
+    snapshot = storage.append_snapshot(match)
+
+    await _send_state(
+        context,
+        match,
+        player_key,
+        message_self,
+        snapshot=snapshot,
+    )
 
     for other_key in PLAYER_ORDER:
         if other_key == player_key:
@@ -340,13 +371,15 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if not player or match.alive_cells.get(other_key, 0) <= 0:
             continue
         try:
-            await _send_state(context, match, other_key, f"Ход {match.players[player_key].name}: {coord_text}. {enemy_phrase}")
+            await _send_state(
+                context,
+                match,
+                other_key,
+                f"Ход {match.players[player_key].name}: {coord_text}. {enemy_phrase}",
+                snapshot=snapshot,
+            )
         except Exception:
             logger.exception("Failed to notify player %s", other_key)
-
-    advance_turn(match, shot_result)
-    if not presaved:
-        storage.save_match(match)
 
 
 __all__ = ["router_text", "_send_state", "STATE_KEY"]
