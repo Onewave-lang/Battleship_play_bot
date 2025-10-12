@@ -26,6 +26,17 @@ class ShotResult:
             self.contour = []
 
 
+@dataclass
+class AdvanceOutcome:
+    """Result of advancing the turn after a shot."""
+
+    next_turn: Optional[str]
+    eliminated: List[str]
+    finished: bool
+    winner: Optional[str]
+    alive_players: List[str]
+
+
 def _neighbors(coord: Coord) -> Iterable[Coord]:
     r, c = coord
     for dr in (-1, 0, 1):
@@ -105,35 +116,100 @@ def apply_shot(match: Match15, shooter: str, coord: Coord) -> ShotResult:
     return ShotResult(result=HIT, owner=owner, coord=coord)
 
 
-def advance_turn(match: Match15, last_result: ShotResult) -> None:
-    if match.status != "playing":
-        return
-    if last_result.result in (HIT, KILL):
-        return
-    alive = [key for key in PLAYER_ORDER if match.alive_cells.get(key, 0) > 0]
-    if len(alive) <= 1:
+def advance_turn(
+    match: Match15,
+    last_result: ShotResult,
+    *,
+    previous_alive: Optional[Dict[str, int]] = None,
+) -> AdvanceOutcome:
+    prev_counts = previous_alive or {}
+    eliminated: List[str] = []
+    alive_counts: Dict[str, int] = {
+        key: max(0, int(match.alive_cells.get(key, 0))) for key in PLAYER_ORDER
+    }
+
+    for key, current_count in alive_counts.items():
+        was_alive = prev_counts.get(key, 0) > 0
+        is_alive = current_count > 0
+        if was_alive and not is_alive:
+            eliminated.append(key)
+            player = match.players.get(key) if hasattr(match, "players") else None
+            if player is not None and hasattr(player, "eliminated"):
+                player.eliminated = True
+
+    alive_players = [key for key, count in alive_counts.items() if count > 0]
+    finished = len(alive_players) <= 1
+    winner = alive_players[0] if finished and alive_players else None
+
+    if finished:
         match.status = "finished"
-        return
-    current = getattr(match, "turn", None)
-    if current is None:
-        current = alive[0]
-    if current not in alive:
-        current = alive[0]
-    idx = alive.index(current)
-    next_key = alive[(idx + 1) % len(alive)]
+        if winner is not None:
+            try:
+                setattr(match, "winner", winner)
+            except AttributeError:
+                pass
+
+    next_turn = getattr(match, "turn", None)
+
+    if match.status != "playing":
+        return AdvanceOutcome(
+            next_turn=next_turn,
+            eliminated=eliminated,
+            finished=finished,
+            winner=winner,
+            alive_players=alive_players,
+        )
+
+    if last_result.result in (HIT, KILL):
+        return AdvanceOutcome(
+            next_turn=next_turn,
+            eliminated=eliminated,
+            finished=finished,
+            winner=winner,
+            alive_players=alive_players,
+        )
+
+    if not alive_players:
+        return AdvanceOutcome(
+            next_turn=next_turn,
+            eliminated=eliminated,
+            finished=finished,
+            winner=winner,
+            alive_players=alive_players,
+        )
+
+    current = next_turn if next_turn in alive_players else alive_players[0]
+    idx = alive_players.index(current)
+    next_key = alive_players[(idx + 1) % len(alive_players)]
     order = getattr(match, "order", PLAYER_ORDER)
     if hasattr(match, "turn_idx"):
         try:
             match.turn_idx = order.index(next_key)
         except ValueError:
-            match.turn_idx = order.index(alive[0])
+            match.turn_idx = order.index(alive_players[0])
     descriptor = getattr(type(match), "turn", None)
-    if isinstance(descriptor, property):
-        return
-    try:
-        setattr(match, "turn", next_key)
-    except AttributeError:
-        pass
+    if not isinstance(descriptor, property):
+        try:
+            setattr(match, "turn", next_key)
+        except AttributeError:
+            pass
+    next_turn = next_key
+
+    return AdvanceOutcome(
+        next_turn=next_turn,
+        eliminated=eliminated,
+        finished=finished,
+        winner=winner,
+        alive_players=alive_players,
+    )
 
 
-__all__ = ["apply_shot", "advance_turn", "MISS", "HIT", "KILL", "ShotResult"]
+__all__ = [
+    "AdvanceOutcome",
+    "apply_shot",
+    "advance_turn",
+    "MISS",
+    "HIT",
+    "KILL",
+    "ShotResult",
+]
