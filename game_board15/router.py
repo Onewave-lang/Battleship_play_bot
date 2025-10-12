@@ -428,6 +428,14 @@ async def _send_state(
 
     if current_ship_cells > expected_ship_cells:
         expected_ship_cells = current_ship_cells
+
+    player_ready = False
+    if hasattr(match, "players"):
+        player_obj = match.players.get(player_key)
+        if player_obj is not None and getattr(player_obj, "ready", False):
+            player_ready = True
+    if player_ready:
+        expected_ship_cells = max(expected_ship_cells, 20)
     if current_ship_cells < expected_ship_cells:
         missing = expected_ship_cells - current_ship_cells
 
