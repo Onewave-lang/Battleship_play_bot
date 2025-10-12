@@ -16,10 +16,15 @@ MARGIN = 60
 GRID_COLOR = (120, 120, 120)
 BG_COLOR = (245, 246, 250)
 AXIS_COLOR = (50, 50, 50)
-MISS_COLOR = (40, 40, 40)
-HIT_COLOR = (220, 68, 68)
+MISS_STALE_COLOR = (40, 40, 40)
+MISS_RECENT_COLOR = (220, 68, 68)
+HIT_RECENT_COLOR = (220, 68, 68)
+HIT_STALE_FACTOR = 0.45
+KILL_RECENT_FACTOR = 0.35
+KILL_STALE_FACTOR = 0.85
 KILL_OUTLINE = (0, 0, 0)
 CONTOUR_COLOR = (0, 0, 0)
+BOMB_SYMBOL = "💣"
 FONT_PATHS = [
     "NotoColorEmoji-Regular.ttf",
 ]
@@ -100,6 +105,8 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
 
     _draw_axes(draw)
 
+    bomb_font = _load_font(32)
+
     visible_own = 0
 
     for r in range(15):
@@ -109,9 +116,15 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
             if isinstance(cell_value, (list, tuple)):
                 state_value = int(cell_value[0]) if cell_value else 0
                 owner = cell_value[1] if len(cell_value) > 1 else None
+                try:
+                    age = int(cell_value[2]) if len(cell_value) > 2 else 1
+                except (TypeError, ValueError):
+                    age = 1
             else:
                 state_value = int(cell_value)
                 owner = None
+                age = 1
+            fresh = age == 0
             field_state = state.field.grid[r][c]
             field_owner = state.field.owners[r][c]
             owner = owner if owner is not None else field_owner
@@ -125,21 +138,35 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
             if state_value == 2 or field_state == 2:
                 cx = (rect[0] + rect[2]) // 2
                 cy = (rect[1] + rect[3]) // 2
+                color = MISS_RECENT_COLOR if fresh and state_value == 2 else MISS_STALE_COLOR
+                radius = 6 if color == MISS_RECENT_COLOR else 4
                 draw.ellipse(
-                    [cx - 4, cy - 4, cx + 4, cy + 4],
-                    fill=MISS_COLOR,
+                    [cx - radius, cy - radius, cx + radius, cy + radius],
+                    fill=color,
                 )
             if state_value == 3 or field_state == 3:
                 if owner == player_key:
                     visible_own += 1
-                color = PLAYER_COLORS.get(owner or player_key, HIT_COLOR)
-                draw.rectangle(rect, fill=_mix(color, 0.55))
+                base_color = PLAYER_COLORS.get(owner or player_key, HIT_RECENT_COLOR)
+                if fresh and state_value == 3:
+                    fill_color = HIT_RECENT_COLOR
+                else:
+                    fill_color = _mix(base_color, HIT_STALE_FACTOR)
+                draw.rectangle(rect, fill=fill_color)
             if state_value == 4 or field_state == 4:
                 if owner == player_key:
                     visible_own += 1
-                color = PLAYER_COLORS.get(owner or player_key, HIT_COLOR)
-                draw.rectangle(rect, fill=_mix(color, 0.85))
-                draw.rectangle(rect, outline=KILL_OUTLINE, width=2)
+                base_color = PLAYER_COLORS.get(owner or player_key, HIT_RECENT_COLOR)
+                if fresh and state_value == 4:
+                    fill_color = _mix(base_color, KILL_RECENT_FACTOR)
+                    draw.rectangle(rect, fill=fill_color)
+                    cx = (rect[0] + rect[2]) // 2
+                    cy = (rect[1] + rect[3]) // 2
+                    draw.text((cx, cy), BOMB_SYMBOL, anchor="mm", font=bomb_font)
+                else:
+                    fill_color = _mix(base_color, KILL_STALE_FACTOR)
+                    draw.rectangle(rect, fill=fill_color)
+                    draw.rectangle(rect, outline=KILL_OUTLINE, width=2)
             if state_value == 5 or field_state == 5:
                 cx = (rect[0] + rect[2]) // 2
                 cy = (rect[1] + rect[3]) // 2

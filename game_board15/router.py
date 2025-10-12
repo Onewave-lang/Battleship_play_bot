@@ -22,7 +22,15 @@ from logic.phrases import (
 
 from . import storage
 from .battle import KILL, MISS, HIT, ShotResult, advance_turn, apply_shot
-from .models import Field15, Match15, PLAYER_ORDER, Ship
+from .models import (
+    Field15,
+    Match15,
+    PLAYER_ORDER,
+    Ship,
+    empty_history,
+    normalize_history_cell,
+    normalize_history_grid,
+)
 from .parser import ParseError, format_coord, parse_coord
 from . import parser as parser_module
 from .render import RenderState, render_board
@@ -78,6 +86,42 @@ def _ensure_field(match) -> Field15:
                 match.alive_cells[key] = value
     setattr(match, "field", new_field)
     return new_field
+
+
+def _ensure_history(match) -> List[List[List[int | None]]]:
+    try:
+        history_source = getattr(match, "history")
+    except AttributeError:
+        history_source = None
+    setattr(match, "_history_pre_coerce", history_source)
+    history = normalize_history_grid(history_source)
+    setattr(match, "history", history)
+    return history
+
+
+def _decay_last_marks(history: List[List[List[int | None]]]) -> None:
+    for r in range(15):
+        row = history[r]
+        for c in range(15):
+            cell = normalize_history_cell(row[c])
+            if len(cell) < 3:
+                cell.append(1)
+            if cell[2] == 0:
+                cell[2] = 1
+            row[c] = cell
+
+
+def _set_history_cell(
+    history: List[List[List[int | None]]],
+    coord: Tuple[int, int],
+    state: int,
+    owner: Optional[str],
+    *,
+    fresh: bool,
+) -> None:
+    value = normalize_history_cell([state, owner, 0 if fresh else 1], default_owner=owner)
+    r, c = coord
+    history[r][c] = value
 
 
 def _player_key(match, user_id: int) -> Optional[str]:
@@ -163,37 +207,48 @@ async def _send_state(
 def _update_history(match, result: ShotResult) -> bool:
     r, c = result.coord
     owner = result.owner
-    original = match.history[r][c]
+    raw_source = getattr(match, "_history_pre_coerce", None)
+    if raw_source is None:
+        raw_source = getattr(match, "history", [])
+    raw_cell = None
+    if isinstance(raw_source, (list, tuple)) and len(raw_source) > r:
+        row = raw_source[r]
+        if isinstance(row, (list, tuple)) and len(row) > c:
+            raw_cell = row[c]
+    original_was_scalar = not isinstance(raw_cell, (list, tuple))
+
+    history = _ensure_history(match)
+    setattr(match, "_history_pre_coerce", None)
+    _decay_last_marks(history)
+
+    boards = getattr(match, "boards", {})
+
     if result.result == MISS:
-        match.history[r][c] = [2, owner]
-        boards = getattr(match, "boards", {})
+        _set_history_cell(history, (r, c), 2, owner, fresh=True)
         for board in boards.values():
             if hasattr(board, "grid"):
                 board.grid[r][c] = 2
     elif result.result == HIT:
-        match.history[r][c] = [3, owner]
-        boards = getattr(match, "boards", {})
+        _set_history_cell(history, (r, c), 3, owner, fresh=True)
         target = boards.get(owner)
         if target and hasattr(target, "grid"):
             target.grid[r][c] = 3
     elif result.result == KILL:
-        match.history[r][c] = [4, owner]
+        _set_history_cell(history, (r, c), 4, owner, fresh=True)
         if result.killed_ship:
+            target = boards.get(owner)
             for cell in result.killed_ship.cells:
                 rr, cc = cell
-                match.history[rr][cc] = [4, owner]
-                boards = getattr(match, "boards", {})
-                target = boards.get(owner)
+                _set_history_cell(history, (rr, cc), 4, owner, fresh=True)
                 if target and hasattr(target, "grid"):
                     target.grid[rr][cc] = 4
         for contour_cell in result.contour:
             rr, cc = contour_cell
-            match.history[rr][cc] = [5, None]
-            boards = getattr(match, "boards", {})
+            _set_history_cell(history, (rr, cc), 5, None, fresh=False)
             for board in boards.values():
                 if hasattr(board, "grid"):
                     board.grid[rr][cc] = 5
-    return not isinstance(original, (list, tuple))
+    return original_was_scalar
 
 
 async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -215,8 +270,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         match.messages = {key: {} for key in PLAYER_ORDER}
     if not hasattr(match, "shots"):
         match.shots = {key: {} for key in PLAYER_ORDER}
-    if not hasattr(match, "history"):
-        match.history = [[[0, None] for _ in range(15)] for _ in range(15)]
+    _ensure_history(match)
     field = _ensure_field(match)
     if not hasattr(match, "boards"):
         match.boards = {key: field for key in PLAYER_ORDER}
