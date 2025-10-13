@@ -161,16 +161,15 @@ def test_board15_test_sets_playing(monkeypatch, tmp_path):
     asyncio.run(run())
 
 
-def test_board15_join_does_not_request_auto(monkeypatch, tmp_path):
-    commands_module, storage15, _, _ = _reload_board15(monkeypatch, tmp_path)
+def test_board15_join_requires_name_and_does_not_request_auto(monkeypatch, tmp_path):
+    commands_module, storage15, _, router_module = _reload_board15(monkeypatch, tmp_path)
 
     async def run():
         match = storage15.create_match(1, 1, "Игрок A")
 
-        reply_text = AsyncMock()
-        reply_photo = AsyncMock()
-        update = SimpleNamespace(
-            message=SimpleNamespace(reply_text=reply_text, reply_photo=reply_photo),
+        reply_text_start = AsyncMock()
+        update_start = SimpleNamespace(
+            message=SimpleNamespace(reply_text=reply_text_start),
             effective_user=SimpleNamespace(id=2, first_name="Игрок B"),
             effective_chat=SimpleNamespace(id=2),
         )
@@ -181,14 +180,46 @@ def test_board15_join_does_not_request_auto(monkeypatch, tmp_path):
             bot_data={},
         )
 
-        await commands_module.start(update, context)
+        await commands_module.start(update_start, context)
 
-        join_texts = [call.args[0] for call in reply_text.call_args_list]
-        assert join_texts
-        assert all('"авто"' not in text.lower() for text in join_texts)
+        prompts = [call.args[0] for call in reply_text_start.call_args_list]
+        assert any("Перед присоединением" in text for text in prompts)
+        assert any("Введите имя" in text for text in prompts)
+
+        state = context.user_data.get(commands_module.NAME_STATE_KEY, {})
+        assert state.get("waiting") is True
+        pending = state.get("pending") or {}
+        assert pending.get("action") == commands_module.NAME_PENDING_BOARD15_JOIN
+        assert pending.get("match_id") == match.match_id
+
+        reply_text_name = AsyncMock()
+        reply_photo_name = AsyncMock()
+        update_name = SimpleNamespace(
+            message=SimpleNamespace(
+                text="Игрок Б",
+                reply_text=reply_text_name,
+                reply_photo=reply_photo_name,
+            ),
+            effective_user=update_start.effective_user,
+            effective_chat=update_start.effective_chat,
+        )
+
+        await router_module.router_text(update_name, context)
+
+        name_texts = [call.args[0] for call in reply_text_name.call_args_list]
+        assert any("Имя сохранено" in text for text in name_texts)
+        assert any("Вы присоединились к матчу 15×15" in text for text in name_texts)
+        assert all('"авто"' not in text.lower() for text in name_texts)
+
+        assert reply_photo_name.await_count == 1
 
         other_messages = [call.args[1] for call in context.bot.send_message.call_args_list]
         assert other_messages
         assert all('"авто"' not in text.lower() for text in other_messages)
+
+        stored_name = context.user_data.get(commands_module.NAME_KEY)
+        assert stored_name == "Игрок Б"
+        state_after = context.user_data.get(commands_module.NAME_STATE_KEY, {})
+        assert not state_after.get("waiting")
 
     asyncio.run(run())
