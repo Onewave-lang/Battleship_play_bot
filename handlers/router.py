@@ -34,6 +34,7 @@ from logic.phrases import (
     random_phrase,
     random_joke,
 )
+from app.config import BOARD15_ENABLED
 
 
 logger = logging.getLogger(__name__)
@@ -438,7 +439,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     handled_test2 = await _handle_board_test_two(update, context, match)
     if handled_test2:
         return
-    if not match and os.getenv("BOARD15_ENABLED") == "1":
+    if not match and BOARD15_ENABLED:
         from game_board15 import storage as storage15, router as router15
         match15 = storage15.find_match_by_user(user_id, update.effective_chat.id)
         if match15:

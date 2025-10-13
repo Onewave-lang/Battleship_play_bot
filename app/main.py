@@ -29,10 +29,9 @@ from handlers.board_test import board_test_two
 from handlers.router import router_text
 
 from app.webhook_utils import normalize_webhook_base
+from app.config import BOARD15_ENABLED, BOARD15_TEST_ENABLED
 
 
-BOARD15_ENABLED = os.getenv("BOARD15_ENABLED") == "1"
-BOARD15_TEST_ENABLED = os.getenv("BOARD15_TEST_ENABLED") == "1"
 if BOARD15_ENABLED:
     from game_board15.handlers import (
         board15,
