@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -33,6 +33,7 @@ from .battle import (
 from .models import (
     Field15,
     Match15,
+    Snapshot15,
     PLAYER_ORDER,
     Ship,
     ShotLogEntry,
@@ -47,6 +48,27 @@ logger = logging.getLogger(__name__)
 
 STATE_KEY = "board15_state"
 parser = parser_module
+
+
+def collect_expected_changes(
+    previous: Snapshot15 | None, result: ShotResult
+) -> Set[Tuple[int, int]]:
+    """Return coordinates that are expected to change after a shot."""
+
+    expected: Set[Tuple[int, int]] = set()
+    if previous is not None:
+        for r, row in enumerate(previous.cell_history):
+            for c, cell in enumerate(row):
+                normalized = normalize_history_cell(cell)
+                age = normalized[2] if len(normalized) > 2 else 1
+                if age == 0:
+                    expected.add((r, c))
+    expected.add(result.coord)
+    if result.killed_ship:
+        expected.update(result.killed_ship.cells)
+    if result.contour:
+        expected.update(result.contour)
+    return expected
 
 
 def _ensure_field(match) -> Field15:
@@ -467,7 +489,12 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     outcome = advance_turn(match, shot_result, previous_alive=prev_alive)
     elimination_order = _record_eliminations(match, outcome.eliminated)
 
-    snapshot = storage.append_snapshot(match)
+    previous_snapshot = match.snapshots[-1] if getattr(match, "snapshots", []) else None
+    expected_cells = collect_expected_changes(previous_snapshot, shot_result)
+    snapshot = storage.append_snapshot(
+        match,
+        expected_changes=expected_cells,
+    )
 
     await _send_state(
         context,
@@ -502,4 +529,4 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await _send_final_summaries(context, match, ranking, outcome.winner)
 
 
-__all__ = ["router_text", "_send_state", "STATE_KEY"]
+__all__ = ["router_text", "_send_state", "STATE_KEY", "collect_expected_changes"]

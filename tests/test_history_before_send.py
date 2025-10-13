@@ -43,7 +43,7 @@ def test_board15_router_updates_history_before_send(monkeypatch):
             nonlocal saved
             saved = True
 
-        def fake_append_snapshot(match_obj):
+        def fake_append_snapshot(match_obj, *_, **__):
             snapshot = SimpleNamespace(
                 field=getattr(match_obj, "field", board_enemy),
                 cell_history=[
