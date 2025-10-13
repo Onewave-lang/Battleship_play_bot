@@ -82,12 +82,15 @@ def test_board15_creates_match_after_name(monkeypatch, tmp_path):
     asyncio.run(run())
 
 
-def test_board15_invite_link_uses_b15_prefix(monkeypatch, tmp_path):
+def test_board15_invite_link_uses_deep_link(monkeypatch, tmp_path):
     _, storage15, handlers15, _ = _reload_board15(monkeypatch, tmp_path)
 
     async def run():
         match = storage15.create_match(1, 1, "Игрок A")
         reply_text = AsyncMock()
+        bot_mock = SimpleNamespace(
+            get_me=AsyncMock(return_value=SimpleNamespace(username="TestBot"))
+        )
         query = SimpleNamespace(
             from_user=SimpleNamespace(id=1),
             message=SimpleNamespace(
@@ -97,13 +100,16 @@ def test_board15_invite_link_uses_b15_prefix(monkeypatch, tmp_path):
             answer=AsyncMock(),
         )
         update = SimpleNamespace(callback_query=query)
-        context = SimpleNamespace(user_data={}, bot_data={}, bot=SimpleNamespace())
+        context = SimpleNamespace(user_data={}, bot_data={}, bot=bot_mock)
 
         await handlers15.send_board15_invite_link(update, context)
 
         assert query.answer.call_count == 1
         texts = [record.args[0] for record in reply_text.call_args_list]
+        expected_link = f"https://t.me/TestBot?start=b15_{match.match_id}"
+        assert any(expected_link in text for text in texts)
         assert any(f"/start b15_{match.match_id}" in text for text in texts)
+        bot_mock.get_me.assert_awaited()
 
     asyncio.run(run())
 
