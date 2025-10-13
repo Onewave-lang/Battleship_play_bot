@@ -71,15 +71,39 @@ def _cell_rect(r: int, c: int) -> Tuple[int, int, int, int]:
     return x0, y0, x1, y1
 
 
-def _draw_axes(draw: ImageDraw.ImageDraw) -> None:
-    font = _load_font(18)
-    for idx, letter in enumerate(COLS):
-        x = MARGIN + idx * CELL_SIZE + CELL_SIZE // 2
-        draw.text((x, MARGIN - 35), letter, anchor="mm", font=font, fill=AXIS_COLOR)
-    for idx in range(15):
-        y = MARGIN + idx * CELL_SIZE + CELL_SIZE // 2
-        draw.text((MARGIN - 35, y), str(idx + 1), anchor="mm", font=font, fill=AXIS_COLOR)
+def _draw_axes(
+    draw: ImageDraw.ImageDraw,
+    *,
+    draw_top: bool = True,
+    draw_bottom: bool = False,
+    draw_left: bool = True,
+    draw_right: bool = False,
+) -> None:
+    """Render axis labels around the board."""
 
+    font = _load_font(18)
+    col_centers = [MARGIN + idx * CELL_SIZE + CELL_SIZE // 2 for idx in range(15)]
+    row_centers = [MARGIN + idx * CELL_SIZE + CELL_SIZE // 2 for idx in range(15)]
+
+    if draw_top:
+        top_y = MARGIN - 35
+        for x, letter in zip(col_centers, COLS):
+            draw.text((x, top_y), letter, anchor="mm", font=font, fill=AXIS_COLOR)
+
+    if draw_bottom:
+        bottom_y = MARGIN + CELL_SIZE * 15 + 35
+        for x, letter in zip(col_centers, COLS):
+            draw.text((x, bottom_y), letter, anchor="mm", font=font, fill=AXIS_COLOR)
+
+    if draw_left:
+        left_x = MARGIN - 35
+        for idx, y in enumerate(row_centers):
+            draw.text((left_x, y), str(idx + 1), anchor="mm", font=font, fill=AXIS_COLOR)
+
+    if draw_right:
+        right_x = MARGIN + CELL_SIZE * 15 + 35
+        for idx, y in enumerate(row_centers):
+            draw.text((right_x, y), str(idx + 1), anchor="mm", font=font, fill=AXIS_COLOR)
 
 def _mix(color: Tuple[int, int, int], factor: float) -> Tuple[int, int, int]:
     r, g, b = color
@@ -103,7 +127,7 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
         x = MARGIN + c * CELL_SIZE
         draw.line([(x, MARGIN), (x, MARGIN + CELL_SIZE * 15)], fill=GRID_COLOR, width=1)
 
-    _draw_axes(draw)
+    _draw_axes(draw, draw_top=True, draw_left=True, draw_bottom=False, draw_right=False)
 
     bomb_font = _load_font(32)
 
