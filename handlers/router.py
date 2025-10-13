@@ -18,6 +18,7 @@ from handlers.commands import (
     get_name_state,
     store_player_name,
     finalize_pending_join,
+    finalize_board15_join,
     NAME_HINT_NEWGAME,
     NAME_HINT_AUTO,
 )
@@ -390,6 +391,17 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             match_id = pending.get("match_id")
             if match_id:
                 success = await finalize_pending_join(update, context, match_id)
+                if success:
+                    return
+            await update.message.reply_text('Не удалось присоединиться к матчу. Попробуйте снова перейти по ссылке приглашения.')
+            return
+        if pending_action == "board15_join":
+            match_id = pending.get("match_id")
+            await update.message.reply_text(
+                f'Имя сохранено: {cleaned}. Присоединяем к матчу 15×15.'
+            )
+            if match_id:
+                success = await finalize_board15_join(update, context, match_id)
                 if success:
                     return
             await update.message.reply_text('Не удалось присоединиться к матчу. Попробуйте снова перейти по ссылке приглашения.')

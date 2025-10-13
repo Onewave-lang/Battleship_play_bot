@@ -128,6 +128,35 @@ async def _send_join_success(
         )
 
 
+async def _send_board15_join_success(
+    context: ContextTypes.DEFAULT_TYPE,
+    match,
+    *,
+    user_id: int,
+    reply_photo,
+    reply_text,
+) -> None:
+    with welcome_photo() as img:
+        await reply_photo(img, caption='Добро пожаловать в игру!')
+    await reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки.')
+    await reply_text('Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.')
+
+    for key, player in (match.players or {}).items():
+        if player.user_id == user_id or not getattr(player, 'chat_id', 0):
+            continue
+        msg = 'Соперник присоединился. '
+        if getattr(player, 'ready', False):
+            msg += 'Ожидаем его расстановку.'
+        else:
+            msg += 'Отправьте "авто" для расстановки.'
+        await context.bot.send_message(player.chat_id, msg)
+        if 'Отправьте "авто"' in msg:
+            await context.bot.send_message(
+                player.chat_id,
+                'Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
+            )
+
+
 async def finalize_pending_join(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -146,6 +175,33 @@ async def finalize_pending_join(
             match,
             update.message.reply_photo,
             update.message.reply_text,
+        )
+        return True
+    await update.message.reply_text('Матч не найден или заполнен.')
+    return False
+
+
+async def finalize_board15_join(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    match_id: str,
+) -> bool:
+    from game_board15 import storage as storage15
+
+    name = get_player_name(context)
+    match = storage15.join_match(
+        match_id,
+        update.effective_user.id,
+        update.effective_chat.id,
+        name,
+    )
+    if match:
+        await _send_board15_join_success(
+            context,
+            match,
+            user_id=update.effective_user.id,
+            reply_photo=update.message.reply_photo,
+            reply_text=update.message.reply_text,
         )
         return True
     await update.message.reply_text('Матч не найден или заполнен.')
@@ -220,27 +276,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     elif args and args[0].startswith('b15_'):
         match_id = args[0][4:]
         from game_board15 import storage as storage15
-        name = getattr(update.effective_user, 'first_name', '') or ''
-        match = storage15.join_match(match_id, update.effective_user.id, update.effective_chat.id, name)
+        name = get_player_name(context)
+        if not name:
+            set_waiting_for_name(
+                context,
+                hint=NAME_HINT_BOARD15,
+                pending={"action": "board15_join", "match_id": match_id},
+            )
+            await update.message.reply_text(
+                'Перед присоединением к матчу напишите, как вас представить соперникам.'
+            )
+            await update.message.reply_text('Введите имя одним сообщением (например: Иван).')
+            return
+        match = storage15.join_match(
+            match_id,
+            update.effective_user.id,
+            update.effective_chat.id,
+            name,
+        )
         if match:
-            with welcome_photo() as img:
-                await update.message.reply_photo(img, caption='Добро пожаловать в игру!')
-            await update.message.reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки.')
-            await update.message.reply_text('Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.')
-            for key, player in match.players.items():
-                if player.user_id == update.effective_user.id:
-                    continue
-                msg = 'Соперник присоединился. '
-                if getattr(player, 'ready', False):
-                    msg += 'Ожидаем его расстановку.'
-                else:
-                    msg += 'Отправьте "авто" для расстановки.'
-                await context.bot.send_message(player.chat_id, msg)
-                if 'Отправьте "авто"' in msg:
-                    await context.bot.send_message(
-                        player.chat_id,
-                        'Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
-                    )
+            await _send_board15_join_success(
+                context,
+                match,
+                user_id=update.effective_user.id,
+                reply_photo=update.message.reply_photo,
+                reply_text=update.message.reply_text,
+            )
         else:
             await update.message.reply_text('Матч не найден или заполнен.')
     else:

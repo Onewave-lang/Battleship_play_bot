@@ -153,3 +153,136 @@ def test_board15_test_sets_playing(monkeypatch, tmp_path):
         assert any("Тестовый матч 15×15 создан" in text for text in reply_messages)
 
     asyncio.run(run())
+
+
+def test_board15_start_requires_name(monkeypatch, tmp_path):
+    commands_module, storage15, _, _ = _reload_board15(monkeypatch, tmp_path)
+
+    async def run():
+        match = storage15.create_match(100, 100, "Организатор")
+        reply_text = AsyncMock()
+        reply_photo = AsyncMock()
+        update = SimpleNamespace(
+            message=SimpleNamespace(reply_text=reply_text, reply_photo=reply_photo),
+            effective_user=SimpleNamespace(id=200, first_name="Гость"),
+            effective_chat=SimpleNamespace(id=200),
+        )
+        context = SimpleNamespace(
+            user_data={},
+            bot_data={},
+            bot=SimpleNamespace(send_message=AsyncMock()),
+            args=[f"b15_{match.match_id}"],
+        )
+
+        await commands_module.start(update, context)
+
+        prompts = [record.args[0] for record in reply_text.call_args_list]
+        assert any("Перед присоединением" in text for text in prompts)
+        assert any("Введите имя" in text for text in prompts)
+        reply_photo.assert_not_awaited()
+
+        state = context.user_data.get(commands_module.NAME_STATE_KEY, {})
+        assert state.get("waiting") is True
+        assert state.get("hint") == commands_module.NAME_HINT_BOARD15
+        pending = state.get("pending", {})
+        assert pending.get("action") == "board15_join"
+        assert pending.get("match_id") == match.match_id
+
+        assert storage15.find_match_by_user(200, 200) is None
+
+    asyncio.run(run())
+
+
+def test_board15_start_join_after_name(monkeypatch, tmp_path):
+    commands_module, storage15, _, router_module = _reload_board15(monkeypatch, tmp_path)
+
+    async def run():
+        match = storage15.create_match(100, 100, "Организатор")
+        reply_text_start = AsyncMock()
+        reply_photo_start = AsyncMock()
+        update_start = SimpleNamespace(
+            message=SimpleNamespace(reply_text=reply_text_start, reply_photo=reply_photo_start),
+            effective_user=SimpleNamespace(id=201, first_name="Гость"),
+            effective_chat=SimpleNamespace(id=201),
+        )
+        context = SimpleNamespace(
+            user_data={},
+            bot_data={},
+            bot=SimpleNamespace(send_message=AsyncMock()),
+            args=[f"b15_{match.match_id}"],
+        )
+
+        await commands_module.start(update_start, context)
+
+        reply_text_name = AsyncMock()
+        reply_photo_name = AsyncMock()
+        update_name = SimpleNamespace(
+            message=SimpleNamespace(
+                text="Пётр",
+                reply_text=reply_text_name,
+                reply_photo=reply_photo_name,
+            ),
+            effective_user=update_start.effective_user,
+            effective_chat=update_start.effective_chat,
+        )
+
+        await router_module.router_text(update_name, context)
+
+        messages = [record.args[0] for record in reply_text_name.call_args_list]
+        assert any("Имя сохранено" in text and "Присоединяем" in text for text in messages)
+        assert any("Вы присоединились к матчу" in text for text in messages)
+        assert any("Используйте @" in text for text in messages)
+
+        reply_photo_start.assert_not_awaited()
+        reply_photo_name.assert_awaited()
+
+        match_joined = storage15.find_match_by_user(201, 201)
+        assert match_joined is not None
+        assert any(player.name == "Пётр" for player in match_joined.players.values())
+
+        state = context.user_data.get(commands_module.NAME_STATE_KEY, {})
+        assert not state.get("waiting")
+        assert context.user_data.get(commands_module.NAME_KEY) == "Пётр"
+
+        notify_calls = context.bot.send_message.call_args_list
+        assert any(len(record.args) > 1 and "Соперник присоединился" in record.args[1] for record in notify_calls)
+
+    asyncio.run(run())
+
+
+def test_board15_start_with_existing_name_joins_immediately(monkeypatch, tmp_path):
+    commands_module, storage15, _, _ = _reload_board15(monkeypatch, tmp_path)
+
+    async def run():
+        match = storage15.create_match(100, 100, "Организатор")
+        reply_text = AsyncMock()
+        reply_photo = AsyncMock()
+        update = SimpleNamespace(
+            message=SimpleNamespace(reply_text=reply_text, reply_photo=reply_photo),
+            effective_user=SimpleNamespace(id=202, first_name="Гость"),
+            effective_chat=SimpleNamespace(id=202),
+        )
+        context = SimpleNamespace(
+            user_data={commands_module.NAME_KEY: "Мария"},
+            bot_data={},
+            bot=SimpleNamespace(send_message=AsyncMock()),
+            args=[f"b15_{match.match_id}"],
+        )
+
+        await commands_module.start(update, context)
+
+        reply_photo.assert_awaited()
+        texts = [record.args[0] for record in reply_text.call_args_list]
+        assert any("Вы присоединились к матчу" in text for text in texts)
+
+        match_joined = storage15.find_match_by_user(202, 202)
+        assert match_joined is not None
+        assert any(player.name == "Мария" for player in match_joined.players.values())
+
+        notify_calls = context.bot.send_message.call_args_list
+        assert any(len(record.args) > 1 and "Соперник присоединился" in record.args[1] for record in notify_calls)
+
+        state = context.user_data.get(commands_module.NAME_STATE_KEY, {})
+        assert not state.get("waiting")
+
+    asyncio.run(run())
