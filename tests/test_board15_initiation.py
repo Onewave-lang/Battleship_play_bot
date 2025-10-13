@@ -131,6 +131,7 @@ def test_board15_reaches_playing_after_full_roster(monkeypatch, tmp_path):
 
 
 def test_board15_test_sets_playing(monkeypatch, tmp_path):
+    monkeypatch.setenv("ADMIN_ID", "1")
     commands_module, storage15, handlers15, _ = _reload_board15(monkeypatch, tmp_path)
 
     async def run():
@@ -157,6 +158,32 @@ def test_board15_test_sets_playing(monkeypatch, tmp_path):
         auto_play_mock.assert_awaited()
         reply_messages = [call.args[0] for call in reply_text.call_args_list]
         assert any("Тестовый матч 15×15 создан" in text for text in reply_messages)
+
+    asyncio.run(run())
+
+
+def test_board15_test_denies_without_admin(monkeypatch, tmp_path):
+    monkeypatch.delenv("ADMIN_ID", raising=False)
+    commands_module, storage15, handlers15, _ = _reload_board15(monkeypatch, tmp_path)
+
+    async def run():
+        context = SimpleNamespace(
+            user_data={commands_module.NAME_KEY: "Тест"},
+            bot_data={},
+            bot=SimpleNamespace(send_photo=AsyncMock(return_value=SimpleNamespace(message_id=1)), send_message=AsyncMock()),
+        )
+        reply_text = AsyncMock()
+        update = SimpleNamespace(
+            message=SimpleNamespace(reply_text=reply_text),
+            effective_user=SimpleNamespace(id=999, first_name="Tester"),
+            effective_chat=SimpleNamespace(id=1),
+        )
+
+        await handlers15.board15_test(update, context)
+
+        assert storage15.find_match_by_user(999, 1) is None
+        replies = [record.args[0] for record in reply_text.call_args_list]
+        assert any("Команда доступна только администратору." in text for text in replies)
 
     asyncio.run(run())
 

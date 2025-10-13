@@ -182,7 +182,12 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     user = update.effective_user
     message = getattr(update, "effective_message", None) or getattr(update, "message", None)
     user_id = getattr(user, "id", None)
-    if ADMIN_ID is not None and user_id != ADMIN_ID:
+    if ADMIN_ID is None:
+        logger.warning("BOARD15TEST invoked without ADMIN_ID configured; access denied")
+        if message is not None:
+            await message.reply_text("Команда доступна только администратору.")
+        return
+    if user_id != ADMIN_ID:
         logger.info(
             "Unauthorized board15test usage attempt: user_id=%s admin_id=%s",
             user_id,
@@ -191,8 +196,6 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         if message is not None:
             await message.reply_text("Команда доступна только администратору.")
         return
-    if ADMIN_ID is None:
-        logger.warning("BOARD15TEST invoked without ADMIN_ID configured")
     await _ensure_board15_ready(update, context, test_mode=True)
 
 
