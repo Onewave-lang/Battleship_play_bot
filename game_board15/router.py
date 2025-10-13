@@ -291,6 +291,19 @@ async def _send_state(
             snapshot = snapshots[-1]
         elif hasattr(match, "create_snapshot"):
             snapshot = match.create_snapshot()
+    previous_snapshot = None
+    snapshots = getattr(match, "snapshots", [])
+    if snapshot is not None and snapshots:
+        try:
+            idx = snapshots.index(snapshot)
+        except ValueError:
+            if len(snapshots) >= 2:
+                previous_snapshot = snapshots[-2]
+        else:
+            if idx > 0:
+                previous_snapshot = snapshots[idx - 1]
+    elif len(snapshots) >= 2:
+        previous_snapshot = snapshots[-2]
     if snapshot is not None:
         field = snapshot.field
         history_grid = snapshot.cell_history
@@ -298,6 +311,21 @@ async def _send_state(
     else:
         history_grid = _ensure_history(match)
         last_move = getattr(field, "last_move", None)
+    if previous_snapshot is not None and snapshot is not None:
+        expected_changes = set(getattr(match, "_last_expected_changes", set()))
+        changed_cells = storage.snapshot_changed_cells(previous_snapshot, snapshot)
+        allowed_cells = set(expected_changes)
+        allowed_cells.update(storage.snapshot_fresh_cells(previous_snapshot))
+        unexpected = changed_cells - allowed_cells
+        if unexpected:
+            logger.critical(
+                "FRAME_GUARD_DIFF | match=%s player=%s unexpected=%s allowed=%s",
+                getattr(match, "match_id", "unknown"),
+                player_key,
+                sorted(unexpected),
+                sorted(allowed_cells),
+            )
+            return
     flags = (
         match.messages.get("_flags", {})
         if isinstance(getattr(match, "messages", None), dict)
