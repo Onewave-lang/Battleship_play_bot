@@ -62,7 +62,7 @@ def test_router_text_sends_elimination_and_final_summary(monkeypatch):
         async def fake_send_state(context, match_obj, player_key, message, *, snapshot, reveal_ships=False):
             match_obj._last_sent = (player_key, message, snapshot)
 
-        def fake_append_snapshot(match_obj):
+        def fake_append_snapshot(match_obj, *_, **__):
             snapshot = SimpleNamespace(
                 field=match_obj.field,
                 cell_history=match_obj.cell_history,

@@ -85,7 +85,7 @@ def test_board15_router_clears_player_highlight(monkeypatch):
         monkeypatch.setattr(
             storage15,
             "append_snapshot",
-            lambda m: SimpleNamespace(
+            lambda m, *_, **__: SimpleNamespace(
                 field=getattr(m, "field", board_enemy),
                 cell_history=[
                     [list(cell) for cell in row]

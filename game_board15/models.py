@@ -1,6 +1,7 @@
 """Data models for the 15×15 three-player mode."""
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field as dc_field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -190,6 +191,8 @@ class Snapshot15:
     cell_history: List[List[List[int | None]]]
     shot_history: List[ShotLogEntry]
     last_move: Optional[Coord]
+    messages: Dict[str, Dict[str, Any]]
+    shots: Dict[str, Dict[str, Any]]
 
     @classmethod
     def from_match(cls, match: "Match15") -> "Snapshot15":
@@ -206,7 +209,57 @@ class Snapshot15:
             cell_history=history_copy,
             shot_history=[entry.clone() for entry in match.history],
             last_move=match.field.last_move,
+            messages=deepcopy(getattr(match, "messages", {})),
+            shots=deepcopy(getattr(match, "shots", {})),
         )
+
+    def to_record(self) -> Dict[str, Any]:
+        return {
+            "status": self.status,
+            "turn_idx": self.turn_idx,
+            "alive_cells": dict(self.alive_cells),
+            "last_move": list(self.last_move) if self.last_move else None,
+            "field": {
+                "grid": [row[:] for row in self.field.grid],
+                "owners": [row[:] for row in self.field.owners],
+                "highlight": [list(coord) for coord in self.field.highlight],
+                "last_move": list(self.field.last_move) if self.field.last_move else None,
+                "ships": {
+                    key: [
+                        {
+                            "cells": [list(cell) for cell in ship.cells],
+                            "owner": ship.owner,
+                            "alive": ship.alive,
+                        }
+                        for ship in ships
+                    ]
+                    for key, ships in self.field.ships.items()
+                },
+            },
+            "cell_history": [
+                [list(cell) for cell in row]
+                for row in self.cell_history
+            ],
+            "history": [entry.to_payload() for entry in self.shot_history],
+            "messages": deepcopy(self.messages),
+            "shots": {
+                key: {
+                    "history": [
+                        list(item) if isinstance(item, (list, tuple)) else item
+                        for item in data.get("history", [])
+                    ],
+                    "last_result": data.get("last_result"),
+                    "move_count": data.get("move_count", 0),
+                    "joke_start": data.get("joke_start"),
+                    "last_coord": (
+                        list(data.get("last_coord"))
+                        if isinstance(data.get("last_coord"), (list, tuple))
+                        else data.get("last_coord")
+                    ),
+                }
+                for key, data in self.shots.items()
+            },
+        }
 
 
 @dataclass

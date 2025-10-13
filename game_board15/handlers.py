@@ -333,7 +333,19 @@ async def _auto_play_bots(
                     match_ref, outcome.eliminated
                 )
 
-                snapshot = storage.append_snapshot(match_ref)
+                previous_snapshot = (
+                    match_ref.snapshots[-1]
+                    if getattr(match_ref, "snapshots", [])
+                    else None
+                )
+                expected_cells = router.collect_expected_changes(
+                    previous_snapshot,
+                    shot_result,
+                )
+                snapshot = storage.append_snapshot(
+                    match_ref,
+                    expected_changes=expected_cells,
+                )
 
                 shooter = match_ref.players.get(current)
                 if shooter and getattr(shooter, "chat_id", 0):
