@@ -7,7 +7,7 @@ from game_board15 import router
 from game_board15.handlers import STATE_KEY
 from game_board15.models import Match15, Ship
 
-def test_send_state_rerenders_footer_when_ship_count_differs(monkeypatch):
+def test_send_state_blocks_when_ship_count_still_differs(monkeypatch):
     async def run():
         match = Match15.new(1, 101, "Tester")
         match.match_id = "abcd1234"
@@ -63,7 +63,7 @@ def test_send_state_rerenders_footer_when_ship_count_differs(monkeypatch):
         assert "sh_disp=19" in state.footer_label
         assert state.rendered_ship_cells == 19
 
-        context.bot.send_photo.assert_awaited_once()
+        context.bot.send_photo.assert_not_awaited()
 
     asyncio.run(run())
 
