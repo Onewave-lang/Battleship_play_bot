@@ -556,4 +556,13 @@ async def choose_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 ADMIN_ID,
             )
             return
-        await query.message.reply_text('Используйте /board15test для тестовой игры втроем.')
+        from game_board15.handlers import board15_test  # Local import to avoid circular deps.
+
+        message = query.message
+        fake_update = SimpleNamespace(
+            message=message,
+            effective_message=message,
+            effective_user=query.from_user,
+            effective_chat=getattr(message, 'chat', None),
+        )
+        await board15_test(fake_update, context)

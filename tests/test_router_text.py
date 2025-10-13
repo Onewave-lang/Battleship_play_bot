@@ -105,6 +105,43 @@ def test_choose_mode_mode_test3_requires_admin():
     asyncio.run(run_test())
 
 
+def test_choose_mode_mode_test3_starts_board15test(monkeypatch):
+    async def run_test():
+        original_admin = commands_module.ADMIN_ID
+        original_board15 = commands_module.BOARD15_TEST_ENABLED
+        commands_module.ADMIN_ID = 42
+        commands_module.BOARD15_TEST_ENABLED = True
+        board15_mock = AsyncMock()
+        monkeypatch.setattr("game_board15.handlers.board15_test", board15_mock)
+        try:
+            message = SimpleNamespace(
+                reply_text=AsyncMock(),
+                chat=SimpleNamespace(id=99),
+            )
+            query = SimpleNamespace(
+                data='mode_test3',
+                message=message,
+                from_user=SimpleNamespace(id=42),
+                answer=AsyncMock(),
+            )
+            update = SimpleNamespace(callback_query=query)
+            context = SimpleNamespace()
+
+            await commands_module.choose_mode(update, context)
+
+            board15_mock.assert_awaited_once()
+            called_update, called_context = board15_mock.await_args.args
+            assert called_context is context
+            assert getattr(called_update, 'effective_user', None) is query.from_user
+            assert getattr(called_update, 'effective_chat', None) is message.chat
+            assert getattr(called_update, 'effective_message', None) is message
+        finally:
+            commands_module.ADMIN_ID = original_admin
+            commands_module.BOARD15_TEST_ENABLED = original_board15
+
+    asyncio.run(run_test())
+
+
 def test_router_text_handles_latin_coords_standard_match(monkeypatch):
     async def run_test():
         match = SimpleNamespace(
