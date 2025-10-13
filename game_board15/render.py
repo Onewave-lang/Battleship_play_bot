@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from io import BytesIO
-from typing import Dict, Iterable, List, Optional, Tuple
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -25,9 +26,18 @@ KILL_STALE_FACTOR = 0.85
 KILL_OUTLINE = (0, 0, 0)
 CONTOUR_COLOR = (0, 0, 0)
 BOMB_SYMBOL = "💣"
-FONT_PATHS = [
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+TEXT_FONT_PATHS: Sequence[Path | str] = (
+    REPO_ROOT / "assets/fonts/DejaVuSans.ttf",
+    "DejaVuSans.ttf",
+)
+
+EMOJI_FONT_PATHS: Sequence[Path | str] = (
+    REPO_ROOT / "assets/fonts/NotoColorEmoji-Regular.ttf",
+    REPO_ROOT / "NotoColorEmoji-Regular.ttf",
     "NotoColorEmoji-Regular.ttf",
-]
+)
 
 COLS = "ABCDEFGHIJKLMNO"
 
@@ -54,10 +64,14 @@ class RenderState:
         )
 
 
-def _load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    for path in FONT_PATHS:
+def _load_font(
+    size: int,
+    *,
+    paths: Sequence[Path | str] = TEXT_FONT_PATHS,
+) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    for path in paths:
         try:
-            return ImageFont.truetype(path, size=size)
+            return ImageFont.truetype(str(path), size=size)
         except OSError:
             continue
     return ImageFont.load_default()
@@ -129,7 +143,7 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
 
     _draw_axes(draw, draw_top=True, draw_left=True, draw_bottom=False, draw_right=False)
 
-    bomb_font = _load_font(32)
+    bomb_font = _load_font(32, paths=(*EMOJI_FONT_PATHS, *TEXT_FONT_PATHS))
 
     visible_own = 0
 
