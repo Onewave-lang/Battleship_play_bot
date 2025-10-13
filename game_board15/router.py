@@ -532,11 +532,10 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         snapshot=snapshot,
     )
 
-    for other_key in PLAYER_ORDER:
+    for other_key, _player in _iter_real_players(match):
         if other_key == player_key:
             continue
-        player = match.players.get(other_key)
-        if not player or match.alive_cells.get(other_key, 0) <= 0:
+        if match.alive_cells.get(other_key, 0) <= 0:
             continue
         try:
             await _send_state(
