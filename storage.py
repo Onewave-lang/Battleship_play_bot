@@ -466,13 +466,21 @@ def join_match(match_id: str, user_id: int, chat_id: int, name: str = "") -> Opt
 
 
 def save_board(match: Match, player_key: str, board: Optional[Board] = None) -> Optional[str]:
+    error: Optional[str] = None
     with _lock:
-        data = _file_load_all()
-        payload = data.get(match.match_id)
-        if payload:
-            working = _payload_to_match(payload)
+        payload: Optional[dict]
+        data: Dict[str, dict] = {}
+        if USE_SUPABASE:
+            try:
+                payload = _sb_get_one(match.match_id)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.exception("Failed to fetch match %s from Supabase", match.match_id)
+                return str(exc)
         else:
-            working = match
+            data = _file_load_all()
+            payload = data.get(match.match_id)
+
+        working = _payload_to_match(payload) if payload else match
 
         if board is not None:
             board.owner = player_key
@@ -500,15 +508,22 @@ def save_board(match: Match, player_key: str, board: Optional[Board] = None) -> 
             if working.turn not in ("A", "B"):
                 working.turn = "A"
 
-        data[match.match_id] = _match_to_payload(working)
-        _file_save_all(data)
+        try:
+            if USE_SUPABASE:
+                _sb_upsert_one(match.match_id, _match_to_payload(working))
+            else:
+                data[match.match_id] = _match_to_payload(working)
+                _file_save_all(data)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.exception("Failed to persist board for match %s", match.match_id)
+            error = str(exc)
 
     match.status = working.status
     match.turn = working.turn
     match.players = {key: value for key, value in working.players.items()}
     match.boards = working.boards
 
-    return None
+    return error
 
 
 def close_match(match: Match) -> Optional[str]:

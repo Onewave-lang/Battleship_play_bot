@@ -8,6 +8,8 @@ from pathlib import Path
 from threading import RLock
 from typing import Dict, Iterable, Optional
 
+import httpx
+
 from .models import (
     Match15,
     Player,
@@ -62,6 +64,11 @@ def snapshot_changed_cells(previous: Snapshot15, current: Snapshot15) -> set[tup
 
 logger = logging.getLogger(__name__)
 
+USE_SUPABASE = os.getenv("USE_SUPABASE") == "1"
+SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").rstrip("/")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY") or ""
+SUPABASE_TABLE15 = os.getenv("SUPABASE_TABLE15", "matches15")
+
 DATA_FILE = Path(os.getenv("DATA15_FILE_PATH", "data15.json"))
 SNAPSHOT_DIR = Path(os.getenv("DATA15_SNAPSHOTS", "snapshots15"))
 
@@ -69,7 +76,81 @@ _lock = RLock()
 _cache: Dict[str, Match15] = {}
 
 
+def _sb_headers(extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    base = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Accept": "application/json",
+    }
+    if extra:
+        base.update(extra)
+    return base
+
+
+def _require_supabase() -> None:
+    if not (SUPABASE_URL and SUPABASE_KEY):
+        raise RuntimeError("Supabase credentials are not configured")
+
+
+def _sb_get_all() -> Dict[str, dict]:
+    _require_supabase()
+    url = f"{SUPABASE_URL}/rest/v1/{SUPABASE_TABLE15}?select=id,payload"
+    with httpx.Client(timeout=30) as client:
+        response = client.get(url, headers=_sb_headers())
+        response.raise_for_status()
+        rows = response.json()
+    return {row["id"]: row["payload"] for row in rows}
+
+
+def _sb_get_one(match_id: str) -> Optional[dict]:
+    _require_supabase()
+    url = f"{SUPABASE_URL}/rest/v1/{SUPABASE_TABLE15}?id=eq.{match_id}&select=id,payload"
+    with httpx.Client(timeout=30) as client:
+        response = client.get(url, headers=_sb_headers())
+        response.raise_for_status()
+        rows = response.json()
+    if not rows:
+        return None
+    return rows[0]["payload"]
+
+
+def _sb_upsert_one(match_id: str, payload: dict) -> None:
+    _require_supabase()
+    url = f"{SUPABASE_URL}/rest/v1/{SUPABASE_TABLE15}?on_conflict=id"
+    body = [{"id": match_id, "payload": payload}]
+    headers = _sb_headers({
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates",
+    })
+    with httpx.Client(timeout=30) as client:
+        response = client.post(url, headers=headers, json=body)
+        response.raise_for_status()
+
+
+def _sb_delete_one(match_id: str) -> None:
+    _require_supabase()
+    url = f"{SUPABASE_URL}/rest/v1/{SUPABASE_TABLE15}?id=eq.{match_id}"
+    headers = _sb_headers({"Prefer": "return=representation"})
+    with httpx.Client(timeout=30) as client:
+        response = client.delete(url, headers=headers)
+        response.raise_for_status()
+
+
 def _load_all() -> Dict[str, Match15]:
+    if USE_SUPABASE:
+        matches: Dict[str, Match15] = {}
+        try:
+            rows = _sb_get_all()
+        except Exception:
+            logger.exception("Failed to load matches from Supabase")
+            return matches
+        for match_id, payload in rows.items():
+            try:
+                matches[match_id] = Match15.from_payload(payload)
+            except Exception:
+                logger.exception("Failed to deserialize match %s from Supabase", match_id)
+        return matches
+
     if _cache:
         return _cache
     if DATA_FILE.exists():
@@ -102,6 +183,13 @@ def list_matches() -> Iterable[Match15]:
 
 
 def save_match(match: Match15) -> None:
+    if USE_SUPABASE:
+        try:
+            _sb_upsert_one(match.match_id, match.to_payload())
+        except Exception:
+            logger.exception("Failed to save match %s to Supabase", match.match_id)
+        return
+
     with _lock:
         matches = _load_all()
         matches[match.match_id] = match
@@ -109,6 +197,13 @@ def save_match(match: Match15) -> None:
 
 
 def delete_match(match_id: str) -> None:
+    if USE_SUPABASE:
+        try:
+            _sb_delete_one(match_id)
+        except Exception:
+            logger.exception("Failed to delete match %s from Supabase", match_id)
+        return
+
     with _lock:
         matches = _load_all()
         if match_id in matches:
@@ -123,6 +218,20 @@ def create_match(user_id: int, chat_id: int, name: str) -> Match15:
 
 
 def get_match(match_id: str) -> Optional[Match15]:
+    if USE_SUPABASE:
+        try:
+            payload = _sb_get_one(match_id)
+        except Exception:
+            logger.exception("Failed to fetch match %s from Supabase", match_id)
+            return None
+        if not payload:
+            return None
+        try:
+            return Match15.from_payload(payload)
+        except Exception:
+            logger.exception("Failed to deserialize match %s from Supabase", match_id)
+            return None
+
     with _lock:
         return _load_all().get(match_id)
 
@@ -138,7 +247,7 @@ def find_match_by_user(user_id: int, chat_id: int | None = None) -> Optional[Mat
 
 def join_match(match_id: str, user_id: int, chat_id: int, name: str) -> Optional[Match15]:
     with _lock:
-        match = _load_all().get(match_id)
+        match = get_match(match_id)
         if not match:
             return None
         for key in PLAYER_ORDER:

@@ -3,3 +3,4 @@ fastapi
 uvicorn[standard]
 wcwidth
 pillow==10.*
+httpx
