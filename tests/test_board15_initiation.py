@@ -18,6 +18,16 @@ def _reload_board15(monkeypatch, tmp_path):
     return commands_module, storage_module, handlers_module, router_module
 
 
+def test_board15_find_match_ignores_finished(monkeypatch, tmp_path):
+    _, storage15, _, _ = _reload_board15(monkeypatch, tmp_path)
+
+    match = storage15.create_match(1, 1, "Игрок A")
+    match.status = "finished"
+    storage15.save_match(match)
+
+    assert storage15.find_match_by_user(1, 1) is None
+
+
 def test_board15_prompts_for_name(monkeypatch, tmp_path):
     commands_module, storage15, handlers15, _ = _reload_board15(monkeypatch, tmp_path)
 
