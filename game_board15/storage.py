@@ -236,12 +236,31 @@ def get_match(match_id: str) -> Optional[Match15]:
         return _load_all().get(match_id)
 
 
-def find_match_by_user(user_id: int, chat_id: int | None = None) -> Optional[Match15]:
+def find_match_by_user(
+    user_id: int,
+    chat_id: int | None = None,
+    *,
+    active_statuses: Iterable[str] | None = None,
+) -> Optional[Match15]:
+    """Return the active match that contains ``user_id``.
+
+    Matches that are already finished should not prevent players from starting a
+    new session.  We therefore filter them out by default and only consider
+    matches whose status is included in ``active_statuses`` (``{"waiting",
+    "playing"}`` by default).
+    """
+
+    allowed_statuses = set(active_statuses or {"waiting", "playing"})
     with _lock:
         for match in _load_all().values():
+            if match.status not in allowed_statuses:
+                continue
             for player in match.players.values():
-                if player.user_id == user_id and (chat_id is None or player.chat_id == chat_id):
-                    return match
+                if player.user_id != user_id:
+                    continue
+                if chat_id is not None and player.chat_id != chat_id:
+                    continue
+                return match
     return None
 
 
