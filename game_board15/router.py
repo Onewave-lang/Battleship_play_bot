@@ -360,6 +360,15 @@ async def _send_state(
             )
             state_store[chat_id] = retry_state
             return
+        if second_visible != 20:
+            logger.critical(
+                "RENDER_GUARD_PERSISTENT_OWN20 | match=%s player=%s value=%s",
+                match.match_id,
+                player_key,
+                second_visible,
+            )
+            state_store[chat_id] = retry_state
+            return
         buffer = buffer_retry
         render_state = retry_state
     caption = message.strip()
