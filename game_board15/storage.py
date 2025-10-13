@@ -48,6 +48,18 @@ def _changed_cells(previous: Snapshot15, current: Snapshot15) -> set[tuple[int, 
                 changed.add((r, c))
     return changed
 
+
+def snapshot_fresh_cells(snapshot: Snapshot15) -> set[tuple[int, int]]:
+    """Expose coordinates marked as freshly updated in ``snapshot``."""
+
+    return _fresh_cells(snapshot)
+
+
+def snapshot_changed_cells(previous: Snapshot15, current: Snapshot15) -> set[tuple[int, int]]:
+    """Return coordinates that differ between two consecutive snapshots."""
+
+    return _changed_cells(previous, current)
+
 logger = logging.getLogger(__name__)
 
 DATA_FILE = Path(os.getenv("DATA15_FILE_PATH", "data15.json"))
@@ -160,9 +172,11 @@ def append_snapshot(
 ) -> Snapshot15:
     previous = match.snapshots[-1] if getattr(match, "snapshots", []) else None
     snap = snapshot or match.create_snapshot()
+    expected_set = set(expected_changes or [])
+    setattr(match, "_last_expected_changes", expected_set)
     if previous is not None and previous is not snap:
         changed = _changed_cells(previous, snap)
-        allowed = set(expected_changes or [])
+        allowed = set(expected_set)
         allowed.update(_fresh_cells(previous))
         unexpected = changed - allowed
         if unexpected:
@@ -192,5 +206,7 @@ __all__ = [
     "join_match",
     "list_matches",
     "save_match",
+    "snapshot_changed_cells",
+    "snapshot_fresh_cells",
     "SnapshotDiffError",
 ]

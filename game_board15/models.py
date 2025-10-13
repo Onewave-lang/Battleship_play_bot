@@ -186,6 +186,9 @@ class Snapshot15:
 
     status: str
     turn_idx: int
+    turn: str
+    order: List[str]
+    players: Dict[str, Player]
     field: Field15
     alive_cells: Dict[str, int]
     cell_history: List[List[List[int | None]]]
@@ -201,9 +204,22 @@ class Snapshot15:
             [normalize_history_cell(cell) for cell in row]
             for row in match.cell_history
         ]
+        players_copy = {
+            key: Player(
+                user_id=player.user_id,
+                chat_id=player.chat_id,
+                name=player.name,
+                color=player.color,
+                eliminated=player.eliminated,
+            )
+            for key, player in match.players.items()
+        }
         return cls(
             status=match.status,
             turn_idx=match.turn_idx,
+            turn=getattr(match, "turn", match.order[match.turn_idx]),
+            order=list(getattr(match, "order", PLAYER_ORDER)),
+            players=players_copy,
             field=field_copy,
             alive_cells={k: v for k, v in match.alive_cells.items()},
             cell_history=history_copy,
@@ -217,6 +233,18 @@ class Snapshot15:
         return {
             "status": self.status,
             "turn_idx": self.turn_idx,
+            "turn": self.turn,
+            "order": list(self.order),
+            "players": {
+                key: {
+                    "user_id": player.user_id,
+                    "chat_id": player.chat_id,
+                    "name": player.name,
+                    "color": player.color,
+                    "eliminated": player.eliminated,
+                }
+                for key, player in self.players.items()
+            },
             "alive_cells": dict(self.alive_cells),
             "last_move": list(self.last_move) if self.last_move else None,
             "field": {
