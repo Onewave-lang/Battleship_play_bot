@@ -160,10 +160,22 @@ async def send_board15_invite_link(update: Update, context: ContextTypes.DEFAULT
     if not match:
         await query.message.reply_text("Матч не найден.")
         return
-    link = f"/start b15_{match.match_id}"
-    await query.message.reply_text(
-        "Передайте эту команду двум друзьям, чтобы присоединиться к матчу:\n" + link
+    bot_username = getattr(await context.bot.get_me(), "username", None)
+    deep_link: str
+    if bot_username:
+        deep_link = f"https://t.me/{bot_username}?start=b15_{match.match_id}"
+    else:
+        deep_link = f"/start b15_{match.match_id}"
+    message = (
+        "Передайте эту ссылку двум друзьям, чтобы присоединиться к матчу:\n"
+        f"{deep_link}"
     )
+    if bot_username:
+        message += (
+            "\nЕсли нужно поделиться текстом вручную, отправьте: "
+            f"/start b15_{match.match_id}"
+        )
+    await query.message.reply_text(message)
 
 
 async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
