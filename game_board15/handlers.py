@@ -160,7 +160,7 @@ async def send_board15_invite_link(update: Update, context: ContextTypes.DEFAULT
     if not match:
         await query.message.reply_text("Матч не найден.")
         return
-    link = f"/start inv_{match.match_id}"
+    link = f"/start b15_{match.match_id}"
     await query.message.reply_text(
         "Передайте эту команду двум друзьям, чтобы присоединиться к матчу:\n" + link
     )

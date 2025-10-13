@@ -82,6 +82,32 @@ def test_board15_creates_match_after_name(monkeypatch, tmp_path):
     asyncio.run(run())
 
 
+def test_board15_invite_link_uses_b15_prefix(monkeypatch, tmp_path):
+    _, storage15, handlers15, _ = _reload_board15(monkeypatch, tmp_path)
+
+    async def run():
+        match = storage15.create_match(1, 1, "Игрок A")
+        reply_text = AsyncMock()
+        query = SimpleNamespace(
+            from_user=SimpleNamespace(id=1),
+            message=SimpleNamespace(
+                chat=SimpleNamespace(id=1),
+                reply_text=reply_text,
+            ),
+            answer=AsyncMock(),
+        )
+        update = SimpleNamespace(callback_query=query)
+        context = SimpleNamespace(user_data={}, bot_data={}, bot=SimpleNamespace())
+
+        await handlers15.send_board15_invite_link(update, context)
+
+        assert query.answer.call_count == 1
+        texts = [record.args[0] for record in reply_text.call_args_list]
+        assert any(f"/start b15_{match.match_id}" in text for text in texts)
+
+    asyncio.run(run())
+
+
 def test_board15_reaches_playing_after_full_roster(monkeypatch, tmp_path):
     _, storage15, _, _ = _reload_board15(monkeypatch, tmp_path)
 
