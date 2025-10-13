@@ -14,6 +14,7 @@ import os
 import storage
 from logic.render import render_board_own, render_board_enemy
 from .board_test import board_test_two
+from app.config import BOARD15_ENABLED, BOARD15_TEST_ENABLED
 
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,6 @@ _WELCOME_PLACEHOLDER = base64.b64decode(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAADUlEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII='
 )
 
-BOARD15_TEST_ENABLED = os.getenv("BOARD15_TEST_ENABLED") == "1"
 _ADMIN_ID_RAW = os.getenv("ADMIN_ID")
 try:
     ADMIN_ID = int(_ADMIN_ID_RAW) if _ADMIN_ID_RAW is not None else None
@@ -491,7 +491,7 @@ async def quit_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     match = storage.find_match_by_user(user_id, chat_id)
-    if not match and os.getenv("BOARD15_ENABLED") == "1":
+    if not match and BOARD15_ENABLED:
         from game_board15 import storage as storage15  # type: ignore
         match15 = storage15.find_match_by_user(user_id, chat_id)
         if match15:
