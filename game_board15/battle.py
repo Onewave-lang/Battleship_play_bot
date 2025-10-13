@@ -91,7 +91,8 @@ def apply_shot(match: Match15, shooter: str, coord: Coord) -> ShotResult:
     ship = _find_ship(match, owner, coord)
     match.field.set_state(coord, 3, owner)
     if not ship:
-        match.alive_cells[owner] = max(0, match.alive_cells.get(owner, 0) - 1)
+        if state == 1:
+            match.alive_cells[owner] = max(0, match.alive_cells.get(owner, 0) - 1)
         return ShotResult(result=HIT, owner=owner, coord=coord)
 
     states = _ship_cells_state(match, ship)
@@ -102,8 +103,10 @@ def apply_shot(match: Match15, shooter: str, coord: Coord) -> ShotResult:
             if match.field.state_at(cell) != 4:
                 match.field.set_state(cell, 4, owner)
                 newly_destroyed.append(cell)
-        lost = len(newly_destroyed) or len(ship.cells)
-        match.alive_cells[owner] = max(0, match.alive_cells.get(owner, 0) - lost)
+        if state == 1:
+            match.alive_cells[owner] = max(
+                0, match.alive_cells.get(owner, 0) - 1
+            )
         contour = _mark_contour(match, ship)
         return ShotResult(
             result=KILL,
@@ -112,7 +115,8 @@ def apply_shot(match: Match15, shooter: str, coord: Coord) -> ShotResult:
             killed_ship=ship,
             contour=contour,
         )
-    match.alive_cells[owner] = max(0, match.alive_cells.get(owner, 0) - 1)
+    if state == 1:
+        match.alive_cells[owner] = max(0, match.alive_cells.get(owner, 0) - 1)
     return ShotResult(result=HIT, owner=owner, coord=coord)
 
 
