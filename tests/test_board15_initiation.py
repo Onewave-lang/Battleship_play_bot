@@ -153,3 +153,36 @@ def test_board15_test_sets_playing(monkeypatch, tmp_path):
         assert any("Тестовый матч 15×15 создан" in text for text in reply_messages)
 
     asyncio.run(run())
+
+
+def test_board15_join_does_not_request_auto(monkeypatch, tmp_path):
+    commands_module, storage15, _, _ = _reload_board15(monkeypatch, tmp_path)
+
+    async def run():
+        match = storage15.create_match(1, 1, "Игрок A")
+
+        reply_text = AsyncMock()
+        reply_photo = AsyncMock()
+        update = SimpleNamespace(
+            message=SimpleNamespace(reply_text=reply_text, reply_photo=reply_photo),
+            effective_user=SimpleNamespace(id=2, first_name="Игрок B"),
+            effective_chat=SimpleNamespace(id=2),
+        )
+        context = SimpleNamespace(
+            args=[f"b15_{match.match_id}"],
+            bot=SimpleNamespace(send_message=AsyncMock()),
+            user_data={},
+            bot_data={},
+        )
+
+        await commands_module.start(update, context)
+
+        join_texts = [call.args[0] for call in reply_text.call_args_list]
+        assert join_texts
+        assert all('"авто"' not in text.lower() for text in join_texts)
+
+        other_messages = [call.args[1] for call in context.bot.send_message.call_args_list]
+        assert other_messages
+        assert all('"авто"' not in text.lower() for text in other_messages)
+
+    asyncio.run(run())

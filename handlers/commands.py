@@ -220,27 +220,56 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     elif args and args[0].startswith('b15_'):
         match_id = args[0][4:]
         from game_board15 import storage as storage15
+        from game_board15.models import PLAYER_ORDER as PLAYER_ORDER15
+
         name = getattr(update.effective_user, 'first_name', '') or ''
-        match = storage15.join_match(match_id, update.effective_user.id, update.effective_chat.id, name)
+        match = storage15.join_match(
+            match_id,
+            update.effective_user.id,
+            update.effective_chat.id,
+            name,
+        )
         if match:
             with welcome_photo() as img:
                 await update.message.reply_photo(img, caption='Добро пожаловать в игру!')
-            await update.message.reply_text('Вы присоединились к матчу. Отправьте "авто" для расстановки.')
-            await update.message.reply_text('Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.')
+
+            joined_count = sum(
+                1 for player in match.players.values() if getattr(player, 'user_id', 0)
+            )
+            total_required = len(PLAYER_ORDER15)
+            waiting_for_more = joined_count < total_required
+
+            joiner_message_parts = [
+                'Вы присоединились к матчу 15×15.',
+                'Флот расставлен автоматически.',
+            ]
+            if waiting_for_more:
+                joiner_message_parts.append('Ожидайте подключения остальных игроков.')
+            else:
+                joiner_message_parts.append('Игра начинается — ждите своего хода.')
+
+            await update.message.reply_text(' '.join(joiner_message_parts))
+            await update.message.reply_text(
+                'Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.'
+            )
+
             for key, player in match.players.items():
                 if player.user_id == update.effective_user.id:
                     continue
-                msg = 'Соперник присоединился. '
-                if getattr(player, 'ready', False):
-                    msg += 'Ожидаем его расстановку.'
+                msg_parts = [
+                    'Соперник присоединился.',
+                    'Флот расставлен автоматически.',
+                ]
+                if waiting_for_more:
+                    msg_parts.append('Ждём остальных игроков.')
                 else:
-                    msg += 'Отправьте "авто" для расстановки.'
+                    msg_parts.append('Игра начинается.')
+                msg = ' '.join(msg_parts)
                 await context.bot.send_message(player.chat_id, msg)
-                if 'Отправьте "авто"' in msg:
-                    await context.bot.send_message(
-                        player.chat_id,
-                        'Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
-                    )
+                await context.bot.send_message(
+                    player.chat_id,
+                    'Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
+                )
         else:
             await update.message.reply_text('Матч не найден или заполнен.')
     else:
