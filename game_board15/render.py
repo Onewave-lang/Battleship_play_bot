@@ -1,6 +1,7 @@
 """Rendering utilities for the 15×15 shared board."""
 from __future__ import annotations
 
+import colorsys
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -144,11 +145,16 @@ def _mix(color: Tuple[int, int, int], factor: float) -> Tuple[int, int, int]:
 
 
 def _shade(color: Tuple[int, int, int], factor: float) -> Tuple[int, int, int]:
+    """Darken ``color`` while preserving its hue to avoid muddy tones."""
+
     r, g, b = color
+    h, l, s = colorsys.rgb_to_hls(r / 255.0, g / 255.0, b / 255.0)
+    new_l = max(0.0, min(1.0, l * factor))
+    new_r, new_g, new_b = colorsys.hls_to_rgb(h, new_l, s)
     return (
-        max(0, min(255, int(r * factor))),
-        max(0, min(255, int(g * factor))),
-        max(0, min(255, int(b * factor))),
+        int(round(new_r * 255)),
+        int(round(new_g * 255)),
+        int(round(new_b * 255)),
     )
 
 
