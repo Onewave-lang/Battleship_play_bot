@@ -20,7 +20,9 @@ from app.config import BOARD15_ENABLED, BOARD15_TEST_ENABLED
 
 logger = logging.getLogger(__name__)
 
-WELCOME_IMAGE = Path(__file__).resolve().parent.parent / '48E5E3DF-C5DF-4DE3-B301-EFA71844B5CF.png'
+WELCOME_IMAGE = (
+    Path(__file__).resolve().parent.parent / 'assets' / 'images' / 'IMG_6309.jpeg'
+)
 _WELCOME_PLACEHOLDER_CACHE: bytes | None = None
 
 
