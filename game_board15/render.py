@@ -20,12 +20,16 @@ AXIS_COLOR = (50, 50, 50)
 MISS_STALE_COLOR = (40, 40, 40)
 MISS_RECENT_COLOR = (220, 68, 68)
 MISS_DOT_RADIUS = 4
-HIT_RECENT_COLOR = (220, 68, 68)
-HIT_STALE_FACTOR = 0.45
-KILL_RECENT_FACTOR = 0.35
-KILL_STALE_FACTOR = 0.85
+HIT_HIGHLIGHT_FACTOR = 0.65
+KILL_HIGHLIGHT_FACTOR = 0.55
 KILL_OUTLINE = (0, 0, 0)
-BOMB_SYMBOL = "💣"
+TARGET_OUTLINE_COLOR = (210, 32, 32)
+TARGET_FILL_COLOR = (210, 32, 32)
+TARGET_OUTER_RADIUS = 12
+TARGET_INNER_RADIUS = 4
+CROSS_COLOR = (40, 40, 40)
+CROSS_WIDTH = 3
+CROSS_MARGIN = 6
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 TEXT_FONT_PATHS: Sequence[Path | str] = (
@@ -139,14 +143,59 @@ def _mix(color: Tuple[int, int, int], factor: float) -> Tuple[int, int, int]:
     )
 
 
+def _shade(color: Tuple[int, int, int], factor: float) -> Tuple[int, int, int]:
+    r, g, b = color
+    return (
+        max(0, min(255, int(r * factor))),
+        max(0, min(255, int(g * factor))),
+        max(0, min(255, int(b * factor))),
+    )
+
+
+def _draw_target_symbol(draw: ImageDraw.ImageDraw, rect: Tuple[int, int, int, int]) -> None:
+    cx = (rect[0] + rect[2]) // 2
+    cy = (rect[1] + rect[3]) // 2
+    draw.ellipse(
+        [
+            cx - TARGET_OUTER_RADIUS,
+            cy - TARGET_OUTER_RADIUS,
+            cx + TARGET_OUTER_RADIUS,
+            cy + TARGET_OUTER_RADIUS,
+        ],
+        outline=TARGET_OUTLINE_COLOR,
+        width=3,
+    )
+    draw.ellipse(
+        [
+            cx - TARGET_INNER_RADIUS,
+            cy - TARGET_INNER_RADIUS,
+            cx + TARGET_INNER_RADIUS,
+            cy + TARGET_INNER_RADIUS,
+        ],
+        fill=TARGET_FILL_COLOR,
+    )
+
+
+def _draw_cross(draw: ImageDraw.ImageDraw, rect: Tuple[int, int, int, int]) -> None:
+    x0, y0, x1, y1 = rect
+    draw.line(
+        [(x0 + CROSS_MARGIN, y0 + CROSS_MARGIN), (x1 - CROSS_MARGIN, y1 - CROSS_MARGIN)],
+        fill=CROSS_COLOR,
+        width=CROSS_WIDTH,
+    )
+    draw.line(
+        [(x0 + CROSS_MARGIN, y1 - CROSS_MARGIN), (x1 - CROSS_MARGIN, y0 + CROSS_MARGIN)],
+        fill=CROSS_COLOR,
+        width=CROSS_WIDTH,
+    )
+
+
 def render_board(state: RenderState, player_key: str) -> BytesIO:
     image_size = MARGIN * 2 + CELL_SIZE * 15
     image = Image.new("RGBA", (image_size, image_size), BG_COLOR + (255,))
     draw = ImageDraw.Draw(image)
 
     _draw_axes(draw, draw_top=True, draw_left=True, draw_bottom=False, draw_right=False)
-
-    bomb_font = _load_font(32, paths=(*EMOJI_FONT_PATHS, *TEXT_FONT_PATHS))
 
     visible_own = 0
 
@@ -191,28 +240,24 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
             if state_value == 3 or field_state == 3:
                 if owner == player_key:
                     visible_own += 1
-                base_color = PLAYER_COLORS.get(owner or player_key, HIT_RECENT_COLOR)
-                if fresh and state_value == 3:
-                    fill_color = HIT_RECENT_COLOR
-                else:
-                    fill_color = _mix(base_color, HIT_STALE_FACTOR)
+                base_color = PLAYER_COLORS.get(owner or player_key, (120, 120, 120))
+                fill_color = _shade(base_color, HIT_HIGHLIGHT_FACTOR)
                 draw.rectangle(rect, fill=fill_color)
-                draw.rectangle(rect, outline=KILL_OUTLINE, width=2)
+                if fresh and state_value == 3:
+                    _draw_target_symbol(draw, rect)
+                else:
+                    _draw_cross(draw, rect)
             if state_value == 4 or field_state == 4:
                 if owner == player_key:
                     visible_own += 1
-                base_color = PLAYER_COLORS.get(owner or player_key, HIT_RECENT_COLOR)
+                base_color = PLAYER_COLORS.get(owner or player_key, (120, 120, 120))
+                fill_color = _shade(base_color, KILL_HIGHLIGHT_FACTOR)
+                draw.rectangle(rect, fill=fill_color)
                 if fresh and state_value == 4:
-                    fill_color = _mix(base_color, KILL_RECENT_FACTOR)
-                    draw.rectangle(rect, fill=fill_color)
-                    cx = (rect[0] + rect[2]) // 2
-                    cy = (rect[1] + rect[3]) // 2
-                    draw.text((cx, cy), BOMB_SYMBOL, anchor="mm", font=bomb_font)
-                    draw.rectangle(rect, outline=KILL_OUTLINE, width=2)
+                    _draw_target_symbol(draw, rect)
                 else:
-                    fill_color = _mix(base_color, KILL_STALE_FACTOR)
-                    draw.rectangle(rect, fill=fill_color)
-                    draw.rectangle(rect, outline=KILL_OUTLINE, width=2)
+                    _draw_cross(draw, rect)
+                draw.rectangle(rect, outline=KILL_OUTLINE, width=2)
             if state_value == 5 or field_state == 5:
                 cx = (rect[0] + rect[2]) // 2
                 cy = (rect[1] + rect[3]) // 2
