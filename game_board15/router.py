@@ -584,9 +584,17 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 next_line_default,
             )
     elif shot_result.result == HIT:
+        target_label = (
+            _player_label(match, shot_result.owner)
+            if shot_result.owner is not None
+            else None
+        )
+        target_phrase = (
+            f"корабль игрока {target_label}" if target_label else "корабль соперника"
+        )
         phrase_self = _phrase_or_joke(match, player_key, SELF_HIT).strip()
         message_self = _compose_move_message(
-            f"Ваш ход: {coord_text} — Ранил.",
+            f"Ваш ход: {coord_text} — Ранил {target_phrase}.",
             phrase_self,
             next_line_default,
         )
@@ -594,19 +602,42 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             if other_key == player_key:
                 continue
             humor_enemy = _phrase_or_joke(match, other_key, ENEMY_HIT).strip()
+            if shot_result.owner == other_key:
+                result_line_enemy = (
+                    f"Ход игрока {player_label}: {coord_text} — Соперник ранил ваш корабль."
+                )
+            else:
+                result_line_enemy = (
+                    f"Ход игрока {player_label}: {coord_text} — Соперник ранил {target_phrase}."
+                )
             enemy_messages[other_key] = _compose_move_message(
-                f"Ход игрока {player_label}: {coord_text} — Соперник ранил ваш корабль.",
+                result_line_enemy,
                 humor_enemy,
                 next_line_default,
             )
     elif shot_result.result == KILL:
+        target_label = (
+            _player_label(match, shot_result.owner)
+            if shot_result.owner is not None
+            else None
+        )
+        target_phrase_self = (
+            f"Корабль игрока {target_label}"
+            if target_label
+            else "Корабль соперника"
+        )
+        target_phrase_enemy = (
+            f"корабль игрока {target_label}"
+            if target_label
+            else "корабль соперника"
+        )
         phrase_self = _phrase_or_joke(match, player_key, SELF_KILL).strip()
         if outcome.finished and outcome.winner == player_key:
             next_line_self = "Вы победили!🏆"
         else:
             next_line_self = next_line_default
         message_self = _compose_move_message(
-            f"Ваш ход: {coord_text} — Корабль соперника уничтожен!",
+            f"Ваш ход: {coord_text} — {target_phrase_self} уничтожен!",
             phrase_self,
             next_line_self,
         )
@@ -624,8 +655,16 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 )
             else:
                 next_line_enemy = next_line_default
+            if shot_result.owner == other_key:
+                result_line_enemy = (
+                    f"Ход игрока {player_label}: {coord_text} — Соперник уничтожил ваш корабль."
+                )
+            else:
+                result_line_enemy = (
+                    f"Ход игрока {player_label}: {coord_text} — Соперник уничтожил {target_phrase_enemy}."
+                )
             enemy_messages[other_key] = _compose_move_message(
-                f"Ход игрока {player_label}: {coord_text} — Соперник уничтожил ваш корабль.",
+                result_line_enemy,
                 humor_enemy,
                 next_line_enemy,
             )

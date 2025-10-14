@@ -502,11 +502,21 @@ async def _auto_play_bots(
                             next_line_default,
                         )
                 elif shot_result.result == HIT:
+                    target_label = (
+                        router_ref._player_label(match_ref, shot_result.owner)
+                        if shot_result.owner is not None
+                        else None
+                    )
+                    target_phrase = (
+                        f"корабль игрока {target_label}"
+                        if target_label
+                        else "корабль соперника"
+                    )
                     phrase_self = router_ref._phrase_or_joke(
                         match_ref, current, router.SELF_HIT
                     ).strip()
                     message_self = router_ref._compose_move_message(
-                        f"Ваш ход: {coord_text} — Ранил.",
+                        f"Ваш ход: {coord_text} — Ранил {target_phrase}.",
                         phrase_self,
                         next_line_default,
                     )
@@ -516,12 +526,35 @@ async def _auto_play_bots(
                         humor_enemy = router_ref._phrase_or_joke(
                             match_ref, other_key, router.ENEMY_HIT
                         ).strip()
+                        if shot_result.owner == other_key:
+                            result_line_enemy = (
+                                f"Ход игрока {player_label}: {coord_text} — Соперник ранил ваш корабль."
+                            )
+                        else:
+                            result_line_enemy = (
+                                f"Ход игрока {player_label}: {coord_text} — Соперник ранил {target_phrase}."
+                            )
                         enemy_messages[other_key] = router_ref._compose_move_message(
-                            f"Ход игрока {player_label}: {coord_text} — Соперник ранил ваш корабль.",
+                            result_line_enemy,
                             humor_enemy,
                             next_line_default,
                         )
                 elif shot_result.result == KILL:
+                    target_label = (
+                        router_ref._player_label(match_ref, shot_result.owner)
+                        if shot_result.owner is not None
+                        else None
+                    )
+                    target_phrase_self = (
+                        f"Корабль игрока {target_label}"
+                        if target_label
+                        else "Корабль соперника"
+                    )
+                    target_phrase_enemy = (
+                        f"корабль игрока {target_label}"
+                        if target_label
+                        else "корабль соперника"
+                    )
                     phrase_self = router_ref._phrase_or_joke(
                         match_ref, current, router.SELF_KILL
                     ).strip()
@@ -530,7 +563,7 @@ async def _auto_play_bots(
                     else:
                         next_line_self = next_line_default
                     message_self = router_ref._compose_move_message(
-                        f"Ваш ход: {coord_text} — Корабль соперника уничтожен!",
+                        f"Ваш ход: {coord_text} — {target_phrase_self} уничтожен!",
                         phrase_self,
                         next_line_self,
                     )
@@ -550,8 +583,16 @@ async def _auto_play_bots(
                             )
                         else:
                             next_line_enemy = next_line_default
+                        if shot_result.owner == other_key:
+                            result_line_enemy = (
+                                f"Ход игрока {player_label}: {coord_text} — Соперник уничтожил ваш корабль."
+                            )
+                        else:
+                            result_line_enemy = (
+                                f"Ход игрока {player_label}: {coord_text} — Соперник уничтожил {target_phrase_enemy}."
+                            )
                         enemy_messages[other_key] = router_ref._compose_move_message(
-                            f"Ход игрока {player_label}: {coord_text} — Соперник уничтожил ваш корабль.",
+                            result_line_enemy,
                             humor_enemy,
                             next_line_enemy,
                         )
