@@ -25,7 +25,6 @@ HIT_STALE_FACTOR = 0.45
 KILL_RECENT_FACTOR = 0.35
 KILL_STALE_FACTOR = 0.85
 KILL_OUTLINE = (0, 0, 0)
-CONTOUR_COLOR = (0, 0, 0)
 BOMB_SYMBOL = "💣"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -215,9 +214,10 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
             if state_value == 5 or field_state == 5:
                 cx = (rect[0] + rect[2]) // 2
                 cy = (rect[1] + rect[3]) // 2
+                radius = MISS_DOT_RADIUS
                 draw.ellipse(
-                    [cx - 3, cy - 3, cx + 3, cy + 3],
-                    fill=CONTOUR_COLOR,
+                    [cx - radius, cy - radius, cx + radius, cy + radius],
+                    fill=MISS_STALE_COLOR,
                 )
 
     _draw_grid(draw)
