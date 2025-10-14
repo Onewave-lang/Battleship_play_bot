@@ -273,6 +273,32 @@ def _phrase_or_joke(match, player_key: str, phrases: List[str]) -> str:
     return random_phrase(phrases)
 
 
+def _compose_move_message(
+    result_line: str, humor: str | None, next_line: str | None
+) -> str:
+    """Format move summary with optional humor and next-turn line."""
+
+    lines: List[str] = [result_line.strip()]
+    humor_text = (humor or "").strip()
+    if humor_text:
+        lines.append("")
+        lines.append(humor_text)
+    if next_line:
+        if humor_text:
+            lines.append("")
+        lines.append(next_line.strip())
+    return "\n".join(lines)
+
+
+def _format_next_turn_line(
+    match, next_key: Optional[str], *, finished: bool
+) -> Optional[str]:
+    if finished or not next_key:
+        return None
+    label = _player_label(match, next_key)
+    return f"Следующим ходит {label}."
+
+
 async def _send_state(
     context: ContextTypes.DEFAULT_TYPE,
     match,
@@ -503,24 +529,22 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     shots = match.shots.setdefault(player_key, {})
     shots.setdefault("history", []).append(coord)
     shots["last_result"] = shot_result.result
-    shots["move_count"] = shots.get("move_count", 0) + 1
     shots["last_coord"] = coord
+
+    player_keys = list(getattr(match, "players", {}).keys())
+    for key in player_keys:
+        entry = match.shots.setdefault(key, {})
+        entry.setdefault("move_count", 0)
+        entry.setdefault("joke_start", random.randint(1, 10))
+
+    for key in player_keys:
+        entry = match.shots.setdefault(key, {})
+        entry["move_count"] = entry.get("move_count", 0) + 1
 
     if needs_presave:
         storage.save_match(match)
 
-    if shot_result.result == MISS:
-        phrase = _phrase_or_joke(match, player_key, SELF_MISS)
-        enemy_phrase = random_phrase(ENEMY_MISS)
-    elif shot_result.result == HIT:
-        phrase = _phrase_or_joke(match, player_key, SELF_HIT)
-        enemy_phrase = random_phrase(ENEMY_HIT)
-    else:
-        phrase = _phrase_or_joke(match, player_key, SELF_KILL)
-        enemy_phrase = random_phrase(ENEMY_KILL)
-
     coord_text = format_coord(coord)
-    message_self = f"Ваш ход: {coord_text}. {phrase}".strip()
     player_label = _player_label(match, player_key)
 
     outcome = advance_turn(match, shot_result, previous_alive=prev_alive)
@@ -532,6 +556,89 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         match,
         expected_changes=expected_cells,
     )
+
+    next_line_default = _format_next_turn_line(
+        match, outcome.next_turn, finished=outcome.finished
+    )
+
+    enemy_messages: Dict[str, str] = {}
+
+    if shot_result.result == MISS:
+        phrase_self = _phrase_or_joke(match, player_key, SELF_MISS).strip()
+        message_self = _compose_move_message(
+            f"Ваш ход: {coord_text} — Мимо.",
+            phrase_self,
+            next_line_default,
+        )
+        for other_key, _player in _iter_real_players(match):
+            if other_key == player_key:
+                continue
+            humor_enemy = _phrase_or_joke(match, other_key, ENEMY_MISS).strip()
+            enemy_messages[other_key] = _compose_move_message(
+                f"Ход игрока {player_label}: {coord_text} — Соперник промахнулся.",
+                humor_enemy,
+                next_line_default,
+            )
+    elif shot_result.result == HIT:
+        phrase_self = _phrase_or_joke(match, player_key, SELF_HIT).strip()
+        message_self = _compose_move_message(
+            f"Ваш ход: {coord_text} — Ранил.",
+            phrase_self,
+            next_line_default,
+        )
+        for other_key, _player in _iter_real_players(match):
+            if other_key == player_key:
+                continue
+            humor_enemy = _phrase_or_joke(match, other_key, ENEMY_HIT).strip()
+            enemy_messages[other_key] = _compose_move_message(
+                f"Ход игрока {player_label}: {coord_text} — Соперник ранил ваш корабль.",
+                humor_enemy,
+                next_line_default,
+            )
+    elif shot_result.result == KILL:
+        phrase_self = _phrase_or_joke(match, player_key, SELF_KILL).strip()
+        if outcome.finished and outcome.winner == player_key:
+            next_line_self = "Вы победили!🏆"
+        else:
+            next_line_self = next_line_default
+        message_self = _compose_move_message(
+            f"Ваш ход: {coord_text} — Корабль соперника уничтожен!",
+            phrase_self,
+            next_line_self,
+        )
+        for other_key, _player in _iter_real_players(match):
+            if other_key == player_key:
+                continue
+            humor_enemy = _phrase_or_joke(match, other_key, ENEMY_KILL).strip()
+            if (
+                outcome.finished
+                and outcome.winner == player_key
+                and shot_result.owner == other_key
+            ):
+                next_line_enemy = (
+                    f"Все ваши корабли уничтожены. Игрок {player_label} победил!"
+                )
+            else:
+                next_line_enemy = next_line_default
+            enemy_messages[other_key] = _compose_move_message(
+                f"Ход игрока {player_label}: {coord_text} — Соперник уничтожил ваш корабль.",
+                humor_enemy,
+                next_line_enemy,
+            )
+    else:
+        message_self = _compose_move_message(
+            f"Ваш ход: {coord_text} — Ошибка.",
+            None,
+            next_line_default,
+        )
+        for other_key, _player in _iter_real_players(match):
+            if other_key == player_key:
+                continue
+            enemy_messages[other_key] = _compose_move_message(
+                f"Ход игрока {player_label}: {coord_text} — Техническая ошибка.",
+                None,
+                next_line_default,
+            )
 
     await _send_state(
         context,
@@ -546,12 +653,15 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             continue
         if match.alive_cells.get(other_key, 0) <= 0:
             continue
+        message_enemy = enemy_messages.get(other_key)
+        if not message_enemy:
+            continue
         try:
             await _send_state(
                 context,
                 match,
                 other_key,
-                f"Ход {player_label}: {coord_text}. {enemy_phrase}",
+                message_enemy,
                 snapshot=snapshot,
             )
         except Exception:
