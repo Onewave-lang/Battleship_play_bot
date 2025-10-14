@@ -11,11 +11,22 @@ Coord = Tuple[int, int]
 
 
 PLAYER_ORDER = ["A", "B", "C"]
-PLAYER_COLORS = {
-    "A": (132, 196, 231),
-    "B": (64, 158, 209),
-    "C": (243, 147, 55),
+
+# Six fixed ship colors used across all three-player modes.
+# "light" colors render intact ships while "dark" colors highlight
+# damaged or destroyed segments.  The palette deliberately contains only
+# these six values to avoid visual ambiguity between fleets.
+PLAYER_COLOR_SCHEMES = {
+    "A": {"light": (173, 216, 230), "dark": (0, 102, 204)},  # light/bright blue
+    "B": {"light": (255, 213, 153), "dark": (255, 140, 0)},  # light/bright orange
+    "C": {"light": (204, 239, 204), "dark": (46, 176, 75)},  # light/bright green
 }
+
+# Backwards compatibility mapping preserved for modules that expect the
+# legacy ``PLAYER_COLORS`` constant to provide the "active" (dark) shade.
+PLAYER_COLORS = {key: value["dark"] for key, value in PLAYER_COLOR_SCHEMES.items()}
+PLAYER_LIGHT_COLORS = {key: value["light"] for key, value in PLAYER_COLOR_SCHEMES.items()}
+PLAYER_DARK_COLORS = PLAYER_COLORS
 
 
 def _coerce_age(value: Any) -> int:
@@ -512,6 +523,9 @@ __all__ = [
     "empty_history",
     "normalize_history_cell",
     "normalize_history_grid",
+    "PLAYER_COLOR_SCHEMES",
+    "PLAYER_DARK_COLORS",
+    "PLAYER_LIGHT_COLORS",
     "PLAYER_COLORS",
     "PLAYER_ORDER",
 ]
