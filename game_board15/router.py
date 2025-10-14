@@ -397,7 +397,11 @@ async def _send_state(
             return
         buffer = buffer_retry
         render_state = retry_state
-    caption = message.strip()
+    caption = (message or "").replace("\r\n", "\n")
+    caption_lines = caption.split("\n")
+    while caption_lines and not caption_lines[0].strip():
+        caption_lines.pop(0)
+    caption = "\n".join(caption_lines).rstrip()
     try:
         sent = await context.bot.send_photo(
             chat_id,
