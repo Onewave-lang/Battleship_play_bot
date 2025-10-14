@@ -279,7 +279,7 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
                     _draw_target_symbol(draw, rect)
                 else:
                     _draw_cross(draw, rect)
-                draw.rectangle(rect, outline=KILL_OUTLINE, width=2)
+                draw.rectangle(rect, outline=KILL_OUTLINE, width=3)
             if state_value == 5 or field_state == 5:
                 cx = (rect[0] + rect[2]) // 2
                 cy = (rect[1] + rect[3]) // 2
