@@ -80,6 +80,20 @@ def test_board15_creates_match_after_name(monkeypatch, tmp_path):
         assert any("Имя сохранено" in text for text in responses)
         assert any("Матч создан" in text for text in responses)
 
+        markups = [
+            call.kwargs.get("reply_markup")
+            for call in reply_text_name.call_args_list
+            if call.kwargs.get("reply_markup") is not None
+        ]
+        assert any(
+            any(
+                button.text == "Пригласить соперник-бота"
+                for button in row
+            )
+            for markup in markups
+            for row in getattr(markup, "inline_keyboard", [])
+        )
+
         match = storage15.find_match_by_user(1, 1)
         assert match is not None
         assert match.players["A"].name == "Иван"
@@ -88,6 +102,88 @@ def test_board15_creates_match_after_name(monkeypatch, tmp_path):
         assert context.user_data.get(commands_module.NAME_KEY) == "Иван"
         state = context.user_data.get(commands_module.NAME_STATE_KEY, {})
         assert not state.get("waiting")
+
+    asyncio.run(run())
+
+
+def test_add_board15_bot_requires_second_human(monkeypatch, tmp_path):
+    _, storage15, handlers15, _ = _reload_board15(monkeypatch, tmp_path)
+
+    async def run():
+        match = storage15.create_match(1, 1, "Игрок A")
+        reply_text = AsyncMock()
+        auto_play_mock = AsyncMock()
+        monkeypatch.setattr(handlers15, "_auto_play_bots", auto_play_mock)
+
+        query = SimpleNamespace(
+            from_user=SimpleNamespace(id=1),
+            message=SimpleNamespace(
+                chat=SimpleNamespace(id=1),
+                reply_text=reply_text,
+                edit_reply_markup=AsyncMock(),
+            ),
+            answer=AsyncMock(),
+        )
+        update = SimpleNamespace(callback_query=query)
+        context = SimpleNamespace(
+            bot=SimpleNamespace(send_message=AsyncMock()),
+            bot_data={},
+        )
+
+        await handlers15.add_board15_bot(update, context)
+
+        reply_messages = [call.args[0] for call in reply_text.call_args_list]
+        assert any("Дождитесь подключения" in text for text in reply_messages)
+        auto_play_mock.assert_not_awaited()
+        assert storage15.get_match(match.match_id).status == "waiting"
+
+    asyncio.run(run())
+
+
+def test_add_board15_bot_fills_slot(monkeypatch, tmp_path):
+    _, storage15, handlers15, _ = _reload_board15(monkeypatch, tmp_path)
+
+    async def run():
+        match = storage15.create_match(1, 1, "Игрок A")
+        storage15.join_match(match.match_id, 2, 2, "Игрок B")
+        auto_play_mock = AsyncMock()
+        monkeypatch.setattr(handlers15, "_auto_play_bots", auto_play_mock)
+
+        reply_text = AsyncMock()
+        message = SimpleNamespace(
+            chat=SimpleNamespace(id=1),
+            reply_text=reply_text,
+            edit_reply_markup=AsyncMock(),
+        )
+        query = SimpleNamespace(
+            from_user=SimpleNamespace(id=1),
+            message=message,
+            answer=AsyncMock(),
+        )
+        update = SimpleNamespace(callback_query=query)
+        context = SimpleNamespace(
+            bot=SimpleNamespace(send_message=AsyncMock()),
+            bot_data={},
+        )
+
+        await handlers15.add_board15_bot(update, context)
+
+        refreshed = storage15.get_match(match.match_id)
+        assert refreshed.status == "playing"
+        assert "C" in refreshed.players
+        assert refreshed.players["C"].user_id == 0
+
+        reply_messages = [call.args[0] for call in reply_text.call_args_list]
+        assert any("Бот присоединился" in text for text in reply_messages)
+        context.bot.send_message.assert_called_once()
+        args, _ = context.bot.send_message.call_args
+        assert args[0] == refreshed.players["B"].chat_id
+
+        auto_play_mock.assert_awaited_once()
+        called_args = auto_play_mock.await_args
+        assert called_args.args[0] is context
+        assert called_args.args[1].match_id == match.match_id
+        assert called_args.kwargs.get("human_keys") == ["A", "B"]
 
     asyncio.run(run())
 

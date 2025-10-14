@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from typing import Optional
+from typing import Iterable, Optional
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
@@ -108,7 +108,13 @@ async def _create_board15_match(
                         "Получить ссылку-приглашение",
                         callback_data="b15_get_link",
                     )
-                ]
+                ],
+                [
+                    InlineKeyboardButton(
+                        "Пригласить соперник-бота",
+                        callback_data="b15_add_bot",
+                    )
+                ],
             ]
         )
         await message.reply_text(
@@ -178,6 +184,96 @@ async def send_board15_invite_link(update: Update, context: ContextTypes.DEFAULT
     await query.message.reply_text(message)
 
 
+async def add_board15_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    message = query.message
+    if not message:
+        return
+
+    user = query.from_user
+    chat = getattr(message, "chat", None)
+    match = storage.find_match_by_user(user.id, getattr(chat, "id", None))
+    if not match:
+        await message.reply_text("Матч не найден.")
+        return
+
+    owner = match.players.get("A")
+    if not owner or owner.user_id != user.id:
+        await message.reply_text("Пригласить бота может только создатель матча.")
+        return
+
+    human_players = [
+        key
+        for key, player in match.players.items()
+        if getattr(player, "chat_id", 0)
+    ]
+    if len(human_players) < 2:
+        await message.reply_text("Дождитесь подключения второго игрока перед приглашением бота.")
+        return
+
+    available_slot = next((key for key in PLAYER_ORDER if key not in match.players), None)
+    if available_slot is None:
+        if any(player.user_id == 0 for player in match.players.values()):
+            await message.reply_text("Бот уже участвует в матче.")
+        else:
+            await message.reply_text("Все места уже заняты.")
+        return
+
+    match.players[available_slot] = Player(
+        user_id=0,
+        chat_id=0,
+        name=f"Бот {available_slot}",
+        color=available_slot,
+    )
+    match.status = "playing"
+    if not hasattr(match, "order") or not match.order:
+        match.order = list(PLAYER_ORDER)
+    try:
+        primary = match.order[0]
+        match.turn_idx = match.order.index(primary)
+    except (IndexError, ValueError):
+        match.turn_idx = 0
+
+    flags = match.messages.setdefault("_flags", {})
+    flags["board15_bot"] = True
+
+    storage.append_snapshot(match)
+
+    label_turn = router._player_label(match, match.turn)
+    info_text = (
+        "Бот присоединился. "
+        + ("Ваш ход." if match.turn == "A" else f"Ходит {label_turn}.")
+    )
+    await message.reply_text(info_text)
+
+    for key in human_players:
+        if key == "A":
+            continue
+        player = match.players.get(key)
+        if not player or not getattr(player, "chat_id", 0):
+            continue
+        await context.bot.send_message(
+            player.chat_id,
+            "Бот присоединился к матчу. Игра начинается.",
+        )
+
+    if hasattr(message, "edit_reply_markup"):
+        try:
+            await message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            logger.debug(
+                "Failed to clear bot invite keyboard for match %s", match.match_id
+            )
+
+    await _auto_play_bots(
+        context,
+        match,
+        human_keys=human_players,
+        delay=3.0,
+    )
+
+
 async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     message = getattr(update, "effective_message", None) or getattr(update, "message", None)
@@ -202,24 +298,38 @@ async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def _auto_play_bots(
     context: ContextTypes.DEFAULT_TYPE,
     match: Match15,
-    human_key: str,
+    human_keys: Iterable[str] | str | None = None,
     *,
     delay: float = 3.0,
 ) -> None:
     logger = logging.getLogger(__name__)
     router_ref = router
 
+    if isinstance(human_keys, str):
+        initial_humans = [human_keys]
+    elif human_keys is None:
+        initial_humans = [
+            key
+            for key, player in match.players.items()
+            if getattr(player, "chat_id", 0)
+        ]
+    else:
+        initial_humans = list(human_keys)
+
+    human_key = initial_humans[0] if initial_humans else None
     async def _safe_send_state(player_key: str, message: str) -> None:
         try:
             await router_ref._send_state(context, match, player_key, message)
         except Exception:
             logger.exception("Failed to render board15 state for player %s", player_key)
             player = match.players.get(player_key)
-            if player:
-                if player_key == human_key:
-                    suffix = " для вашего чата"
-                else:
-                    suffix = f" для игрока {human_key}"
+            if player and getattr(player, "chat_id", 0):
+                target = human_key or player_key
+                suffix = (
+                    " для вашего чата"
+                    if player_key == target
+                    else f" для игрока {target}"
+                )
                 await context.bot.send_message(
                     player.chat_id,
                     "Не удалось отправить обновление. Попробуйте позже." + suffix,
@@ -229,11 +339,27 @@ async def _auto_play_bots(
     rng = random.Random(match_ref.match_id)
 
     async def _send_initial(match_obj: Match15) -> None:
-        player = match_obj.players.get(human_key)
-        if player and getattr(player, "chat_id", 0):
-            await _safe_send_state(
-                human_key, "Игра готова. Сделайте ход, отправив координату."
-            )
+        nonlocal human_key
+        active = [
+            key
+            for key, player in match_obj.players.items()
+            if getattr(player, "chat_id", 0)
+        ]
+        if not active:
+            return
+        human_key = active[0]
+        current_turn = match_obj.turn
+        current_label = router_ref._player_label(match_obj, current_turn)
+        for key in active:
+            if key == current_turn:
+                text = "Игра готова. Сделайте ход, отправив координату."
+            else:
+                prefix = "Игра начинается. "
+                if current_label:
+                    text = f"{prefix}Ходит {current_label}. Ждите своего хода."
+                else:
+                    text = prefix + "Ждите своего хода."
+            await _safe_send_state(key, text)
 
     def _pick_coord(active_match: Match15, shooter: str) -> tuple[int, int] | None:
         field = router_ref._ensure_field(active_match)
@@ -250,7 +376,7 @@ async def _auto_play_bots(
         return None
 
     async def _loop() -> None:
-        nonlocal match_ref
+        nonlocal match_ref, human_key
         try:
             while True:
                 refreshed = storage.get_match(match_ref.match_id)
@@ -259,9 +385,15 @@ async def _auto_play_bots(
                 match_ref = refreshed
                 if match_ref.status != "playing":
                     break
-                player = match_ref.players.get(human_key)
-                if not player or not getattr(player, "chat_id", 0):
+
+                active_humans = {
+                    key
+                    for key, player in match_ref.players.items()
+                    if getattr(player, "chat_id", 0)
+                }
+                if not active_humans:
                     break
+                human_key = next(iter(active_humans))
 
                 if not isinstance(getattr(match_ref, "alive_cells", None), dict):
                     match_ref.alive_cells = {key: 20 for key in PLAYER_ORDER}
@@ -279,7 +411,7 @@ async def _auto_play_bots(
                     match_ref.boards = {key: field for key in PLAYER_ORDER}
 
                 current = match_ref.turn
-                if current == human_key:
+                if current in active_humans:
                     await asyncio.sleep(0.5)
                     continue
                 if match_ref.alive_cells.get(current, 0) <= 0:
@@ -429,5 +561,6 @@ __all__ = [
     "board15",
     "board15_test",
     "finalize_board15_pending",
+    "add_board15_bot",
     "send_board15_invite_link",
 ]
