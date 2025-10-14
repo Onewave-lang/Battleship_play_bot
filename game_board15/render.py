@@ -9,7 +9,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .models import Field15, PLAYER_COLORS
+from .models import Field15, PLAYER_DARK_COLORS, PLAYER_LIGHT_COLORS
 
 Coord = Tuple[int, int]
 
@@ -227,11 +227,21 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
             if field_state == 1:
                 if field_owner == player_key:
                     visible_own += 1
-                    draw.rectangle(rect, fill=_mix(PLAYER_COLORS[player_key], 0.25))
+                    draw.rectangle(
+                        rect,
+                        fill=PLAYER_LIGHT_COLORS.get(
+                            player_key, PLAYER_LIGHT_COLORS["A"]
+                        ),
+                    )
                 elif state.reveal_ships and owner:
                     draw.rectangle(
                         rect,
-                        fill=_mix(PLAYER_COLORS.get(owner, (120, 120, 120)), 0.15),
+                        fill=PLAYER_LIGHT_COLORS.get(
+                            owner,
+                            PLAYER_LIGHT_COLORS.get(
+                                player_key, PLAYER_LIGHT_COLORS["A"]
+                            ),
+                        ),
                     )
 
             if state_value == 2 or field_state == 2:
@@ -246,8 +256,11 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
             if state_value == 3 or field_state == 3:
                 if owner == player_key:
                     visible_own += 1
-                base_color = PLAYER_COLORS.get(owner or player_key, (120, 120, 120))
-                fill_color = _shade(base_color, HIT_HIGHLIGHT_FACTOR)
+                base_key = owner or player_key
+                fill_color = PLAYER_DARK_COLORS.get(
+                    base_key,
+                    PLAYER_DARK_COLORS.get(player_key, PLAYER_DARK_COLORS["A"]),
+                )
                 draw.rectangle(rect, fill=fill_color)
                 if fresh and state_value == 3:
                     _draw_target_symbol(draw, rect)
@@ -256,8 +269,11 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
             if state_value == 4 or field_state == 4:
                 if owner == player_key:
                     visible_own += 1
-                base_color = PLAYER_COLORS.get(owner or player_key, (120, 120, 120))
-                fill_color = _shade(base_color, KILL_HIGHLIGHT_FACTOR)
+                base_key = owner or player_key
+                fill_color = PLAYER_DARK_COLORS.get(
+                    base_key,
+                    PLAYER_DARK_COLORS.get(player_key, PLAYER_DARK_COLORS["A"]),
+                )
                 draw.rectangle(rect, fill=fill_color)
                 if fresh and state_value == 4:
                     _draw_target_symbol(draw, rect)

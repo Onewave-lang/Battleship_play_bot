@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import game_board15.render as render_mod
 from game_board15 import router as router15
-from game_board15.models import Field15, Match15, PLAYER_COLORS
+from game_board15.models import Field15, Match15, PLAYER_LIGHT_COLORS
 
 
 def _cell_center(row: int, col: int) -> tuple[int, int]:
@@ -38,7 +38,7 @@ def test_render_board_hides_enemy_ships_when_reveal_disabled():
         own_pixel = image.getpixel(own_center)
         enemy_pixel = image.getpixel(enemy_center)
 
-        expected_own = render_mod._mix(PLAYER_COLORS["A"], 0.25) + (255,)
+        expected_own = PLAYER_LIGHT_COLORS["A"] + (255,)
         expected_bg = render_mod.BG_COLOR + (255,)
 
         assert own_pixel == expected_own
