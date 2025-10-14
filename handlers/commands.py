@@ -1,5 +1,5 @@
 from __future__ import annotations
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
 from telegram.ext import ContextTypes
 from types import SimpleNamespace
 
@@ -7,9 +7,10 @@ import logging
 from pathlib import Path
 from io import BytesIO
 from contextlib import contextmanager
-import base64
 from urllib.parse import quote_plus
 import os
+
+from PIL import Image, ImageDraw, ImageFont
 
 import storage
 from logic.render import render_board_own, render_board_enemy
@@ -20,9 +21,69 @@ from app.config import BOARD15_ENABLED, BOARD15_TEST_ENABLED
 logger = logging.getLogger(__name__)
 
 WELCOME_IMAGE = Path(__file__).resolve().parent.parent / '48E5E3DF-C5DF-4DE3-B301-EFA71844B5CF.png'
-_WELCOME_PLACEHOLDER = base64.b64decode(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAADUlEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII='
-)
+_WELCOME_PLACEHOLDER_CACHE: bytes | None = None
+
+
+def _generate_welcome_placeholder() -> bytes:
+    global _WELCOME_PLACEHOLDER_CACHE
+    if _WELCOME_PLACEHOLDER_CACHE is not None:
+        return _WELCOME_PLACEHOLDER_CACHE
+
+    width, height = 640, 360
+    background_color = (9, 23, 46)
+    panel_color = (16, 53, 96)
+    title_color = (255, 255, 255)
+    caption_color = (192, 214, 255)
+
+    image = Image.new('RGB', (width, height), color=background_color)
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load_default()
+
+    title = 'Battleship'
+    subtitle = 'Добро пожаловать в игру!'
+    caption = 'Соберите флот и вступайте в бой.'
+
+    title_bbox = draw.textbbox((0, 0), title, font=font)
+    subtitle_bbox = draw.textbbox((0, 0), subtitle, font=font)
+    caption_bbox = draw.textbbox((0, 0), caption, font=font)
+
+    content_height = (
+        (title_bbox[3] - title_bbox[1])
+        + (subtitle_bbox[3] - subtitle_bbox[1])
+        + (caption_bbox[3] - caption_bbox[1])
+        + 32
+    )
+    top = (height - content_height) // 2
+
+    panel_margin_x = 48
+    panel_margin_y = max(top - 40, 24)
+    draw.rounded_rectangle(
+        (
+            panel_margin_x,
+            panel_margin_y,
+            width - panel_margin_x,
+            height - panel_margin_y,
+        ),
+        radius=36,
+        fill=panel_color,
+    )
+
+    current_y = top
+    title_x = (width - (title_bbox[2] - title_bbox[0])) // 2
+    draw.text((title_x, current_y), title, fill=title_color, font=font)
+    current_y += (title_bbox[3] - title_bbox[1]) + 12
+
+    subtitle_x = (width - (subtitle_bbox[2] - subtitle_bbox[0])) // 2
+    draw.text((subtitle_x, current_y), subtitle, fill=title_color, font=font)
+    current_y += (subtitle_bbox[3] - subtitle_bbox[1]) + 20
+
+    caption_x = (width - (caption_bbox[2] - caption_bbox[0])) // 2
+    draw.text((caption_x, current_y), caption, fill=caption_color, font=font)
+
+    buffer = BytesIO()
+    image.save(buffer, format='PNG')
+    _WELCOME_PLACEHOLDER_CACHE = buffer.getvalue()
+    return _WELCOME_PLACEHOLDER_CACHE
 
 _ADMIN_ID_RAW = os.getenv("ADMIN_ID")
 try:
@@ -36,9 +97,9 @@ except (TypeError, ValueError):
 def welcome_photo():
     if WELCOME_IMAGE.exists():
         with WELCOME_IMAGE.open('rb') as img:
-            yield img
+            yield InputFile(img, filename=WELCOME_IMAGE.name)
     else:
-        yield BytesIO(_WELCOME_PLACEHOLDER)
+        yield InputFile(_generate_welcome_placeholder(), filename='welcome.png')
 
 
 NAME_KEY = "player_name"
