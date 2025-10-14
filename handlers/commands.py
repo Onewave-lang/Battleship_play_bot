@@ -221,6 +221,7 @@ async def finalize_board15_join(
     context: ContextTypes.DEFAULT_TYPE,
     match_id: str,
 ) -> bool:
+    from game_board15 import router as router15
     from game_board15 import storage as storage15
     from game_board15.models import PLAYER_ORDER as PLAYER_ORDER15
 
@@ -233,6 +234,16 @@ async def finalize_board15_join(
     )
     if not match:
         return False
+
+    joiner_key = None
+    joiner = None
+    for key, player in match.players.items():
+        if getattr(player, "user_id", None) == update.effective_user.id:
+            joiner_key = key
+            joiner = player
+            break
+
+    joiner_name = (getattr(joiner, "name", "") or name).strip() or "Игрок"
 
     with welcome_photo() as img:
         await update.message.reply_photo(img, caption='Добро пожаловать в игру!')
@@ -250,30 +261,68 @@ async def finalize_board15_join(
     if waiting_for_more:
         joiner_message_parts.append('Ожидайте подключения остальных игроков.')
     else:
-        joiner_message_parts.append('Игра начинается — ждите своего хода.')
+        current_turn = getattr(match, "turn", None)
+        current_label = router15._player_label(match, current_turn) if current_turn else ''
+        if joiner_key and joiner_key == current_turn:
+            joiner_message_parts.append('Игра начинается — Ваш ход.')
+        elif current_label:
+            joiner_message_parts.append(f'Игра начинается — ходит {current_label}.')
+        else:
+            joiner_message_parts.append('Игра начинается — ждите своего хода.')
 
     await update.message.reply_text(' '.join(joiner_message_parts))
     await update.message.reply_text(
         'Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.'
     )
 
+    current_turn = getattr(match, "turn", None)
+    current_label = router15._player_label(match, current_turn) if current_turn else ''
+
     for key, player in match.players.items():
         if player.user_id == update.effective_user.id:
             continue
         msg_parts = [
-            'Соперник присоединился.',
+            f'Игрок {joiner_name} присоединился.',
             'Флот расставлен автоматически.',
         ]
         if waiting_for_more:
             msg_parts.append('Ждём остальных игроков.')
         else:
-            msg_parts.append('Игра начинается.')
+            if key == current_turn:
+                msg_parts.append('Игра начинается — Ваш ход.')
+            elif current_label:
+                msg_parts.append(f'Игра начинается — ходит {current_label}.')
+            else:
+                msg_parts.append('Игра начинается.')
         msg = ' '.join(msg_parts)
         await context.bot.send_message(player.chat_id, msg)
         await context.bot.send_message(
             player.chat_id,
             'Используйте @ или ! в начале сообщения, чтобы отправить сообщение соперникам в чат игры.',
         )
+
+    if not waiting_for_more:
+        snapshot = match.snapshots[-1] if getattr(match, "snapshots", []) else None
+        for key, player in match.players.items():
+            chat_id = getattr(player, "chat_id", 0)
+            if not chat_id:
+                continue
+            if key == current_turn:
+                caption = 'Все участники подключены. Ваш ход.'
+            elif current_label:
+                caption = f'Все участники подключены. Ходит {current_label}.'
+            else:
+                caption = 'Все участники подключены. Игра начинается.'
+            try:
+                await router15._send_state(
+                    context,
+                    match,
+                    key,
+                    caption,
+                    snapshot=snapshot,
+                )
+            except Exception:
+                logger.exception('Failed to send initial board to player %s', key)
 
     return True
 

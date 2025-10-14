@@ -1,7 +1,7 @@
 import asyncio
 import importlib
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, call
 
 
 def _reload_board15(monkeypatch, tmp_path):
@@ -236,6 +236,74 @@ def test_board15_reaches_playing_after_full_roster(monkeypatch, tmp_path):
     assert updated.turn == "A"
 
 
+def test_board15_third_player_triggers_initial_boards(monkeypatch, tmp_path):
+    commands_module, storage15, _, router_module = _reload_board15(monkeypatch, tmp_path)
+
+    async def run():
+        match = storage15.create_match(1, 1, "Игрок A")
+        storage15.join_match(match.match_id, 2, 2, "Игрок Б")
+
+        context = SimpleNamespace(
+            args=[f"b15_{match.match_id}"],
+            bot=SimpleNamespace(send_message=AsyncMock()),
+            user_data={},
+            bot_data={},
+        )
+
+        reply_text_start = AsyncMock()
+        update_start = SimpleNamespace(
+            message=SimpleNamespace(reply_text=reply_text_start),
+            effective_user=SimpleNamespace(id=3, first_name="Игрок С"),
+            effective_chat=SimpleNamespace(id=3),
+        )
+
+        await commands_module.start(update_start, context)
+
+        prompts = [call.args[0] for call in reply_text_start.call_args_list]
+        assert any("Введите имя" in text for text in prompts)
+
+        reply_text_name = AsyncMock()
+        reply_photo_name = AsyncMock()
+        update_name = SimpleNamespace(
+            message=SimpleNamespace(
+                text="Игрок С",
+                reply_text=reply_text_name,
+                reply_photo=reply_photo_name,
+            ),
+            effective_user=update_start.effective_user,
+            effective_chat=update_start.effective_chat,
+        )
+
+        send_state_mock = AsyncMock()
+        monkeypatch.setattr(router_module, "_send_state", send_state_mock)
+        router15_module = importlib.import_module("game_board15.router")
+        monkeypatch.setattr(router15_module, "_send_state", send_state_mock)
+
+        await router_module.router_text(update_name, context)
+
+        joiner_messages = [call.args[0] for call in reply_text_name.call_args_list]
+        assert any("Игрок С" in text for text in joiner_messages)
+        assert any("ходит Игрок A" in text for text in joiner_messages)
+
+        other_messages = [call.args[1] for call in context.bot.send_message.call_args_list]
+        assert any("Игрок Игрок С присоединился." in text for text in other_messages)
+        assert any("Ваш ход" in text for text in other_messages)
+
+        assert send_state_mock.await_count == 3
+        called_players = [record.args[2] for record in send_state_mock.await_args_list]
+        assert set(called_players) == {"A", "B", "C"}
+
+        captions_by_player = {
+            record.args[2]: record.args[3]
+            for record in send_state_mock.await_args_list
+        }
+        assert "Ваш ход" in captions_by_player["A"]
+        assert "Ходит Игрок A" in captions_by_player["B"]
+        assert "Ходит Игрок A" in captions_by_player["C"]
+
+    asyncio.run(run())
+
+
 def test_board15_test_sets_playing(monkeypatch, tmp_path):
     monkeypatch.setenv("ADMIN_ID", "1")
     commands_module, storage15, handlers15, _ = _reload_board15(monkeypatch, tmp_path)
@@ -337,6 +405,11 @@ def test_board15_join_requires_name_and_does_not_request_auto(monkeypatch, tmp_p
             effective_chat=update_start.effective_chat,
         )
 
+        send_state_mock = AsyncMock()
+        monkeypatch.setattr(router_module, "_send_state", send_state_mock)
+        router15_module = importlib.import_module("game_board15.router")
+        monkeypatch.setattr(router15_module, "_send_state", send_state_mock)
+
         await router_module.router_text(update_name, context)
 
         name_texts = [call.args[0] for call in reply_text_name.call_args_list]
@@ -348,7 +421,10 @@ def test_board15_join_requires_name_and_does_not_request_auto(monkeypatch, tmp_p
 
         other_messages = [call.args[1] for call in context.bot.send_message.call_args_list]
         assert other_messages
+        assert any("Игрок Игрок Б присоединился." in text for text in other_messages)
         assert all('"авто"' not in text.lower() for text in other_messages)
+
+        send_state_mock.assert_not_awaited()
 
         stored_name = context.user_data.get(commands_module.NAME_KEY)
         assert stored_name == "Игрок Б"
