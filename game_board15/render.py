@@ -19,6 +19,7 @@ BG_COLOR = (245, 246, 250)
 AXIS_COLOR = (50, 50, 50)
 MISS_STALE_COLOR = (40, 40, 40)
 MISS_RECENT_COLOR = (220, 68, 68)
+MISS_DOT_RADIUS = 4
 HIT_RECENT_COLOR = (220, 68, 68)
 HIT_STALE_FACTOR = 0.45
 KILL_RECENT_FACTOR = 0.35
@@ -85,6 +86,17 @@ def _cell_rect(r: int, c: int) -> Tuple[int, int, int, int]:
     return x0, y0, x1, y1
 
 
+def _draw_grid(draw: ImageDraw.ImageDraw) -> None:
+    """Render the cell grid including the outer border."""
+
+    for r in range(16):
+        y = MARGIN + r * CELL_SIZE
+        draw.line([(MARGIN, y), (MARGIN + CELL_SIZE * 15, y)], fill=GRID_COLOR, width=1)
+    for c in range(16):
+        x = MARGIN + c * CELL_SIZE
+        draw.line([(x, MARGIN), (x, MARGIN + CELL_SIZE * 15)], fill=GRID_COLOR, width=1)
+
+
 def _draw_axes(
     draw: ImageDraw.ImageDraw,
     *,
@@ -133,14 +145,6 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
     image = Image.new("RGBA", (image_size, image_size), BG_COLOR + (255,))
     draw = ImageDraw.Draw(image)
 
-    # background grid
-    for r in range(16):
-        y = MARGIN + r * CELL_SIZE
-        draw.line([(MARGIN, y), (MARGIN + CELL_SIZE * 15, y)], fill=GRID_COLOR, width=1)
-    for c in range(16):
-        x = MARGIN + c * CELL_SIZE
-        draw.line([(x, MARGIN), (x, MARGIN + CELL_SIZE * 15)], fill=GRID_COLOR, width=1)
-
     _draw_axes(draw, draw_top=True, draw_left=True, draw_bottom=False, draw_right=False)
 
     bomb_font = _load_font(32, paths=(*EMOJI_FONT_PATHS, *TEXT_FONT_PATHS))
@@ -180,7 +184,7 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
                 cx = (rect[0] + rect[2]) // 2
                 cy = (rect[1] + rect[3]) // 2
                 color = MISS_RECENT_COLOR if fresh and state_value == 2 else MISS_STALE_COLOR
-                radius = 6 if color == MISS_RECENT_COLOR else 4
+                radius = MISS_DOT_RADIUS
                 draw.ellipse(
                     [cx - radius, cy - radius, cx + radius, cy + radius],
                     fill=color,
@@ -215,6 +219,8 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
                     [cx - 3, cy - 3, cx + 3, cy + 3],
                     fill=CONTOUR_COLOR,
                 )
+
+    _draw_grid(draw)
 
     if state.last_move:
         lr, lc = state.last_move
