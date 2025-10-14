@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from typing import Optional
+from typing import Dict, Optional
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
@@ -315,30 +315,22 @@ async def _auto_play_bots(
                 shots = match_ref.shots.setdefault(current, {})
                 shots.setdefault("history", []).append(coord)
                 shots["last_result"] = shot_result.result
-                shots["move_count"] = shots.get("move_count", 0) + 1
                 shots["last_coord"] = coord
+
+                player_keys = list(getattr(match_ref, "players", {}).keys())
+                for key in player_keys:
+                    entry = match_ref.shots.setdefault(key, {})
+                    entry.setdefault("move_count", 0)
+                    entry.setdefault("joke_start", random.randint(1, 10))
+
+                for key in player_keys:
+                    entry = match_ref.shots.setdefault(key, {})
+                    entry["move_count"] = entry.get("move_count", 0) + 1
 
                 if needs_presave:
                     storage.save_match(match_ref)
 
-                if shot_result.result == MISS:
-                    phrase_self = router_ref._phrase_or_joke(
-                        match_ref, current, router.SELF_MISS
-                    )
-                    enemy_phrase = router.random_phrase(router.ENEMY_MISS)
-                elif shot_result.result == HIT:
-                    phrase_self = router_ref._phrase_or_joke(
-                        match_ref, current, router.SELF_HIT
-                    )
-                    enemy_phrase = router.random_phrase(router.ENEMY_HIT)
-                else:
-                    phrase_self = router_ref._phrase_or_joke(
-                        match_ref, current, router.SELF_KILL
-                    )
-                    enemy_phrase = router.random_phrase(router.ENEMY_KILL)
-
                 coord_text = router.format_coord(coord)
-                message_self = f"Ваш ход: {coord_text}. {phrase_self}".strip()
                 player_label = router_ref._player_label(match_ref, current)
 
                 outcome = advance_turn(
@@ -347,6 +339,103 @@ async def _auto_play_bots(
                 elimination_order = router_ref._record_eliminations(
                     match_ref, outcome.eliminated
                 )
+
+                next_line_default = router_ref._format_next_turn_line(
+                    match_ref,
+                    outcome.next_turn,
+                    finished=outcome.finished,
+                )
+
+                enemy_messages: Dict[str, str] = {}
+
+                if shot_result.result == MISS:
+                    phrase_self = router_ref._phrase_or_joke(
+                        match_ref, current, router.SELF_MISS
+                    ).strip()
+                    message_self = router_ref._compose_move_message(
+                        f"Ваш ход: {coord_text} — Мимо.",
+                        phrase_self,
+                        next_line_default,
+                    )
+                    for other_key, _player in router_ref._iter_real_players(match_ref):
+                        if other_key == current:
+                            continue
+                        humor_enemy = router_ref._phrase_or_joke(
+                            match_ref, other_key, router.ENEMY_MISS
+                        ).strip()
+                        enemy_messages[other_key] = router_ref._compose_move_message(
+                            f"Ход игрока {player_label}: {coord_text} — Соперник промахнулся.",
+                            humor_enemy,
+                            next_line_default,
+                        )
+                elif shot_result.result == HIT:
+                    phrase_self = router_ref._phrase_or_joke(
+                        match_ref, current, router.SELF_HIT
+                    ).strip()
+                    message_self = router_ref._compose_move_message(
+                        f"Ваш ход: {coord_text} — Ранил.",
+                        phrase_self,
+                        next_line_default,
+                    )
+                    for other_key, _player in router_ref._iter_real_players(match_ref):
+                        if other_key == current:
+                            continue
+                        humor_enemy = router_ref._phrase_or_joke(
+                            match_ref, other_key, router.ENEMY_HIT
+                        ).strip()
+                        enemy_messages[other_key] = router_ref._compose_move_message(
+                            f"Ход игрока {player_label}: {coord_text} — Соперник ранил ваш корабль.",
+                            humor_enemy,
+                            next_line_default,
+                        )
+                elif shot_result.result == KILL:
+                    phrase_self = router_ref._phrase_or_joke(
+                        match_ref, current, router.SELF_KILL
+                    ).strip()
+                    if outcome.finished and outcome.winner == current:
+                        next_line_self = "Вы победили!🏆"
+                    else:
+                        next_line_self = next_line_default
+                    message_self = router_ref._compose_move_message(
+                        f"Ваш ход: {coord_text} — Корабль соперника уничтожен!",
+                        phrase_self,
+                        next_line_self,
+                    )
+                    for other_key, _player in router_ref._iter_real_players(match_ref):
+                        if other_key == current:
+                            continue
+                        humor_enemy = router_ref._phrase_or_joke(
+                            match_ref, other_key, router.ENEMY_KILL
+                        ).strip()
+                        if (
+                            outcome.finished
+                            and outcome.winner == current
+                            and shot_result.owner == other_key
+                        ):
+                            next_line_enemy = (
+                                f"Все ваши корабли уничтожены. Игрк {player_label} победил!"
+                            )
+                        else:
+                            next_line_enemy = next_line_default
+                        enemy_messages[other_key] = router_ref._compose_move_message(
+                            f"Ход игрока {player_label}: {coord_text} — Соперник уничтожил ваш корабль.",
+                            humor_enemy,
+                            next_line_enemy,
+                        )
+                else:
+                    message_self = router_ref._compose_move_message(
+                        f"Ваш ход: {coord_text} — Ошибка.",
+                        None,
+                        next_line_default,
+                    )
+                    for other_key, _player in router_ref._iter_real_players(match_ref):
+                        if other_key == current:
+                            continue
+                        enemy_messages[other_key] = router_ref._compose_move_message(
+                            f"Ход игрока {player_label}: {coord_text} — Техническая ошибка.",
+                            None,
+                            next_line_default,
+                        )
 
                 previous_snapshot = (
                     match_ref.snapshots[-1]
@@ -375,20 +464,20 @@ async def _auto_play_bots(
                     except Exception:
                         logger.exception("Failed to notify bot player %s", current)
 
-                for other_key in PLAYER_ORDER:
+                for other_key, other_player in router_ref._iter_real_players(match_ref):
                     if other_key == current:
                         continue
-                    other_player = match_ref.players.get(other_key)
-                    if (not other_player or match_ref.alive_cells.get(other_key, 0) <= 0):
+                    if match_ref.alive_cells.get(other_key, 0) <= 0:
                         continue
-                    if not getattr(other_player, "chat_id", 0):
+                    message_enemy = enemy_messages.get(other_key)
+                    if not message_enemy:
                         continue
                     try:
                         await router_ref._send_state(
                             context,
                             match_ref,
                             other_key,
-                            f"Ход {player_label}: {coord_text}. {enemy_phrase}",
+                            message_enemy,
                             snapshot=snapshot,
                         )
                     except Exception:
