@@ -12,7 +12,7 @@ Coord = Tuple[int, int]
 
 PLAYER_ORDER = ["A", "B", "C"]
 PLAYER_COLORS = {
-    "A": (24, 166, 190),
+    "A": (18, 126, 210),
     "B": (34, 186, 90),
     "C": (255, 136, 17),
 }

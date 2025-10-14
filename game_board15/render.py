@@ -15,7 +15,7 @@ Coord = Tuple[int, int]
 CELL_SIZE = 42
 MARGIN = 60
 GRID_COLOR = (120, 120, 120)
-BG_COLOR = (245, 246, 250)
+BG_COLOR = (255, 255, 255)
 AXIS_COLOR = (50, 50, 50)
 MISS_STALE_COLOR = (40, 40, 40)
 MISS_RECENT_COLOR = (220, 68, 68)
@@ -197,6 +197,7 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
                 else:
                     fill_color = _mix(base_color, HIT_STALE_FACTOR)
                 draw.rectangle(rect, fill=fill_color)
+                draw.rectangle(rect, outline=KILL_OUTLINE, width=2)
             if state_value == 4 or field_state == 4:
                 if owner == player_key:
                     visible_own += 1
@@ -207,6 +208,7 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
                     cx = (rect[0] + rect[2]) // 2
                     cy = (rect[1] + rect[3]) // 2
                     draw.text((cx, cy), BOMB_SYMBOL, anchor="mm", font=bomb_font)
+                    draw.rectangle(rect, outline=KILL_OUTLINE, width=2)
                 else:
                     fill_color = _mix(base_color, KILL_STALE_FACTOR)
                     draw.rectangle(rect, fill=fill_color)
@@ -232,15 +234,6 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
             outline=(220, 0, 0),
             width=2,
         )
-
-    footer_font = _load_font(20)
-    draw.text(
-        (image_size // 2, image_size - MARGIN // 2),
-        state.footer_label,
-        anchor="mm",
-        font=footer_font,
-        fill=AXIS_COLOR,
-    )
 
     state.rendered_ship_cells = visible_own
 
