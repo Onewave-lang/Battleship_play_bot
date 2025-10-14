@@ -616,7 +616,10 @@ def test_router_kill_message(monkeypatch):
         msg_self = messages_by_chat[10]
         msg_enemy = messages_by_chat[20]
         coord_str = router.format_coord((0, 0))
-        assert f'Ваш ход: {coord_str} — Корабль соперника уничтожен!' in msg_self
+        assert (
+            f'Ваш ход: {coord_str} — Корабль игрока B уничтожен!'
+            in msg_self
+        )
         assert any(p in msg_self for p in phrases.SELF_KILL)
         assert msg_self.strip().endswith('Следующим ходит A.')
         assert f'Ход игрока A: {coord_str} — Соперник уничтожил ваш корабль.' in msg_enemy

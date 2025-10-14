@@ -259,6 +259,7 @@ async def _handle_board_test_two(
 
     coord_str = format_coord(coord)
     player_label = getattr(match.players[player_key], "name", "") or player_key
+    enemy_label = getattr(match.players[enemy_key], "name", "") or enemy_key
 
     if result == MISS:
         match.turn = enemy_key
@@ -279,7 +280,7 @@ async def _handle_board_test_two(
         phrase_self = _phrase_or_joke(match, player_key, SELF_HIT).strip()
         phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_HIT).strip()
         result_self = _compose_move_message(
-            f"Ваш ход: {coord_str} — Ранил.",
+            f"Ваш ход: {coord_str} — Ранил корабль игрока {enemy_label}.",
             phrase_self,
             "Следующим ходите вы.",
         )
@@ -306,7 +307,7 @@ async def _handle_board_test_two(
         phrase_self = _phrase_or_joke(match, player_key, SELF_KILL).strip()
         phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_KILL).strip()
         result_line_self = (
-            f"Ваш ход: {coord_str} — Корабль соперника уничтожен!"
+            f"Ваш ход: {coord_str} — Корабль игрока {enemy_label} уничтожен!"
         )
         result_line_enemy = (
             f"Ход игрока {player_label}: {coord_str} — Соперник уничтожил ваш корабль."
@@ -639,7 +640,7 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         phrase_self = _phrase_or_joke(match, player_key, SELF_HIT).strip()
         phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_HIT).strip()
         result_self = _compose_move_message(
-            f"Ваш ход: {coord_str} — Ранил.",
+            f"Ваш ход: {coord_str} — Ранил корабль игрока {enemy_label}.",
             phrase_self,
             f"Следующим ходит {next_label}.",
         )
@@ -668,7 +669,9 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     elif result == KILL:
         phrase_self = _phrase_or_joke(match, player_key, SELF_KILL).strip()
         phrase_enemy = _phrase_or_joke(match, enemy_key, ENEMY_KILL).strip()
-        result_line_self = f"Ваш ход: {coord_str} — Корабль соперника уничтожен!"
+        result_line_self = (
+            f"Ваш ход: {coord_str} — Корабль игрока {enemy_label} уничтожен!"
+        )
         result_line_enemy = (
             f"Ход игрока {player_label}: {coord_str} — Соперник уничтожил ваш корабль."
         )
