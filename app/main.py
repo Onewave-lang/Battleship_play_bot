@@ -34,6 +34,7 @@ from app.config import BOARD15_ENABLED, BOARD15_TEST_ENABLED
 
 if BOARD15_ENABLED:
     from game_board15.handlers import (
+        add_board15_bot,
         board15,
         send_board15_invite_link,
     )
@@ -87,6 +88,7 @@ bot_app.add_handler(CallbackQueryHandler(confirm_join, pattern="^join_"))
 if BOARD15_ENABLED:
     bot_app.add_handler(CommandHandler("board15", board15))
     bot_app.add_handler(CallbackQueryHandler(send_board15_invite_link, pattern="^b15_get_link$"))
+    bot_app.add_handler(CallbackQueryHandler(add_board15_bot, pattern="^b15_add_bot$"))
     if BOARD15_TEST_ENABLED:
         bot_app.add_handler(CommandHandler("board15test", board15_test))
 bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, router_text))
