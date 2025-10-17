@@ -15,6 +15,9 @@ Coord = Tuple[int, int]
 
 CELL_SIZE = 42
 MARGIN = 60
+AXIS_FONT_SIZE = 18
+AXIS_LETTER_PADDING = 18
+AXIS_NUMBER_PADDING = 14
 GRID_COLOR = (120, 120, 120)
 BG_COLOR = (255, 255, 255)
 AXIS_COLOR = (50, 50, 50)
@@ -111,29 +114,29 @@ def _draw_axes(
 ) -> None:
     """Render axis labels around the board."""
 
-    font = _load_font(18)
+    font = _load_font(AXIS_FONT_SIZE)
     col_centers = [MARGIN + idx * CELL_SIZE + CELL_SIZE // 2 for idx in range(15)]
     row_centers = [MARGIN + idx * CELL_SIZE + CELL_SIZE // 2 for idx in range(15)]
 
     if draw_top:
-        top_y = MARGIN - 35
+        top_y = MARGIN - AXIS_LETTER_PADDING
         for x, letter in zip(col_centers, COLS):
             draw.text((x, top_y), letter, anchor="mm", font=font, fill=AXIS_COLOR)
 
     if draw_bottom:
-        bottom_y = MARGIN + CELL_SIZE * 15 + 35
+        bottom_y = MARGIN + CELL_SIZE * 15 + AXIS_LETTER_PADDING
         for x, letter in zip(col_centers, COLS):
             draw.text((x, bottom_y), letter, anchor="mm", font=font, fill=AXIS_COLOR)
 
     if draw_left:
-        left_x = MARGIN - 35
+        left_x = MARGIN - AXIS_NUMBER_PADDING
         for idx, y in enumerate(row_centers):
-            draw.text((left_x, y), str(idx + 1), anchor="mm", font=font, fill=AXIS_COLOR)
+            draw.text((left_x, y), str(idx + 1), anchor="rm", font=font, fill=AXIS_COLOR)
 
     if draw_right:
-        right_x = MARGIN + CELL_SIZE * 15 + 35
+        right_x = MARGIN + CELL_SIZE * 15 + AXIS_NUMBER_PADDING
         for idx, y in enumerate(row_centers):
-            draw.text((right_x, y), str(idx + 1), anchor="mm", font=font, fill=AXIS_COLOR)
+            draw.text((right_x, y), str(idx + 1), anchor="lm", font=font, fill=AXIS_COLOR)
 
 def _mix(color: Tuple[int, int, int], factor: float) -> Tuple[int, int, int]:
     r, g, b = color
