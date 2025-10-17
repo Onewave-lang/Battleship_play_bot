@@ -53,7 +53,7 @@ if not webhook_url_raw:
 webhook_url = normalize_webhook_base(webhook_url_raw)
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET") or ""
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
