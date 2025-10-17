@@ -14,7 +14,13 @@ from .models import Field15, PLAYER_DARK_COLORS, PLAYER_LIGHT_COLORS
 Coord = Tuple[int, int]
 
 CELL_SIZE = 42
-MARGIN = 60
+# Margins around the playable field. We keep generous padding on the top/left to
+# accommodate axis labels, while the bottom/right margins can be smaller so the
+# caption in Telegram hugs the image tighter.
+MARGIN_TOP = 60
+MARGIN_LEFT = 60
+MARGIN_BOTTOM = 30
+MARGIN_RIGHT = 40
 AXIS_FONT_SIZE = 18
 AXIS_LETTER_PADDING = 18
 AXIS_NUMBER_PADDING = 14
@@ -86,8 +92,8 @@ def _load_font(
 
 
 def _cell_rect(r: int, c: int) -> Tuple[int, int, int, int]:
-    x0 = MARGIN + c * CELL_SIZE
-    y0 = MARGIN + r * CELL_SIZE
+    x0 = MARGIN_LEFT + c * CELL_SIZE
+    y0 = MARGIN_TOP + r * CELL_SIZE
     x1 = x0 + CELL_SIZE
     y1 = y0 + CELL_SIZE
     return x0, y0, x1, y1
@@ -96,12 +102,23 @@ def _cell_rect(r: int, c: int) -> Tuple[int, int, int, int]:
 def _draw_grid(draw: ImageDraw.ImageDraw) -> None:
     """Render the cell grid including the outer border."""
 
+    field_width = CELL_SIZE * 15
+    field_height = CELL_SIZE * 15
+
     for r in range(16):
-        y = MARGIN + r * CELL_SIZE
-        draw.line([(MARGIN, y), (MARGIN + CELL_SIZE * 15, y)], fill=GRID_COLOR, width=1)
+        y = MARGIN_TOP + r * CELL_SIZE
+        draw.line(
+            [(MARGIN_LEFT, y), (MARGIN_LEFT + field_width, y)],
+            fill=GRID_COLOR,
+            width=1,
+        )
     for c in range(16):
-        x = MARGIN + c * CELL_SIZE
-        draw.line([(x, MARGIN), (x, MARGIN + CELL_SIZE * 15)], fill=GRID_COLOR, width=1)
+        x = MARGIN_LEFT + c * CELL_SIZE
+        draw.line(
+            [(x, MARGIN_TOP), (x, MARGIN_TOP + field_height)],
+            fill=GRID_COLOR,
+            width=1,
+        )
 
 
 def _draw_axes(
@@ -115,26 +132,28 @@ def _draw_axes(
     """Render axis labels around the board."""
 
     font = _load_font(AXIS_FONT_SIZE)
-    col_centers = [MARGIN + idx * CELL_SIZE + CELL_SIZE // 2 for idx in range(15)]
-    row_centers = [MARGIN + idx * CELL_SIZE + CELL_SIZE // 2 for idx in range(15)]
+    col_centers = [
+        MARGIN_LEFT + idx * CELL_SIZE + CELL_SIZE // 2 for idx in range(15)
+    ]
+    row_centers = [MARGIN_TOP + idx * CELL_SIZE + CELL_SIZE // 2 for idx in range(15)]
 
     if draw_top:
-        top_y = MARGIN - AXIS_LETTER_PADDING
+        top_y = MARGIN_TOP - AXIS_LETTER_PADDING
         for x, letter in zip(col_centers, COLS):
             draw.text((x, top_y), letter, anchor="mm", font=font, fill=AXIS_COLOR)
 
     if draw_bottom:
-        bottom_y = MARGIN + CELL_SIZE * 15 + AXIS_LETTER_PADDING
+        bottom_y = MARGIN_TOP + CELL_SIZE * 15 + AXIS_LETTER_PADDING
         for x, letter in zip(col_centers, COLS):
             draw.text((x, bottom_y), letter, anchor="mm", font=font, fill=AXIS_COLOR)
 
     if draw_left:
-        left_x = MARGIN - AXIS_NUMBER_PADDING
+        left_x = MARGIN_LEFT - AXIS_NUMBER_PADDING
         for idx, y in enumerate(row_centers):
             draw.text((left_x, y), str(idx + 1), anchor="rm", font=font, fill=AXIS_COLOR)
 
     if draw_right:
-        right_x = MARGIN + CELL_SIZE * 15 + AXIS_NUMBER_PADDING
+        right_x = MARGIN_LEFT + CELL_SIZE * 15 + AXIS_NUMBER_PADDING
         for idx, y in enumerate(row_centers):
             draw.text((right_x, y), str(idx + 1), anchor="lm", font=font, fill=AXIS_COLOR)
 
@@ -200,8 +219,11 @@ def _draw_cross(draw: ImageDraw.ImageDraw, rect: Tuple[int, int, int, int]) -> N
 
 
 def render_board(state: RenderState, player_key: str) -> BytesIO:
-    image_size = MARGIN * 2 + CELL_SIZE * 15
-    image = Image.new("RGBA", (image_size, image_size), BG_COLOR + (255,))
+    field_width = CELL_SIZE * 15
+    field_height = CELL_SIZE * 15
+    image_width = MARGIN_LEFT + field_width + MARGIN_RIGHT
+    image_height = MARGIN_TOP + field_height + MARGIN_BOTTOM
+    image = Image.new("RGBA", (image_width, image_height), BG_COLOR + (255,))
     draw = ImageDraw.Draw(image)
 
     _draw_axes(draw, draw_top=True, draw_left=True, draw_bottom=False, draw_right=False)
