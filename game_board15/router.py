@@ -46,6 +46,7 @@ from .render import RenderState, render_board
 
 logger = logging.getLogger(__name__)
 
+CHAT_PREFIXES = ("@", "!")
 STATE_KEY = "board15_state"
 parser = parser_module
 
@@ -510,6 +511,28 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await message.reply_text("Игра ещё не началась.")
         return
     text = message.text.strip()
+
+    if match.status == "playing" and text.startswith(CHAT_PREFIXES):
+        payload = text[1:].strip()
+        if not payload:
+            await message.reply_text("Сообщение не может быть пустым.")
+            return
+        for other_key, other_player in _iter_real_players(match):
+            if other_key == player_key:
+                continue
+            try:
+                await context.bot.send_message(other_player.chat_id, payload)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception(
+                    "Failed to forward chat message | match=%s sender=%s",
+                    getattr(match, "match_id", "unknown"),
+                    player_key,
+                )
+        return
+
+
     try:
         coord = parse_coord(text)
     except ParseError as exc:
