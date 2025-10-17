@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import signal
+import asyncio
 
 from fastapi import FastAPI, Request, Response
 from telegram import Update
@@ -107,19 +108,39 @@ app = FastAPI()
 
 @app.on_event("startup")
 async def on_startup() -> None:
+    """
+    Старт приложения Telegram-бота с безопасной установкой вебхука.
+    Если DNS или сеть временно недоступны, бот всё равно поднимется,
+    а установка вебхука повторится в фоне с экспоненциальной задержкой.
+    """
     logger.info("Starting bot application")
-    try:
-        await bot_app.initialize()
-        await bot_app.start()
-        webhook = f"{webhook_url}/webhook"
-        # Передаём секрет — Telegram будет добавлять его в заголовок
-        await bot_app.bot.set_webhook(webhook, secret_token=(WEBHOOK_SECRET or None))
-        logger.info("Webhook set to %s", webhook)
-    except Exception:
-        logger.exception("Failed during startup")
-        raise
-    else:
-        logger.info("Bot application started successfully")
+
+    await bot_app.initialize()
+    await bot_app.start()
+
+    webhook = f"{webhook_url}/webhook"
+
+    async def _try_set_webhook(bot_app, webhook, secret, attempts=6):
+        delay = 2
+        for i in range(1, attempts + 1):
+            try:
+                await bot_app.bot.set_webhook(webhook, secret_token=(secret or None))
+                logger.info("Webhook set to %s", webhook)
+                return True
+            except Exception as e:
+                logger.warning(
+                    "set_webhook failed (%d/%d): %s — retrying in %ds",
+                    i, attempts, e, delay,
+                )
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 60)
+        logger.error("Giving up setting webhook after %d attempts", attempts)
+        return False
+
+    # Запускаем установку вебхука в фоновом таске,
+    # чтобы не блокировать и не свалить приложение при ошибке Telegram/DNS
+    asyncio.create_task(_try_set_webhook(bot_app, webhook, WEBHOOK_SECRET))
+    logger.info("Bot application started successfully")
 
 
 @app.on_event("shutdown")
