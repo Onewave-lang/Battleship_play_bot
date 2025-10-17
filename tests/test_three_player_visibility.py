@@ -9,8 +9,16 @@ from game_board15.models import Field15, Match15, PLAYER_LIGHT_COLORS
 
 
 def _cell_center(row: int, col: int) -> tuple[int, int]:
-    x = render_mod.MARGIN + col * render_mod.CELL_SIZE + render_mod.CELL_SIZE // 2
-    y = render_mod.MARGIN + row * render_mod.CELL_SIZE + render_mod.CELL_SIZE // 2
+    x = (
+        render_mod.MARGIN_LEFT
+        + col * render_mod.CELL_SIZE
+        + render_mod.CELL_SIZE // 2
+    )
+    y = (
+        render_mod.MARGIN_TOP
+        + row * render_mod.CELL_SIZE
+        + render_mod.CELL_SIZE // 2
+    )
     return x, y
 
 
