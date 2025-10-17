@@ -4,3 +4,88 @@ diff.patch
 .codex/
 backup/
 admin/
+
+# --- Python / virtualenv ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-wheel-metadata/
+wheels/
+
+# --- Virtual environment ---
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+
+# --- Environment and secrets ---
+.env
+.env.*
+*.key
+*.pem
+*.crt
+*.der
+*.enc
+
+# --- IDE / editor junk ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+*.tmp
+.DS_Store
+Thumbs.db
+
+# --- Logs & runtime data ---
+*.log
+*.pid
+*.seed
+*.cover
+nohup.out
+coverage.xml
+pytest_cache/
+.tox/
+.mypy_cache/
+.pytest_cache/
+__debug__/
+.cache/
+
+# --- Application-specific ---
+# Supabase temporary cache / exports
+supabase_dump_*.json
+# Battleship screenshots or test outputs
+test_images/
+board_test_output/
+# Uploaded or generated game boards
+*.png
+*.jpg
+
+# --- System / deployment ---
+# Caddy & nginx configs (не коммитим сертификаты)
+Caddyfile
+/etc/caddy/*
+!/etc/caddy/Caddyfile.example
+
+# systemd unit files (если хочешь хранить отдельно — создай examples/)
+*.service
+!/battleship.service.example
+
+# Render / Hetzner temp data
+*.pid
+*.sock
+*.db
+/data/
+__data__/
+
+# --- OS-specific ---
+ehthumbs.db
+Icon?
