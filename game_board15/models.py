@@ -17,7 +17,7 @@ PLAYER_ORDER = ["A", "B", "C"]
 # damaged or destroyed segments.  The palette deliberately contains only
 # these six values to avoid visual ambiguity between fleets.
 PLAYER_COLOR_SCHEMES = {
-    "A": {"light": (173, 216, 230), "dark": (0, 102, 204)},  # light/bright blue
+    "A": {"light": (173, 216, 230), "dark": (0, 115, 255)},  # light/bright blue
     "B": {"light": (255, 213, 153), "dark": (255, 140, 0)},  # light/bright orange
     "C": {"light": (204, 239, 204), "dark": (46, 176, 75)},  # light/bright green
 }

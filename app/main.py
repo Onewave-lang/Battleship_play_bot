@@ -50,6 +50,7 @@ webhook_url_raw = os.getenv("WEBHOOK_URL")
 if not webhook_url_raw:
     raise RuntimeError("WEBHOOK_URL environment variable is not set")
 webhook_url = normalize_webhook_base(webhook_url_raw)
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET") or ""
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -111,7 +112,8 @@ async def on_startup() -> None:
         await bot_app.initialize()
         await bot_app.start()
         webhook = f"{webhook_url}/webhook"
-        await bot_app.bot.set_webhook(webhook)
+        # Передаём секрет — Telegram будет добавлять его в заголовок
+        await bot_app.bot.set_webhook(webhook, secret_token=(WEBHOOK_SECRET or None))
         logger.info("Webhook set to %s", webhook)
     except Exception:
         logger.exception("Failed during startup")
@@ -136,6 +138,11 @@ async def on_shutdown() -> None:
 
 @app.post("/webhook")
 async def telegram_webhook(request: Request) -> dict[str, bool]:
+    # Отсекаем нелегитимные POST'ы до попытки парсинга
+    if WEBHOOK_SECRET:
+        got = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if got != WEBHOOK_SECRET:
+            return {"ok": True}
     update = Update.de_json(await request.json(), bot_app.bot)
     await bot_app.process_update(update)
     return {"ok": True}

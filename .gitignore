@@ -1,4 +1,6 @@
 assets/fonts/DejaVuSans.ttf
 fix.patch
+diff.patch
 .codex/
 backup/
+admin/
