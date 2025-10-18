@@ -4,8 +4,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from typing import Dict, Optional
-from typing import Iterable, Optional
+from urllib.parse import quote_plus
+from typing import Dict, Iterable, Optional
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
@@ -102,13 +102,25 @@ async def _create_board15_match(
         await _auto_play_bots(context, match, "A", delay=3.0)
         logger.info("MATCH3_TEST_CREATE | match_id=%s owner=%s", match.match_id, user.id)
     else:
+        bot_username = getattr(await context.bot.get_me(), "username", None)
+        if bot_username:
+            deep_link = f"https://t.me/{bot_username}?start=b15_{match.match_id}"
+            share_url = f"https://t.me/share/url?url={quote_plus(deep_link)}"
+        else:
+            deep_link = f"/start b15_{match.match_id}"
+            share_url = f"https://t.me/share/url?text={quote_plus(deep_link)}"
+
         keyboard = InlineKeyboardMarkup(
             [
                 [
                     InlineKeyboardButton(
-                        "Получить ссылку-приглашение",
+                        "Из контактов",
+                        url=share_url,
+                    ),
+                    InlineKeyboardButton(
+                        "Ссылка на игру",
                         callback_data="b15_get_link",
-                    )
+                    ),
                 ],
                 [
                     InlineKeyboardButton(
