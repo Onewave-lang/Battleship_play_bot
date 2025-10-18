@@ -59,8 +59,12 @@ def test_router_text_sends_elimination_and_final_summary(monkeypatch):
         def fake_format_coord(coord):
             return coord_labels[coord]
 
-        async def fake_send_state(context, match_obj, player_key, message, *, snapshot, reveal_ships=False):
-            match_obj._last_sent = (player_key, message, snapshot)
+        sent_states = []
+
+        async def fake_send_state(
+            context, match_obj, player_key, message, *, snapshot, reveal_ships=False
+        ):
+            sent_states.append((player_key, message))
 
         def fake_append_snapshot(match_obj, *_, **__):
             snapshot = SimpleNamespace(
@@ -124,5 +128,10 @@ def test_router_text_sends_elimination_and_final_summary(monkeypatch):
 
         third_summary = messages_by_chat[202][-1]
         assert "Вы заняли 3 место." in third_summary
+
+        messages_for_bravo = [text for key, text in sent_states if key == "B"]
+        assert len(messages_for_bravo) == 2
+        assert "Соперник уничтожил ваш корабль" in messages_for_bravo[0]
+        assert "корабль игрока Charlie" in messages_for_bravo[1]
 
     asyncio.run(run())
