@@ -717,8 +717,6 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     for other_key, _player in _iter_real_players(match):
         if other_key == player_key:
             continue
-        if match.alive_cells.get(other_key, 0) <= 0:
-            continue
         message_enemy = enemy_messages.get(other_key)
         if not message_enemy:
             continue
