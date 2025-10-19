@@ -276,7 +276,7 @@ def join_match(match_id: str, user_id: int, chat_id: int, name: str) -> Optional
                     user_id=user_id,
                     chat_id=chat_id,
                     name=name.strip() or f"Игрок {key}",
-                    color=key,
+                    color=match.color_map.get(key, key),
                 )
                 if all(match.players.get(player_key) for player_key in PLAYER_ORDER):
                     match.status = "playing"

@@ -1,11 +1,12 @@
 """Data models for the 15×15 three-player mode."""
 from __future__ import annotations
 
+import random
+import uuid
 from copy import deepcopy
 from dataclasses import dataclass, field as dc_field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
-import uuid
 
 Coord = Tuple[int, int]
 
@@ -315,6 +316,9 @@ class Match15:
     )
     order: List[str] = dc_field(default_factory=lambda: PLAYER_ORDER.copy())
     turn_idx: int = 0
+    color_map: Dict[str, str] = dc_field(
+        default_factory=lambda: {key: key for key in PLAYER_ORDER}
+    )
     alive_cells: Dict[str, int] = dc_field(
         default_factory=lambda: {key: 20 for key in PLAYER_ORDER}
     )
@@ -340,13 +344,19 @@ class Match15:
     @staticmethod
     def new(user_id: int, chat_id: int, name: str) -> "Match15":
         match_id = uuid.uuid4().hex
+        match = Match15(match_id=match_id)
+        color_keys = list(PLAYER_COLOR_SCHEMES.keys())
+        random.shuffle(color_keys)
+        match.color_map = {
+            player_key: color_keys[idx % len(color_keys)]
+            for idx, player_key in enumerate(PLAYER_ORDER)
+        }
         player_a = Player(
             user_id=user_id,
             chat_id=chat_id,
             name=name.strip() or "Игрок A",
-            color="A",
+            color=match.color_map.get("A", "A"),
         )
-        match = Match15(match_id=match_id)
         match.players["A"] = player_a
 
         # Auto-generate full fleets for all players as required by the
@@ -407,6 +417,7 @@ class Match15:
                 }
                 for key, player in self.players.items()
             },
+            "color_map": dict(self.color_map),
             "field": {
                 "grid": [row[:] for row in self.field.grid],
                 "owners": [row[:] for row in self.field.owners],
@@ -456,6 +467,22 @@ class Match15:
             )
             for key, player_data in data.get("players", {}).items()
         }
+        raw_color_map = data.get("color_map")
+        if isinstance(raw_color_map, dict) and raw_color_map:
+            match.color_map = {
+                str(key): str(value)
+                for key, value in raw_color_map.items()
+            }
+        else:
+            match.color_map = {
+                key: getattr(player, "color", key) or key
+                for key, player in match.players.items()
+            }
+        for key in PLAYER_ORDER:
+            match.color_map.setdefault(key, key)
+        for key, player in match.players.items():
+            if not getattr(player, "color", None):
+                player.color = match.color_map.get(key, key)
         field_data = data.get("field", {})
         match.field.grid = [list(row) for row in field_data.get("grid", match.field.grid)]
         match.field.owners = [list(row) for row in field_data.get("owners", match.field.owners)]

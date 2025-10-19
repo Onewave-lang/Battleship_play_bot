@@ -78,7 +78,13 @@ def generate_preview(path: Path) -> Path:
     """Render the preview image to ``path`` and return it."""
 
     field, history = build_preview_state()
-    state = RenderState(field=field, history=history, footer_label="Preview", reveal_ships=True)
+    state = RenderState(
+        field=field,
+        history=history,
+        footer_label="Preview",
+        reveal_ships=True,
+        color_map={key: key for key in PLAYER_ORDER},
+    )
     buffer = render_board(state, PLAYER_ORDER[0])
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(buffer.getvalue())

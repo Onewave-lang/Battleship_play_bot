@@ -92,7 +92,7 @@ async def _create_board15_match(
                     user_id=0,
                     chat_id=0,
                     name=f"Бот {key}",
-                    color=key,
+                    color=match.color_map.get(key, key),
                 )
         match.status = "playing"
         storage.append_snapshot(match)
@@ -237,7 +237,7 @@ async def add_board15_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         user_id=0,
         chat_id=0,
         name=f"Бот {available_slot}",
-        color=available_slot,
+        color=match.color_map.get(available_slot, available_slot),
     )
     match.status = "playing"
     if not hasattr(match, "order") or not match.order:
