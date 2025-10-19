@@ -363,12 +363,31 @@ async def _send_state(
     state_store = context.bot_data.setdefault(STATE_KEY, {})
     match_id = getattr(match, "match_id", "unknown")
     footer = f"match={match_id} • player={player_key} • sh_disp=20"
+    color_map: Dict[str, str] = {key: key for key in PLAYER_ORDER}
+    match_map = getattr(match, "color_map", None)
+    if isinstance(match_map, dict):
+        for key, value in match_map.items():
+            if value is not None:
+                color_map[key] = str(value)
+    snapshot_players = getattr(snapshot, "players", {}) if snapshot is not None else None
+    if snapshot_players:
+        for key, player in snapshot_players.items():
+            player_color = getattr(player, "color", None)
+            if player_color:
+                color_map[key] = player_color
+    else:
+        for key, player in getattr(match, "players", {}).items():
+            player_color = getattr(player, "color", None)
+            if player_color:
+                color_map[key] = player_color
+
     render_state = RenderState(
         field=field,
         history=history_grid,
         footer_label=footer,
         reveal_ships=reveal_ships,
         last_move=last_move,
+        color_map=color_map,
     )
     buffer = render_board(render_state, player_key)
     visible = render_state.rendered_ship_cells

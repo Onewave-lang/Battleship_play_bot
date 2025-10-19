@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 import colorsys
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dc_field
 from io import BytesIO
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .models import Field15, PLAYER_DARK_COLORS, PLAYER_LIGHT_COLORS
+from .models import Field15, PLAYER_DARK_COLORS, PLAYER_LIGHT_COLORS, PLAYER_ORDER
 
 Coord = Tuple[int, int]
 
@@ -65,6 +65,9 @@ class RenderState:
     rendered_ship_cells: int = 20
     last_move: Optional[Coord] = None
     attempt: int = 1
+    color_map: Dict[str, str] = dc_field(
+        default_factory=lambda: {key: key for key in PLAYER_ORDER}
+    )
 
     def clone_for_retry(self, *, attempt: int, footer_label: str) -> "RenderState":
         return RenderState(
@@ -75,6 +78,7 @@ class RenderState:
             rendered_ship_cells=self.rendered_ship_cells,
             last_move=self.last_move,
             attempt=attempt,
+            color_map=dict(self.color_map),
         )
 
 
@@ -229,6 +233,30 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
     _draw_axes(draw, draw_top=True, draw_left=True, draw_bottom=False, draw_right=False)
 
     visible_own = 0
+    color_map = state.color_map or {}
+    player_color_key = color_map.get(player_key, player_key)
+    default_light = PLAYER_LIGHT_COLORS.get(
+        player_color_key,
+        PLAYER_LIGHT_COLORS.get("A"),
+    )
+    default_dark = PLAYER_DARK_COLORS.get(
+        player_color_key,
+        PLAYER_DARK_COLORS.get("A"),
+    )
+
+    def light_color(owner: Optional[str]) -> Tuple[int, int, int]:
+        if owner:
+            color_id = color_map.get(owner, owner)
+        else:
+            color_id = player_color_key
+        return PLAYER_LIGHT_COLORS.get(color_id, default_light)
+
+    def dark_color(owner: Optional[str]) -> Tuple[int, int, int]:
+        if owner:
+            color_id = color_map.get(owner, owner)
+        else:
+            color_id = player_color_key
+        return PLAYER_DARK_COLORS.get(color_id, default_dark)
 
     for r in range(15):
         for c in range(15):
@@ -254,19 +282,12 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
                     visible_own += 1
                     draw.rectangle(
                         rect,
-                        fill=PLAYER_LIGHT_COLORS.get(
-                            player_key, PLAYER_LIGHT_COLORS["A"]
-                        ),
+                        fill=light_color(player_key),
                     )
                 elif state.reveal_ships and owner:
                     draw.rectangle(
                         rect,
-                        fill=PLAYER_LIGHT_COLORS.get(
-                            owner,
-                            PLAYER_LIGHT_COLORS.get(
-                                player_key, PLAYER_LIGHT_COLORS["A"]
-                            ),
-                        ),
+                        fill=light_color(owner),
                     )
 
             if state_value == 2 or field_state == 2:
@@ -281,11 +302,7 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
             if state_value == 3 or field_state == 3:
                 if owner == player_key:
                     visible_own += 1
-                base_key = owner or player_key
-                fill_color = PLAYER_DARK_COLORS.get(
-                    base_key,
-                    PLAYER_DARK_COLORS.get(player_key, PLAYER_DARK_COLORS["A"]),
-                )
+                fill_color = dark_color(owner or player_key)
                 draw.rectangle(rect, fill=fill_color)
                 if fresh and state_value == 3:
                     _draw_target_symbol(draw, rect)
@@ -294,11 +311,7 @@ def render_board(state: RenderState, player_key: str) -> BytesIO:
             if state_value == 4 or field_state == 4:
                 if owner == player_key:
                     visible_own += 1
-                base_key = owner or player_key
-                fill_color = PLAYER_DARK_COLORS.get(
-                    base_key,
-                    PLAYER_DARK_COLORS.get(player_key, PLAYER_DARK_COLORS["A"]),
-                )
+                fill_color = dark_color(owner or player_key)
                 draw.rectangle(rect, fill=fill_color)
                 if fresh and state_value == 4:
                     _draw_target_symbol(draw, rect)
