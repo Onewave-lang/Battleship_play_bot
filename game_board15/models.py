@@ -20,7 +20,7 @@ PLAYER_ORDER = ["A", "B", "C"]
 PLAYER_COLOR_SCHEMES = {
     "A": {"light": (173, 216, 230), "dark": (0, 115, 255)},  # light/bright blue
     "B": {"light": (255, 213, 153), "dark": (255, 140, 0)},  # light/bright orange
-    "C": {"light": (204, 239, 204), "dark": (46, 176, 75)},  # light/bright green
+    "C": {"light": (204, 255, 221), "dark": (46, 176, 75)},  # light/bright green
 }
 
 # Backwards compatibility mapping preserved for modules that expect the
