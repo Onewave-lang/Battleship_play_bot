@@ -335,6 +335,8 @@ class Match15:
                 "move_count": 0,
                 "joke_start": None,
                 "last_coord": None,
+                "target_hits": [],
+                "target_owner": None,
             }
             for key in PLAYER_ORDER
         }
@@ -447,6 +449,11 @@ class Match15:
                     "move_count": data.get("move_count", 0),
                     "joke_start": data.get("joke_start"),
                     "last_coord": list(data.get("last_coord")) if data.get("last_coord") else None,
+                    "target_hits": [
+                        [int(coord[0]), int(coord[1])] if isinstance(coord, (list, tuple)) and len(coord) >= 2 else coord
+                        for coord in data.get("target_hits", [])
+                    ],
+                    "target_owner": data.get("target_owner"),
                 }
                 for key, data in self.shots.items()
             },
@@ -531,6 +538,12 @@ class Match15:
                 "move_count": value.get("move_count", 0),
                 "joke_start": value.get("joke_start"),
                 "last_coord": tuple(value.get("last_coord")) if value.get("last_coord") else None,
+                "target_hits": [
+                    (int(item[0]), int(item[1]))
+                    for item in value.get("target_hits", [])
+                    if isinstance(item, (list, tuple)) and len(item) >= 2
+                ],
+                "target_owner": value.get("target_owner"),
             }
             for key, value in data.get("shots", {}).items()
         }
