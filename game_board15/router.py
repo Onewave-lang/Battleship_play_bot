@@ -30,6 +30,7 @@ from .battle import (
     advance_turn,
     apply_shot,
 )
+from .bot_targeting import _update_bot_target_state
 from .models import (
     Field15,
     Match15,
@@ -586,6 +587,8 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     for key in player_keys:
         entry = match.shots.setdefault(key, {})
         entry["move_count"] = entry.get("move_count", 0) + 1
+
+    _update_bot_target_state(match, player_key, shot_result)
 
     if needs_presave:
         storage.save_match(match)
