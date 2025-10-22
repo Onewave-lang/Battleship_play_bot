@@ -411,9 +411,14 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 'Не удалось присоединиться к матчу 15×15. Попробуйте снова перейти по ссылке приглашения.'
             )
             return
-        if pending_action in {"board15_create", "board15_test"}:
+        if pending_action in {"board15_create", "board15_test", "board15_test_fast"}:
             if pending_action == "board15_test":
                 ack = f'Имя сохранено: {cleaned}. Запускаем тестовый режим 15×15.'
+            elif pending_action == "board15_test_fast":
+                ack = (
+                    f'Имя сохранено: {cleaned}. '
+                    "Запускаем ускоренный тестовый режим 15×15."
+                )
             else:
                 ack = f'Имя сохранено: {cleaned}. Создаём матч 15×15.'
             await update.message.reply_text(ack)
