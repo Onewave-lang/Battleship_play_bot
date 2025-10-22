@@ -101,19 +101,21 @@ def test_router_text_sends_elimination_and_final_summary(monkeypatch):
         update.message.text = "a2"
         await router15.router_text(update, context)
 
+        elimination_by_receiver = {}
+        for receiver_key, text in sent_states:
+            if text.startswith("⛔"):
+                elimination_by_receiver.setdefault(receiver_key, []).append(text)
+
+        for receiver in ("A", "B", "C"):
+            messages = elimination_by_receiver.get(receiver, [])
+            assert any("⛔ Игрок Bravo выбыл" in text for text in messages)
+            assert any("⛔ Игрок Charlie выбыл" in text for text in messages)
+
         calls = context.bot.send_message.await_args_list
         messages_by_chat = {}
         for call in calls:
             chat_id, text = call.args[:2]
             messages_by_chat.setdefault(chat_id, []).append(text)
-
-        assert any("⛔ Игрок Bravo выбыл" in text for text in messages_by_chat[101])
-        assert any("⛔ Игрок Bravo выбыл" in text for text in messages_by_chat[202])
-        assert any("⛔ Игрок Bravo выбыл" in text for text in messages_by_chat[303])
-
-        assert any("⛔ Игрок Charlie выбыл" in text for text in messages_by_chat[101])
-        assert any("⛔ Игрок Charlie выбыл" in text for text in messages_by_chat[202])
-        assert any("⛔ Игрок Charlie выбыл" in text for text in messages_by_chat[303])
 
         winner_summary = messages_by_chat[101][-1]
         assert "Вы победили!🏆" in winner_summary
@@ -129,7 +131,11 @@ def test_router_text_sends_elimination_and_final_summary(monkeypatch):
         third_summary = messages_by_chat[202][-1]
         assert "Вы заняли 3 место." in third_summary
 
-        messages_for_bravo = [text for key, text in sent_states if key == "B"]
+        messages_for_bravo = [
+            text
+            for key, text in sent_states
+            if key == "B" and not text.startswith("⛔")
+        ]
         assert len(messages_for_bravo) == 2
         assert "Соперник уничтожил ваш корабль" in messages_for_bravo[0]
         assert "корабль игрока Charlie" in messages_for_bravo[1]

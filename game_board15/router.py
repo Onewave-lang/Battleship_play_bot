@@ -199,18 +199,29 @@ def _record_eliminations(match, eliminated: List[str]) -> List[str]:
 
 
 async def _broadcast_elimination(
-    context: ContextTypes.DEFAULT_TYPE, match, player_key: str
+    context: ContextTypes.DEFAULT_TYPE,
+    match,
+    player_key: str,
+    *,
+    snapshot: "Snapshot15" | None = None,
 ) -> None:
     label = _player_label(match, player_key)
     text = f"⛔ Игрок {label} выбыл (флот уничтожен)"
-    for _, player in _iter_real_players(match):
+    for other_key, player in _iter_real_players(match):
         try:
-            await context.bot.send_message(player.chat_id, text)
+            await _send_state(
+                context,
+                match,
+                other_key,
+                text,
+                snapshot=snapshot,
+            )
         except asyncio.CancelledError:
             raise
         except Exception:
             logger.exception(
-                "Failed to send elimination notice for player %s", player_key
+                "Failed to send elimination notice for player %s",
+                player_key,
             )
 
 
@@ -754,7 +765,12 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             logger.exception("Failed to notify player %s", other_key)
 
     for eliminated_key in outcome.eliminated:
-        await _broadcast_elimination(context, match, eliminated_key)
+        await _broadcast_elimination(
+            context,
+            match,
+            eliminated_key,
+            snapshot=snapshot,
+        )
 
     if outcome.finished:
         ranking = _final_ranking(match, outcome.winner, elimination_order)
