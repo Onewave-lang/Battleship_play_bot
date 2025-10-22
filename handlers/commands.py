@@ -437,7 +437,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if ADMIN_ID is not None and update.effective_user and update.effective_user.id == ADMIN_ID:
             buttons.append([InlineKeyboardButton('[адм.] Тест 2 игроков', callback_data='mode_test2')])
             if BOARD15_TEST_ENABLED:
-                buttons.append([InlineKeyboardButton('[адм.] Тест 3 игроков', callback_data='mode_test3')])
+                buttons.append([
+                    InlineKeyboardButton('[адм.] Тест 3 игроков', callback_data='mode_test3')
+                ])
+                buttons.append([
+                    InlineKeyboardButton(
+                        '[адм.] Тест 3 игроков (ускор.)',
+                        callback_data='mode_test3_fast',
+                    )
+                ])
         keyboard = InlineKeyboardMarkup(buttons)
         await update.message.reply_text('Выберите режим игры:', reply_markup=keyboard)
 
@@ -678,3 +686,21 @@ async def choose_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             effective_chat=getattr(message, 'chat', None),
         )
         await board15_test(fake_update, context)
+    elif query.data == 'mode_test3_fast':
+        if ADMIN_ID is None or not query.from_user or query.from_user.id != ADMIN_ID:
+            logger.info(
+                'Unauthorized mode_test3_fast selection: user_id=%s admin_id=%s',
+                getattr(query.from_user, 'id', None),
+                ADMIN_ID,
+            )
+            return
+        from game_board15.handlers import board15_test_fast  # Local import to avoid circular deps.
+
+        message = query.message
+        fake_update = SimpleNamespace(
+            message=message,
+            effective_message=message,
+            effective_user=query.from_user,
+            effective_chat=getattr(message, 'chat', None),
+        )
+        await board15_test_fast(fake_update, context)

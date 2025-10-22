@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 PENDING_BOARD15_CREATE = "board15_create"
 PENDING_BOARD15_TEST = "board15_test"
+PENDING_BOARD15_TEST_FAST = "board15_test_fast"
 
 async def _prompt_for_name(
     update: Update,
@@ -57,6 +58,8 @@ async def _create_board15_match(
     context: ContextTypes.DEFAULT_TYPE,
     *,
     test_mode: bool = False,
+    pending_action: Optional[str] = None,
+    bot_delay: Optional[float] = None,
 ) -> Optional[Match15]:
     message = update.message
     if not message:
@@ -72,10 +75,13 @@ async def _create_board15_match(
     name = get_player_name(context)
     if not name:
         # Should not happen because we prompt beforehand, but guard just in case.
+        pending_key = pending_action or (
+            PENDING_BOARD15_TEST if test_mode else PENDING_BOARD15_CREATE
+        )
         await _prompt_for_name(
             update,
             context,
-            pending_action=PENDING_BOARD15_TEST if test_mode else PENDING_BOARD15_CREATE,
+            pending_action=pending_key,
         )
         return None
 
@@ -99,7 +105,8 @@ async def _create_board15_match(
         await message.reply_text(
             "Тестовый матч 15×15 создан. Боты будут ходить автоматически."
         )
-        await _auto_play_bots(context, match, "A", delay=3.0)
+        delay_value = 3.0 if bot_delay is None else bot_delay
+        await _auto_play_bots(context, match, "A", delay=delay_value)
         logger.info("MATCH3_TEST_CREATE | match_id=%s owner=%s", match.match_id, user.id)
     else:
         bot_username = getattr(await context.bot.get_me(), "username", None)
@@ -143,16 +150,27 @@ async def _ensure_board15_ready(
     context: ContextTypes.DEFAULT_TYPE,
     *,
     test_mode: bool = False,
+    pending_action: Optional[str] = None,
+    bot_delay: Optional[float] = None,
 ) -> Optional[Match15]:
     name = get_player_name(context)
     if not name:
+        pending_key = pending_action or (
+            PENDING_BOARD15_TEST if test_mode else PENDING_BOARD15_CREATE
+        )
         await _prompt_for_name(
             update,
             context,
-            pending_action=PENDING_BOARD15_TEST if test_mode else PENDING_BOARD15_CREATE,
+            pending_action=pending_key,
         )
         return None
-    return await _create_board15_match(update, context, test_mode=test_mode)
+    return await _create_board15_match(
+        update,
+        context,
+        test_mode=test_mode,
+        pending_action=pending_action,
+        bot_delay=bot_delay,
+    )
 
 
 async def finalize_board15_pending(
@@ -161,8 +179,18 @@ async def finalize_board15_pending(
     pending: dict,
 ) -> bool:
     action = pending.get("action")
-    test_mode = action == PENDING_BOARD15_TEST
-    match = await _create_board15_match(update, context, test_mode=test_mode)
+    test_mode = action in {PENDING_BOARD15_TEST, PENDING_BOARD15_TEST_FAST}
+    bot_delay: Optional[float] = None
+    if action == PENDING_BOARD15_TEST_FAST:
+        bot_delay = 0.0
+    pending_action = action if isinstance(action, str) else None
+    match = await _create_board15_match(
+        update,
+        context,
+        test_mode=test_mode,
+        pending_action=pending_action,
+        bot_delay=bot_delay,
+    )
     return match is not None
 
 
@@ -287,25 +315,62 @@ async def add_board15_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
 
 
-async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def _board15_test_impl(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    bot_delay: Optional[float],
+    pending_action: str,
+    log_label: str,
+) -> None:
     user = update.effective_user
     message = getattr(update, "effective_message", None) or getattr(update, "message", None)
     user_id = getattr(user, "id", None)
     if ADMIN_ID is None:
-        logger.warning("BOARD15TEST invoked without ADMIN_ID configured; access denied")
+        logger.warning(
+            "%s invoked without ADMIN_ID configured; access denied",
+            log_label.upper(),
+        )
         if message is not None:
             await message.reply_text("Команда доступна только администратору.")
         return
     if user_id != ADMIN_ID:
         logger.info(
-            "Unauthorized board15test usage attempt: user_id=%s admin_id=%s",
+            "Unauthorized %s usage attempt: user_id=%s admin_id=%s",
+            log_label,
             user_id,
             ADMIN_ID,
         )
         if message is not None:
             await message.reply_text("Команда доступна только администратору.")
         return
-    await _ensure_board15_ready(update, context, test_mode=True)
+    await _ensure_board15_ready(
+        update,
+        context,
+        test_mode=True,
+        pending_action=pending_action,
+        bot_delay=bot_delay,
+    )
+
+
+async def board15_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _board15_test_impl(
+        update,
+        context,
+        bot_delay=None,
+        pending_action=PENDING_BOARD15_TEST,
+        log_label="board15test",
+    )
+
+
+async def board15_test_fast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _board15_test_impl(
+        update,
+        context,
+        bot_delay=0.0,
+        pending_action=PENDING_BOARD15_TEST_FAST,
+        log_label="board15test_fast",
+    )
 
 
 async def _auto_play_bots(

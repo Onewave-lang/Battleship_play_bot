@@ -63,7 +63,10 @@ def test_board15_creates_match_after_name(monkeypatch, tmp_path):
             effective_user=SimpleNamespace(id=1, first_name="Tester"),
             effective_chat=SimpleNamespace(id=1),
         )
-        context = SimpleNamespace(user_data={}, bot_data={}, bot=SimpleNamespace())
+        bot_mock = SimpleNamespace(
+            get_me=AsyncMock(return_value=SimpleNamespace(username="TestBot"))
+        )
+        context = SimpleNamespace(user_data={}, bot_data={}, bot=bot_mock)
 
         await handlers15.board15(update_cmd, context)
 
@@ -102,6 +105,7 @@ def test_board15_creates_match_after_name(monkeypatch, tmp_path):
         assert context.user_data.get(commands_module.NAME_KEY) == "Иван"
         state = context.user_data.get(commands_module.NAME_STATE_KEY, {})
         assert not state.get("waiting")
+        bot_mock.get_me.assert_awaited()
 
     asyncio.run(run())
 
@@ -333,6 +337,41 @@ def test_board15_test_sets_playing(monkeypatch, tmp_path):
         reply_messages = [call.args[0] for call in reply_text.call_args_list]
         assert any("Тестовый матч 15×15 создан" in text for text in reply_messages)
 
+    asyncio.run(run())
+
+
+def test_board15_test_fast_uses_zero_delay(monkeypatch, tmp_path):
+    monkeypatch.setenv("ADMIN_ID", "1")
+    commands_module, storage15, handlers15, _ = _reload_board15(monkeypatch, tmp_path)
+
+    async def run():
+        context = SimpleNamespace(
+            user_data={commands_module.NAME_KEY: "Тест"},
+            bot_data={},
+            bot=SimpleNamespace(
+                send_photo=AsyncMock(return_value=SimpleNamespace(message_id=1)),
+                send_message=AsyncMock(),
+            ),
+        )
+        reply_text = AsyncMock()
+        update = SimpleNamespace(
+            message=SimpleNamespace(reply_text=reply_text),
+            effective_user=SimpleNamespace(id=1, first_name="Admin"),
+            effective_chat=SimpleNamespace(id=1),
+        )
+
+        auto_play_mock = AsyncMock()
+        monkeypatch.setattr(handlers15, "_auto_play_bots", auto_play_mock)
+
+        await handlers15.board15_test_fast(update, context)
+
+        match = storage15.find_match_by_user(1, 1)
+        assert match is not None
+        assert match.status == "playing"
+        auto_play_mock.assert_awaited()
+        args, kwargs = auto_play_mock.await_args
+        assert kwargs.get("delay") == 0.0
+        assert args[0] is context
     asyncio.run(run())
 
 
