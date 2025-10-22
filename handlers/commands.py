@@ -435,9 +435,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             ]
         ]
         if ADMIN_ID is not None and update.effective_user and update.effective_user.id == ADMIN_ID:
-            buttons.append([InlineKeyboardButton('Тест 2 игроков', callback_data='mode_test2')])
+            buttons.append([InlineKeyboardButton('[адм.] Тест 2 игроков', callback_data='mode_test2')])
             if BOARD15_TEST_ENABLED:
-                buttons.append([InlineKeyboardButton('Тест 3 игроков', callback_data='mode_test3')])
+                buttons.append([InlineKeyboardButton('[адм.] Тест 3 игроков', callback_data='mode_test3')])
         keyboard = InlineKeyboardMarkup(buttons)
         await update.message.reply_text('Выберите режим игры:', reply_markup=keyboard)
 
