@@ -84,7 +84,9 @@ bot_app.add_handler(CommandHandler("boardtest2", board_test_two))
 bot_app.add_handler(CommandHandler(["quit", "exit"], quit_game))
 bot_app.add_handler(CallbackQueryHandler(send_invite_link, pattern="^get_link$"))
 bot_app.add_handler(CallbackQueryHandler(choose_mode, pattern="^mode_test2$"))
-bot_app.add_handler(CallbackQueryHandler(choose_mode, pattern="^mode_(?:2|3|test3)$"))
+bot_app.add_handler(
+    CallbackQueryHandler(choose_mode, pattern="^mode_(?:2|3|test3(?:_fast)?)$")
+)
 bot_app.add_handler(CallbackQueryHandler(confirm_newgame, pattern="^ng_"))
 bot_app.add_handler(CallbackQueryHandler(confirm_join, pattern="^join_"))
 if BOARD15_ENABLED:
