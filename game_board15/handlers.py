@@ -666,7 +666,10 @@ async def _auto_play_bots(
 
                 for eliminated_key in outcome.eliminated:
                     await router_ref._broadcast_elimination(
-                        context, match_ref, eliminated_key
+                        context,
+                        match_ref,
+                        eliminated_key,
+                        snapshot=snapshot,
                     )
 
                 if outcome.finished:
