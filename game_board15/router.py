@@ -772,6 +772,36 @@ async def router_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             snapshot=snapshot,
         )
 
+    if (
+        match.status == "playing"
+        and not outcome.finished
+        and any(
+            getattr(player, "user_id", None) == 0
+            for player in match.players.values()
+            if player is not None
+        )
+    ):
+        human_keys = [
+            key
+            for key, player in match.players.items()
+            if player is not None and getattr(player, "chat_id", 0)
+        ]
+        try:
+            from . import handlers as handlers_module
+
+            await handlers_module.ensure_auto_play_bots(
+                context,
+                match,
+                human_keys=human_keys,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception(
+                "Failed to ensure bot auto-play for match %s",
+                getattr(match, "match_id", "?"),
+            )
+
     if outcome.finished:
         ranking = _final_ranking(match, outcome.winner, elimination_order)
         await _send_final_summaries(context, match, ranking, outcome.winner)
