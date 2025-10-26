@@ -5,7 +5,7 @@ import asyncio
 import logging
 import random
 from urllib.parse import quote_plus
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional, Set
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
@@ -30,6 +30,9 @@ logger = logging.getLogger(__name__)
 PENDING_BOARD15_CREATE = "board15_create"
 PENDING_BOARD15_TEST = "board15_test"
 PENDING_BOARD15_TEST_FAST = "board15_test_fast"
+
+_bot_loop_tasks: Dict[str, asyncio.Task] = {}
+_bot_loop_starting: Set[str] = set()
 
 async def _prompt_for_name(
     update: Update,
@@ -88,7 +91,12 @@ async def _create_board15_match(
     match = storage.create_match(user.id, chat.id, name)
 
     if test_mode:
-        match.messages.setdefault("_flags", {})["board15_test"] = True
+        delay_value = 3.0 if bot_delay is None else bot_delay
+        flags = match.messages.setdefault("_flags", {})
+        flags["board15_test"] = True
+        if bot_delay == 0.0:
+            flags["board15_test_fast"] = True
+        flags["bot_delay"] = delay_value
         context.bot_data.setdefault(STATE_KEY, {})
         for key in PLAYER_ORDER:
             if key == "A":
@@ -105,8 +113,7 @@ async def _create_board15_match(
         await message.reply_text(
             "Тестовый матч 15×15 создан. Боты будут ходить автоматически."
         )
-        delay_value = 3.0 if bot_delay is None else bot_delay
-        await _auto_play_bots(context, match, "A", delay=delay_value)
+        await ensure_auto_play_bots(context, match, "A", delay=delay_value)
         logger.info("MATCH3_TEST_CREATE | match_id=%s owner=%s", match.match_id, user.id)
     else:
         bot_username = getattr(await context.bot.get_me(), "username", None)
@@ -278,6 +285,7 @@ async def add_board15_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     flags = match.messages.setdefault("_flags", {})
     flags["board15_bot"] = True
+    flags.setdefault("bot_delay", 3.0)
 
     storage.append_snapshot(match)
 
@@ -307,7 +315,7 @@ async def add_board15_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 "Failed to clear bot invite keyboard for match %s", match.match_id
             )
 
-    await _auto_play_bots(
+    await ensure_auto_play_bots(
         context,
         match,
         human_keys=human_players,
@@ -373,6 +381,56 @@ async def board15_test_fast(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     )
 
 
+async def ensure_auto_play_bots(
+    context: ContextTypes.DEFAULT_TYPE,
+    match: Match15,
+    human_keys: Iterable[str] | str | None = None,
+    *,
+    delay: Optional[float] = None,
+) -> None:
+    match_id = getattr(match, "match_id", None)
+    if not match_id:
+        return
+
+    flags: Dict[str, object] = {}
+    messages = getattr(match, "messages", None)
+    if isinstance(messages, dict):
+        raw_flags = messages.get("_flags")
+        if isinstance(raw_flags, dict):
+            flags = raw_flags
+
+    delay_value: float
+    if delay is None:
+        stored_delay = flags.get("bot_delay") if flags else None
+        if isinstance(stored_delay, (int, float)):
+            delay_value = float(stored_delay)
+        else:
+            delay_value = 3.0
+    else:
+        delay_value = delay
+
+    existing = _bot_loop_tasks.get(match_id)
+    if existing is not None:
+        if existing.done():
+            _bot_loop_tasks.pop(match_id, None)
+        else:
+            return
+
+    if match_id in _bot_loop_starting:
+        return
+
+    _bot_loop_starting.add(match_id)
+    try:
+        await _auto_play_bots(
+            context,
+            match,
+            human_keys=human_keys,
+            delay=delay_value,
+        )
+    finally:
+        _bot_loop_starting.discard(match_id)
+
+
 async def _auto_play_bots(
     context: ContextTypes.DEFAULT_TYPE,
     match: Match15,
@@ -382,6 +440,9 @@ async def _auto_play_bots(
 ) -> None:
     logger = logging.getLogger(__name__)
     router_ref = router
+    match_id = getattr(match, "match_id", None)
+    if not match_id:
+        return
 
     if isinstance(human_keys, str):
         initial_humans = [human_keys]
@@ -754,11 +815,20 @@ async def _auto_play_bots(
 
     await _send_initial(match_ref)
     loop = getattr(context, "application", None)
-    task = _loop()
+    task_coro = _loop()
     if loop and hasattr(loop, "create_task"):
-        loop.create_task(task)
+        task = loop.create_task(task_coro)
     else:
-        asyncio.create_task(task)
+        task = asyncio.create_task(task_coro)
+
+    _bot_loop_tasks[match_id] = task
+
+    def _cleanup(fut: asyncio.Task) -> None:
+        stored = _bot_loop_tasks.get(match_id)
+        if stored is fut:
+            _bot_loop_tasks.pop(match_id, None)
+
+    task.add_done_callback(_cleanup)
     await asyncio.sleep(0)
 
 
@@ -769,4 +839,5 @@ __all__ = [
     "finalize_board15_pending",
     "add_board15_bot",
     "send_board15_invite_link",
+    "ensure_auto_play_bots",
 ]
