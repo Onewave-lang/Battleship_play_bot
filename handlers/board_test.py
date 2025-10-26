@@ -28,6 +28,30 @@ def _cell_state(cell):
     return cell[0] if isinstance(cell, (list, tuple)) else cell
 
 
+def _has_diagonal_wounded(board, coord):
+    r, c = coord
+    size = len(board.grid)
+    for dr in (-1, 1):
+        for dc in (-1, 1):
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < size and 0 <= nc < len(board.grid[nr]):
+                if _cell_state(board.grid[nr][nc]) == 3:
+                    return True
+    return False
+
+
+def _available_bot_targets(board):
+    targets = []
+    for r, row in enumerate(board.grid):
+        for c, cell in enumerate(row):
+            if _cell_state(cell) in (2, 3, 4, 5):
+                continue
+            if _has_diagonal_wounded(board, (r, c)):
+                continue
+            targets.append((r, c))
+    return targets
+
+
 def _phrase_or_joke(match, player_key: str, phrases: list[str]) -> str:
     shots = match.shots[player_key]
     start = shots.get("joke_start")
@@ -341,12 +365,7 @@ async def _auto_play_bot(
             await asyncio.sleep(delay)
 
         board = match.boards[human]
-        available_cells = [
-            (r, c)
-            for r, row in enumerate(board.grid)
-            for c, cell in enumerate(row)
-            if _cell_state(cell) not in (2, 3, 4, 5)
-        ]
+        available_cells = _available_bot_targets(board)
         if not available_cells:
             break
         coord = random.choice(available_cells)

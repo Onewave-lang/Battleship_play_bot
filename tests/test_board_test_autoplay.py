@@ -7,7 +7,7 @@ import pytest
 from handlers import board_test
 from handlers import router as router_std
 import storage
-from models import Match, Player
+from models import Board, Match, Player
 
 
 def test_auto_play_bots_skips_unrelated_human_updates(monkeypatch):
@@ -61,4 +61,17 @@ def test_auto_play_bots_skips_unrelated_human_updates(monkeypatch):
         context.bot.send_message.assert_not_called()
 
     asyncio.run(run())
+
+
+def test_available_bot_targets_skip_diagonal_from_wounded() -> None:
+    board = Board()
+    board.grid[5][5] = 3
+
+    targets = board_test._available_bot_targets(board)
+
+    assert (4, 4) not in targets
+    assert (4, 6) not in targets
+    assert (6, 4) not in targets
+    assert (6, 6) not in targets
+    assert (5, 6) in targets
 

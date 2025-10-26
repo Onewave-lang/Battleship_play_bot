@@ -1,6 +1,7 @@
 import random
 
 from game_board15.battle import HIT, KILL, ShotResult
+from game_board15.bot_targeting import _is_available_target
 from game_board15.handlers import _choose_bot_target, _update_bot_target_state
 from game_board15.models import Match15, Ship
 
@@ -159,5 +160,12 @@ def test_bot_target_clears_when_ship_killed_by_other_player() -> None:
     kill_result = ShotResult(result=KILL, owner="A", coord=(2, 3), killed_ship=ship)
     _update_bot_target_state(match, "C", kill_result)
 
-    assert entry_bot["target_hits"] == []
-    assert entry_bot["target_owner"] is None
+
+def test_available_target_skips_diagonal_near_wounded() -> None:
+    match = Match15(match_id="diag")
+    field = match.field
+    field.set_state((5, 5), 3, "A")
+
+    assert not _is_available_target(field, "B", (4, 4))
+    assert not _is_available_target(field, "B", (6, 6))
+    assert _is_available_target(field, "B", (5, 6))

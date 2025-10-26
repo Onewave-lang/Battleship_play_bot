@@ -24,6 +24,17 @@ def _is_adjacent(a: Coord, b: Coord) -> bool:
     return abs(a[0] - b[0]) + abs(a[1] - b[1]) == 1
 
 
+def _has_diagonal_wounded(field: Field15, coord: Coord) -> bool:
+    r, c = coord
+    for dr in (-1, 1):
+        for dc in (-1, 1):
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < BOARD_SIZE and 0 <= nc < BOARD_SIZE:
+                if field.state_at((nr, nc)) == 3:
+                    return True
+    return False
+
+
 def _orthogonal_neighbors(coord: Coord) -> List[Coord]:
     r, c = coord
     neighbours: List[Coord] = []
@@ -54,6 +65,8 @@ def _normalize_target_hits(entry: Dict[str, object], field: Field15) -> List[Coo
 def _is_available_target(field: Field15, shooter: str, coord: Coord) -> bool:
     owner = field.owner_at(coord)
     if owner == shooter:
+        return False
+    if _has_diagonal_wounded(field, coord):
         return False
     state = field.state_at(coord)
     return state not in (2, 3, 4, 5)
